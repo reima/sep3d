@@ -58,8 +58,7 @@ void testVec3(void) {
   std::cout.rdbuf(psbuf);
 }
 
-int _tmain(int argc, _TCHAR* argv[])
-{
+void testTriangle(void) {
   Vec3 p1(5.4, 3.6, 4.2);
   Vec3 p2(5.9, 4.6, 5.2);
   Vec3 p3(0.2, -0.8, 0.6);
@@ -82,6 +81,12 @@ int _tmain(int argc, _TCHAR* argv[])
   std::cout << "Normale: ";
   tri.getNormal().print();
   std::cout << std::endl;
+}
+
+int _tmain(int argc, _TCHAR* argv[])
+{
+  testVec3();
+  testTriangle();
 
   return 0;
 }
