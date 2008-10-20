@@ -1,0 +1,10 @@
+Debug
+Release
+*.exe
+*.pdb
+*.ncb
+*.obj
+*.dep
+*.pch
+*.zip
+*.user
