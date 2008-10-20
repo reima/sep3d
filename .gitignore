@@ -1,6 +1,7 @@
 Debug
 Release
 *.exe
+*.suo
 *.pdb
 *.ncb
 *.obj
