@@ -1,5 +1,8 @@
+*.bak
+*~
 Debug
 Release
+doc
 *.exe
 *.pdb
 *.ncb
