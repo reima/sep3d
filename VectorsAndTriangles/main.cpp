@@ -45,13 +45,16 @@ void testVec3(void) {
   v4.add(v3);
   assert(v4.isEqual(Vec3(0, 0, 0)));
 
+  // Standardausgabe retten
   std::streambuf *psbuf;
   psbuf = std::cout.rdbuf();
+  // Standardausgabe auf Puffer umleiten
   std::stringbuf sb;
   std::cout.rdbuf(&sb);
   v1 = Vec3(0.1, 2.3, 4.5);
   v1.print();
   assert(sb.str() == "(0.1, 2.3, 4.5)");
+  // Standardausgabe wiederherstellen
   std::cout.rdbuf(psbuf);
 }
 
@@ -82,4 +85,3 @@ int _tmain(int argc, _TCHAR* argv[])
 
   return 0;
 }
-
