@@ -1,9 +1,20 @@
-#include "Tile.h"
-
 #include <ctime>
 #include <cstdlib>
-
 #include "IOTools.h"
+#include "Tile.h"
+
+#define M(x,y) (y)*size_+(x)
+
+namespace {
+
+/**
+ * Generiert zuf‰llige Flieﬂkommazahl zwischen -1 und 1
+ */
+inline float randf() {
+  return rand() / (RAND_MAX * 0.5f) - 1.0f;
+}
+
+}
 
 Tile::Tile(int lod, float roughness)
     : lod_(lod),
@@ -16,22 +27,15 @@ Tile::~Tile(void) {
   delete[] height_map_;
 }
 
-inline float randf() {
-  return rand() / (RAND_MAX * 0.5f) - 1.0f;
-}
-
-#define M(x,y) (y)*size_+(x)
-
 void Tile::init(float roughness) {
   srand(static_cast<unsigned int>(time(0)));
+  int size = size_ - 1;
 
   // Ecken mit Zufallswerten initialisieren
-  height_map_[M(0,         0)]         = randf();
-  height_map_[M(0,         size_ - 1)] = randf();
-  height_map_[M(size_ - 1, 0)]         = randf();
-  height_map_[M(size_ - 1, size_ - 1)] = randf();
-
-  int size = size_ - 1;
+  height_map_[M(0,    0)]    = randf();
+  height_map_[M(0,    size)] = randf();
+  height_map_[M(size, 0)]    = randf();
+  height_map_[M(size, size)] = randf();  
 
   while (size > 1) {
     int hsize = size/2;
@@ -81,7 +85,7 @@ void Tile::init(float roughness) {
         height_map_[M(x - hsize, y)] = w;
 
         /**
-         * Edge cases, Berechnung neuer Werte (+) am rechten bzw. unteren Rand
+         * Edge cases: Berechnung neuer Werte (+) am rechten bzw. unteren Rand
          * -   -
          *     +
          * - + -
