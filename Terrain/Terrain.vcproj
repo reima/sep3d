@@ -115,6 +115,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="2"
 				EnableIntrinsicFunctions="true"
+				AdditionalIncludeDirectories="..\IOTools"
 				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
@@ -172,15 +173,15 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
-				RelativePath="..\IOTools\IOTools.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\stdafx.cpp"
 				>
 			</File>
 			<File
 				RelativePath=".\Terrain.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\Tile.cpp"
 				>
 			</File>
 		</Filter>
@@ -190,19 +191,15 @@
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 			<File
-				RelativePath="..\IOTools\crc32.h"
-				>
-			</File>
-			<File
-				RelativePath="..\IOTools\IOTools.h"
-				>
-			</File>
-			<File
 				RelativePath=".\stdafx.h"
 				>
 			</File>
 			<File
 				RelativePath=".\targetver.h"
+				>
+			</File>
+			<File
+				RelativePath=".\Tile.h"
 				>
 			</File>
 		</Filter>
@@ -211,6 +208,22 @@
 			Filter="rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav"
 			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
 			>
+		</Filter>
+		<Filter
+			Name="IOTools"
+			>
+			<File
+				RelativePath="..\IOTools\crc32.h"
+				>
+			</File>
+			<File
+				RelativePath="..\IOTools\IOTools.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\IOTools\IOTools.h"
+				>
+			</File>
 		</Filter>
 	</Files>
 	<Globals>
