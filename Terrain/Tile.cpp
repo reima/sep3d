@@ -1,7 +1,14 @@
+#include <algorithm>
 #include <ctime>
 #include <cstdlib>
+#include <limits>
 #include "IOTools.h"
 #include "Tile.h"
+
+// Die Makros min und max aus windef.h vertragen sich nicht mit std::min,
+// std::max, std::numeric_limits<*>::min, std::numeric_limits<*>::max.
+#undef min
+#undef max
 
 #define M(x,y) (y)*size_+(x)
 
@@ -21,6 +28,11 @@ Tile::Tile(int lod, float roughness)
       size_((1 << lod) + 1) {
   height_map_ = new float[size_*size_];
   init(roughness);
+}
+
+Tile::Tile(const Tile &t) : lod_(t.lod_), size_(t.size_) {
+  height_map_ = new float[size_*size_];
+  memcpy(height_map_, t.height_map_, size_ * size_ * sizeof(float));
 }
 
 Tile::~Tile(void) {
@@ -61,6 +73,7 @@ void Tile::init(float roughness) {
          * -   -
          */       
         float center = (nw + ne + sw + se) / 4 + offset_factor * randf();
+        height_map_[M(x, y)] = center;
         
         float n = nw + ne + center;
         if (y > hsize) {
@@ -69,7 +82,7 @@ void Tile::init(float roughness) {
         } else {
           n /= 3;
         }
-        n += offset_factor * randf();
+        height_map_[M(x, y - hsize)] = n + offset_factor * randf();
 
         float w = nw + sw + center;
         if (x > hsize) {
@@ -78,11 +91,7 @@ void Tile::init(float roughness) {
         } else {
           w /= 3;
         }
-        w += offset_factor * randf();
-
-        height_map_[M(x, y)] = center;
-        height_map_[M(x, y - hsize)] = n;
-        height_map_[M(x - hsize, y)] = w;
+        height_map_[M(x - hsize, y)] = w + offset_factor * randf();
 
         /**
          * Edge cases: Berechnung neuer Werte (+) am rechten bzw. unteren Rand
@@ -106,17 +115,21 @@ void Tile::init(float roughness) {
 }
 
 float Tile::getMinHeight() const {
-  float min = height_map_[0];
-  for (int i = 1; i < size_*size_; ++i) {
-    min = min(min, height_map_[i]);
+  static float min = std::numeric_limits<float>::max();
+  if (min == std::numeric_limits<float>::max()) {
+    for (int i = 0; i < size_*size_; ++i) {
+      min = std::min(min, height_map_[i]);
+    }
   }
   return min;
 }
 
 float Tile::getMaxHeight() const {
-  float max = height_map_[0];
-  for (int i = 1; i < size_*size_; ++i) {
-    max = max(max, height_map_[i]);
+  static float max = std::numeric_limits<float>::min();
+  if (max == std::numeric_limits<float>::min()) {
+    for (int i = 1; i < size_*size_; ++i) {
+      max = std::max(max, height_map_[i]);
+    }
   }
   return max;
 }

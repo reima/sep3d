@@ -13,6 +13,7 @@ class Tile {
    *                  Höhenunterschiede)
    */
   Tile(int lod, float roughness);
+  Tile(const Tile &t);
   ~Tile(void);
 
   /** 
