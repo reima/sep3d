@@ -3,8 +3,8 @@
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-  Tile t(8, 1.f);
-  t.saveImage(L"Terrain.bmp");
-
+  Tile t(2, 1.f);
+  t.saveImage(L"Terrain-.bmp");
+  t.triangulate_z();
   return 0;
 }

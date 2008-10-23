@@ -4,6 +4,7 @@
 #include <limits>
 #include "IOTools.h"
 #include "Tile.h"
+#include <cstdio>
 
 // Die Makros min und max aus windef.h vertragen sich nicht mit std::min,
 // std::max, std::numeric_limits<*>::min, std::numeric_limits<*>::max.
@@ -27,6 +28,8 @@ Tile::Tile(int lod, float roughness)
     : lod_(lod),
       size_((1 << lod) + 1) {
   height_map_ = new float[size_*size_];
+  index_buffer = new unsigned[(size_-1)*(size_-1)*6]; //2 dreiecke zwischen 4 punkten
+  buffer_index = 0;
   init(roughness);
 }
 
@@ -144,4 +147,58 @@ void Tile::saveImage(const TCHAR *filename) const {
     image_data[3*i] = image_data[3*i+1] = image_data[3*i+2] = color;
   }
   IOTools::SaveImage(filename, size_, size_, image_data, true);
+}
+
+void Tile::triangulate_lines(void) const {
+   //dreieck 1 links oben, dreieck2 rechts unten
+  
+  int size=size_-1;
+
+  for(int y=0; y<size_; y++)
+    for(int x=0; x<size_; x++){
+      index_buffer[(y*size+x)*6   ]= M(x, y); //1.dreieck links oben
+      index_buffer[(y*size+x)*6 +1]= M(x+1, y); //1.dreieck rechts oben
+      index_buffer[(y*size+x)*6 +2]= M(x, y+1); //1.dreieck links unten
+      index_buffer[(y*size+x)*6 +3]= M(x+1, y); //2.dreieck rechts oben
+      index_buffer[(y*size+x)*6 +4]= M(x+1, y+1); //2.dreieck rechts unten
+      index_buffer[(y*size+x)*6 +5]= M(x, y+1); //2.dreieck links unten
+    }
+   // for (int i=0; i<(size_-1)*(size_-1)*6; i+=3)
+   //   printf("%i %i %i\n",index_buffer[i],index_buffer[i+1],index_buffer[i+2]);
+}
+
+void Tile::triangulate_z(void) {
+
+  
+  z_rec(0,0,int((size_-1)/2),int((size_-1)/2));
+  z_rec(int((size_-1)/2),0,(size_-1),int((size_-1)/2));
+  z_rec(0,int((size_-1)/2),int((size_-1)/2),size_-1);
+  z_rec(int((size_-1)/2),int((size_-1)/2),size_-1,size_-1);
+
+//  for (int i=0; i<(size_-1)*(size_-1)*6; i+=3)
+//    printf("%i %i %i\n",index_buffer[i],index_buffer[i+1],index_buffer[i+2]);
+
+}
+
+void Tile::z_rec(int x, int y, int x2, int y2){
+  // wenn wir weit genug recursive rein sind, die dreiecke erzeugen
+  if (x+1==x2) { 
+    index_buffer[buffer_index++] = M(x, y); //1.dreieck links oben
+    index_buffer[buffer_index++] = M(x+1, y); //1.dreieck rechts oben
+    index_buffer[buffer_index++] = M(x, y+1); //1.dreieck links unten
+    index_buffer[buffer_index++] = M(x+1, y); //2.dreieck rechts oben
+    index_buffer[buffer_index++] = M(x+1, y+1); //2.dreieck rechts unten
+    index_buffer[buffer_index++] = M(x, y+1); //2.dreieck links unten
+  }
+ 
+  //ansonsten z auf gegebenes viereck anwenden
+  else {
+    int x12= int((x+x2)/2);
+    int y12= int((y+y2)/2);
+ 
+    z_rec(x, y, x12 , y12);
+    z_rec(x12, y, x2, y12);
+    z_rec(x, y12, x12, y2);
+    z_rec(x12, y12, x2, y2);
+  }
 }
