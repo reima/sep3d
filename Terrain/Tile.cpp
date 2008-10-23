@@ -27,7 +27,7 @@ inline float randf() {
 Tile::Tile(int lod, float roughness)
     : lod_(lod),
       size_((1 << lod) + 1),
-      triangle_indices_(NULL) {
+      index_buffer_(NULL) {
   height_map_ = new float[size_*size_];
   init(roughness);
 }
@@ -35,10 +35,14 @@ Tile::Tile(int lod, float roughness)
 Tile::Tile(const Tile &t) : lod_(t.lod_), size_(t.size_) {
   height_map_ = new float[size_*size_];
   memcpy(height_map_, t.height_map_, size_ * size_ * sizeof(float));
+  if (t.index_buffer_ != NULL) {
+    initIndexBuffer();
+    memcpy(index_buffer_, t.index_buffer_, (size_-1)*(size_-1)*6*sizeof(int));
+  }
 }
 
 Tile::~Tile(void) {
-  delete[] triangle_indices_;
+  delete[] index_buffer_;
   delete[] height_map_;
 }
 
@@ -149,21 +153,55 @@ void Tile::saveImage(const TCHAR *filename) const {
   IOTools::SaveImage(filename, size_, size_, image_data, true);
 }
 
-void Tile::triangulate(void) {
-  if (triangle_indices_ != NULL) delete[] triangle_indices_;
-  const int num_triangles = 2 * (size_ - 1) * (size_ - 1);
-  triangle_indices_ = new int[3 * num_triangles];
-  int i = 0;
-  for (int y = 0; y < size_ - 1; ++y) {
-    for (int x = 0; x < size_ - 1; ++x) {
-      triangle_indices_[i++] = M(x    , y    );
-      triangle_indices_[i++] = M(x + 1, y    );
-      triangle_indices_[i++] = M(x + 1, y + 1);
+void Tile::initIndexBuffer(void) {
+  if (index_buffer_ == NULL) {
+    index_buffer_ = new int[6*(size_-1)*(size_-1)];
+  }    
+}
 
-      triangle_indices_[i++] = M(x    , y    );
-      triangle_indices_[i++] = M(x + 1, y + 1);
-      triangle_indices_[i++] = M(x    , y + 1);
+void Tile::triangulateLines(void)  {
+  initIndexBuffer();
+  // Dreieck 1 links oben, Dreieck 2 rechts unten
+  int i = 0;
+  for (int y = 0; y < size_ - 1; y++) {
+    for (int x = 0; x < size_ - 1; x++) {
+      index_buffer_[i++] = M(x, y);     // 1. Dreieck links oben
+      index_buffer_[i++] = M(x+1, y);   // 1. Dreieck rechts oben
+      index_buffer_[i++] = M(x, y+1);   // 1. Dreieck links unten
+      index_buffer_[i++] = M(x+1, y);   // 2. Dreieck rechts oben
+      index_buffer_[i++] = M(x+1, y+1); // 2. Dreieck rechts unten
+      index_buffer_[i++] = M(x, y+1);   // 2. Dreieck links unten
     }
+  }
+//  for (int i=0; i<(size_-1)*(size_-1)*6; i+=3)
+//    printf("%i %i %i\n",index_buffer[i],index_buffer[i+1],index_buffer[i+2]);
+}
+
+void Tile::triangulateZOrder(void) {
+  initIndexBuffer();
+  int i = 0;  
+  z_rec(0, 0, size_-1, size_-1, i);  
+//  for (int i=0; i<(size_-1)*(size_-1)*6; i+=3)
+//    printf("%i %i %i\n",index_buffer[i],index_buffer[i+1],index_buffer[i+2]);
+}
+
+void Tile::z_rec(int x1, int y1, int x2, int y2, int &i){
+  if (x1 + 1 == x2) {
+    // Rekursionsabbruch, Dreiecke erzeugen
+    index_buffer_[i++] = M(x1, y1);     // 1. Dreieck links oben
+    index_buffer_[i++] = M(x1+1, y1);   // 1. Dreieck rechts oben
+    index_buffer_[i++] = M(x1, y1+1);   // 1. Dreieck links unten
+    index_buffer_[i++] = M(x1+1, y1);   // 2. Dreieck rechts oben
+    index_buffer_[i++] = M(x1+1, y1+1); // 2. Dreieck rechts unten
+    index_buffer_[i++] = M(x1, y1+1);   // 2. Dreieck links unten
+  } else {
+    int x12 = (x1+x2)/2;
+    int y12 = (y1+y2)/2;
+ 
+    z_rec(x1, y1, x12, y12, i);
+    z_rec(x12, y1, x2, y12, i);
+    z_rec(x1, y12, x12, y2, i);
+    z_rec(x12, y12, x2, y2, i);
   }
 }
 
@@ -175,13 +213,13 @@ void Tile::saveObj(const TCHAR *filename) const {
       ofs << "v " << ((float)x/size_*2-1) << " " << height_map_[M(x,y)] << " " << ((float)y/size_*2-1) << std::endl;
     }
   }
-  if (triangle_indices_ != NULL) {
+  if (index_buffer_ != NULL) {
     const int num_triangles = 2 * (size_ - 1) * (size_ - 1);
     for (int i = 0; i < num_triangles; ++i) {
       ofs << "f ";
-      ofs << (triangle_indices_[3*i]+1) << " ";
-      ofs << (triangle_indices_[3*i+1]+1) << " ";
-      ofs << (triangle_indices_[3*i+2]+1) << std::endl;
+      ofs << (index_buffer_[3*i]+1) << " ";
+      ofs << (index_buffer_[3*i+1]+1) << " ";
+      ofs << (index_buffer_[3*i+2]+1) << std::endl;
     }
   }
-}
+};
