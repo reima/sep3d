@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <ctime>
 #include <cstdlib>
+#include <fstream>
 #include <limits>
 #include "IOTools.h"
 #include "Tile.h"
@@ -25,7 +26,8 @@ inline float randf() {
 
 Tile::Tile(int lod, float roughness)
     : lod_(lod),
-      size_((1 << lod) + 1) {
+      size_((1 << lod) + 1),
+      triangle_indices_(NULL) {
   height_map_ = new float[size_*size_];
   init(roughness);
 }
@@ -36,6 +38,7 @@ Tile::Tile(const Tile &t) : lod_(t.lod_), size_(t.size_) {
 }
 
 Tile::~Tile(void) {
+  delete[] triangle_indices_;
   delete[] height_map_;
 }
 
@@ -136,12 +139,49 @@ float Tile::getMaxHeight() const {
 
 void Tile::saveImage(const TCHAR *filename) const {
   unsigned char *image_data = new unsigned char[3*size_*size_];
-  float min = getMinHeight();
-  float max = getMaxHeight();
+  const float min = getMinHeight();
+  const float max = getMaxHeight();
   for (int i = 0; i < size_*size_; ++i) {
     unsigned char color =
         static_cast<unsigned char>((height_map_[i] - min) / (max - min) * 255);
     image_data[3*i] = image_data[3*i+1] = image_data[3*i+2] = color;
   }
   IOTools::SaveImage(filename, size_, size_, image_data, true);
+}
+
+void Tile::triangulate(void) {
+  if (triangle_indices_ != NULL) delete[] triangle_indices_;
+  const int num_triangles = 2 * (size_ - 1) * (size_ - 1);
+  triangle_indices_ = new int[3 * num_triangles];
+  int i = 0;
+  for (int y = 0; y < size_ - 1; ++y) {
+    for (int x = 0; x < size_ - 1; ++x) {
+      triangle_indices_[i++] = M(x    , y    );
+      triangle_indices_[i++] = M(x + 1, y    );
+      triangle_indices_[i++] = M(x + 1, y + 1);
+
+      triangle_indices_[i++] = M(x    , y    );
+      triangle_indices_[i++] = M(x + 1, y + 1);
+      triangle_indices_[i++] = M(x    , y + 1);
+    }
+  }
+}
+
+void Tile::saveObj(const TCHAR *filename) const {
+  std::ofstream ofs(filename);
+  ofs << "# Terrain file" << std::endl;
+  for (int y = 0; y < size_; ++y) {
+    for (int x = 0; x < size_; ++x) {
+      ofs << "v " << ((float)x/size_*2-1) << " " << height_map_[M(x,y)] << " " << ((float)y/size_*2-1) << std::endl;
+    }
+  }
+  if (triangle_indices_ != NULL) {
+    const int num_triangles = 2 * (size_ - 1) * (size_ - 1);
+    for (int i = 0; i < num_triangles; ++i) {
+      ofs << "f ";
+      ofs << (triangle_indices_[3*i]+1) << " ";
+      ofs << (triangle_indices_[3*i+1]+1) << " ";
+      ofs << (triangle_indices_[3*i+2]+1) << std::endl;
+    }
+  }
 }

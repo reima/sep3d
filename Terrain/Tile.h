@@ -35,11 +35,14 @@ class Tile {
    * Speichert die Höhendaten in ein Graustufenbitmap.
    */
   void saveImage(const TCHAR *filename) const;
- 
+  void triangulate(void);
+  void saveObj(const TCHAR *filename) const;
+
  private:
   void init(float roughness);
 
   const int lod_;
   const int size_;
   float *height_map_;
+  int *triangle_indices_;
 };
