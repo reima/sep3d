@@ -32,12 +32,15 @@ Tile::Tile(int lod, float roughness)
   init(roughness);
 }
 
-Tile::Tile(const Tile &t) : lod_(t.lod_), size_(t.size_) {
+Tile::Tile(const Tile &t) : lod_(t.lod_), size_(t.size_), index_buffer_(NULL) {
   height_map_ = new float[size_*size_];
   memcpy(height_map_, t.height_map_, size_ * size_ * sizeof(float));
   if (t.index_buffer_ != NULL) {
     initIndexBuffer();
-    memcpy(index_buffer_, t.index_buffer_, (size_-1)*(size_-1)*6*sizeof(int));
+    memcpy(
+        index_buffer_,
+        t.index_buffer_,
+        6*(size_-1)*(size_-1)*sizeof(unsigned int));
   }
 }
 
@@ -155,7 +158,7 @@ void Tile::saveImage(const TCHAR *filename) const {
 
 void Tile::initIndexBuffer(void) {
   if (index_buffer_ == NULL) {
-    index_buffer_ = new int[6*(size_-1)*(size_-1)];
+    index_buffer_ = new unsigned int[6*(size_-1)*(size_-1)];
   }    
 }
 
@@ -179,7 +182,7 @@ void Tile::triangulateLines(void)  {
 
 void Tile::triangulateZOrder(void) {
   initIndexBuffer();
-  int i = 0;  
+  int i = 0;
   z_rec(0, 0, size_-1, size_-1, i);  
 //  for (int i=0; i<(size_-1)*(size_-1)*6; i+=3)
 //    printf("%i %i %i\n",index_buffer[i],index_buffer[i+1],index_buffer[i+2]);
@@ -210,7 +213,10 @@ void Tile::saveObj(const TCHAR *filename) const {
   ofs << "# Terrain file" << std::endl;
   for (int y = 0; y < size_; ++y) {
     for (int x = 0; x < size_; ++x) {
-      ofs << "v " << ((float)x/size_*2-1) << " " << height_map_[M(x,y)] << " " << ((float)y/size_*2-1) << std::endl;
+      ofs << "v ";
+      ofs << ((float)x/size_*2-1) << " ";
+      ofs << height_map_[M(x,y)] << " ";
+      ofs << ((float)y/size_*2-1) << std::endl;
     }
   }
   if (index_buffer_ != NULL) {

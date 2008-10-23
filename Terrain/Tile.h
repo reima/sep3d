@@ -59,5 +59,5 @@ class Tile {
   const int lod_;
   const int size_;
   float *height_map_;
-  int *index_buffer_;  
+  unsigned int *index_buffer_;  
 };
