@@ -53,6 +53,7 @@ class Tile {
 
  private:
   void init(float roughness);
+  void refine(int block_size, float roughness);
   void initIndexBuffer(void);
   void z_rec(int x1, int y1, int x2, int y2, int &i);
 

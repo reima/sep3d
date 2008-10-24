@@ -51,77 +51,78 @@ Tile::~Tile(void) {
 
 void Tile::init(float roughness) {
   srand(static_cast<unsigned int>(time(0)));
-  int size = size_ - 1;
+  int block_size = size_ - 1;
 
   // Ecken mit Zufallswerten initialisieren
-  height_map_[M(0,    0)]    = randf();
-  height_map_[M(0,    size)] = randf();
-  height_map_[M(size, 0)]    = randf();
-  height_map_[M(size, size)] = randf();  
+  height_map_[M(0, 0)] = randf();
+  height_map_[M(0, block_size)] = randf();
+  height_map_[M(block_size, 0)] = randf();
+  height_map_[M(block_size, block_size)] = randf();
 
-  while (size > 1) {
-    int hsize = size/2;
-    float offset_factor = roughness * size / size_;
+  while (block_size > 1) {
+    refine(block_size, roughness);
+    block_size = block_size / 2;
+  }
+}
 
-    for (int y = hsize; y < size_; y += size) {
-      for (int x = hsize; x < size_; x += size) {
-        /**
-         * Lookup der umliegenden Werte (-); o ist Position (x, y)
-         * -   -
-         *   o
-         * -   -
-         */
-        float nw = height_map_[M(x - hsize, y - hsize)];
-        float ne = height_map_[M(x + hsize, y - hsize)];
-        float sw = height_map_[M(x - hsize, y + hsize)];
-        float se = height_map_[M(x + hsize, y + hsize)];
+void Tile::refine(int block_size, float roughness) {
+  int block_size_h = block_size/2;
+  float offset_factor = roughness * block_size / size_;
 
-        /**
-         * Berechnung der neuen Werte (+)
-         * - + -
-         * + +
-         * -   -
-         */       
-        float center = (nw + ne + sw + se) / 4 + offset_factor * randf();
-        height_map_[M(x, y)] = center;
-        
-        float n = nw + ne + center;
-        if (y > hsize) {
-          n += height_map_[M(x, y - size)];
-          n /= 4;
-        } else {
-          n /= 3;
-        }
-        height_map_[M(x, y - hsize)] = n + offset_factor * randf();
+  for (int y = block_size_h; y < size_; y += block_size) {
+    for (int x = block_size_h; x < size_; x += block_size) {
+      /**
+       * Lookup der umliegenden Werte (-); o ist Position (x, y)
+       * -   -
+       *   o
+       * -   -
+       */
+      float nw = height_map_[M(x - block_size_h, y - block_size_h)];
+      float ne = height_map_[M(x + block_size_h, y - block_size_h)];
+      float sw = height_map_[M(x - block_size_h, y + block_size_h)];
+      float se = height_map_[M(x + block_size_h, y + block_size_h)];
+      /**
+       * Berechnung der neuen Werte (+)
+       * - + -
+       * + +
+       * -   -
+       */       
+      float center = (nw + ne + sw + se) / 4 + offset_factor * randf();
+      height_map_[M(x, y)] = center;
+      
+      float n = nw + ne + center;
+      if (y > block_size_h) {
+        n += height_map_[M(x, y - block_size)];
+        n /= 4;
+      } else {
+        n /= 3;
+      }
+      height_map_[M(x, y - block_size_h)] = n + offset_factor * randf();
+      float w = nw + sw + center;
+      if (x > block_size_h) {
+        w += height_map_[M(x - block_size, y)];
+        w /= 4;
+      } else {
+        w /= 3;
+      }
+      height_map_[M(x - block_size_h, y)] = w + offset_factor * randf();
 
-        float w = nw + sw + center;
-        if (x > hsize) {
-          w += height_map_[M(x - size, y)];
-          w /= 4;
-        } else {
-          w /= 3;
-        }
-        height_map_[M(x - hsize, y)] = w + offset_factor * randf();
-
-        /**
-         * Edge cases: Berechnung neuer Werte (+) am rechten bzw. unteren Rand
-         * -   -
-         *     +
-         * - + -
-         */ 
-        if (x == size_ - 1 - hsize) {
-          height_map_[M(x + hsize, y)] =
-              (ne + se + center) / 3 + offset_factor * randf();
-        }
-        if (y == size_ - 1 - hsize) {
-          height_map_[M(x, y + hsize)] =
-              (sw + se + center) / 3 + offset_factor * randf();
-        }
+      /**
+       * Edge cases: Berechnung neuer Werte (+) am rechten bzw. unteren Rand
+       * -   -
+       *     +
+       * - + -
+       */ 
+      if (x == size_ - 1 - block_size_h) {
+        height_map_[M(x + block_size_h, y)] =
+            (ne + se + center) / 3 + offset_factor * randf();
+      }
+      if (y == size_ - 1 - block_size_h) {
+        height_map_[M(x, y + block_size_h)] =
+            (sw + se + center) / 3 + offset_factor * randf();
       }
     }
-
-    size = hsize;
-  }
+  } 
 }
 
 float Tile::getMinHeight() const {
