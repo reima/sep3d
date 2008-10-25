@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <limits>
+#include <string>
 #include "IOTools.h"
 #include "Tile.h"
 
@@ -24,32 +25,113 @@ inline float randf() {
 
 }
 
-Tile::Tile(int lod, float roughness)
+Tile::Tile(int lod, float roughness, int num_lod)
     : lod_(lod),
       size_((1 << lod) + 1),
-      index_buffer_(NULL) {
+      num_lod_(num_lod),
+      index_buffer_(NULL),
+      parent_(NULL) {
   height_map_ = new float[size_*size_];
-  init(roughness);
+  Init(roughness);
+  InitChildren(roughness, NULL, NULL);
 }
 
-Tile::Tile(const Tile &t) : lod_(t.lod_), size_(t.size_), index_buffer_(NULL) {
+Tile::Tile(Tile *parent, Tile::Direction direction, float roughness,
+           Tile *north, Tile *west)
+    : lod_(parent->lod_),
+      size_(parent->size_),
+      num_lod_(parent->num_lod_ - 1),
+      index_buffer_(NULL),
+      direction_(direction),
+      parent_(parent) {
   height_map_ = new float[size_*size_];
-  memcpy(height_map_, t.height_map_, size_ * size_ * sizeof(float));
-  if (t.index_buffer_ != NULL) {
-    initIndexBuffer();
-    memcpy(
-        index_buffer_,
-        t.index_buffer_,
-        6*(size_-1)*(size_-1)*sizeof(unsigned int));
+  InitFromParent();
+  Refine(2, roughness);
+  FixEdges(north, west);
+  InitChildren(roughness, north, west);
+}
+
+void Tile::InitChildren(float roughness, Tile *north, Tile *west) {
+  if (num_lod_ <= 0) return;
+
+  // Holen benachbarter Kind-Tiles:
+  //     +---+---+
+  //     |NNW|NNE|
+  // +---+---+---+
+  // |NWW|       |
+  // +---+ this  +
+  // |SWW|       |
+  // +---+---+---+
+  Tile *child_NNW, *child_NNE, *child_NWW, *child_SWW;
+  if (north) {
+    child_NNW = north->children_[SW];
+    child_NNE = north->children_[SE];
+  } else {
+    child_NNW = child_NNE = NULL;
+  }
+  if (west) {
+    child_NWW = west->children_[NE];
+    child_SWW = west->children_[SE];
+  } else {
+    child_NWW = child_SWW = NULL;
+  }
+  children_[NW] = new Tile(this, NW, roughness, child_NNW, child_NWW);
+  children_[NE] = new Tile(this, NE, roughness, child_NNE, children_[NW]);
+  children_[SW] = new Tile(this, SW, roughness, children_[NW], child_SWW);
+  children_[SE] = new Tile(this, SE, roughness, children_[NE], children_[SW]);
+}
+
+void Tile::InitFromParent(void) {
+  int x1, y1;
+  switch (direction_) {
+    case NW:
+      x1 = 0;
+      y1 = 0;
+      break;
+    case NE:
+      x1 = size_ / 2;
+      y1 = 0;
+      break;
+    case SW:
+      x1 = 0;
+      y1 = size_ / 2;
+      break;
+    case SE:
+      x1 = size_ / 2;
+      y1 = size_ / 2;
+      break;
+  }
+
+  for (int y = 0; y < size_; y += 2)
+    for (int x = 0; x < size_; x += 2)
+      height_map_[M(x,y)] = parent_->height_map_[M(x/2+x1,y/2+y1)];
+}
+
+void Tile::FixEdges(Tile *north, Tile *west) {
+  if (north) {
+    for (int x = 1; x < size_; x += 2) {
+      height_map_[M(x,0)] = north->height_map_[M(x,size_-1)];
+    }
+  }
+  if (west) {
+    for (int y = 1; y < size_; y += 2) {
+      height_map_[M(0,y)] = west->height_map_[M(size_-1,y)];
+    }
   }
 }
 
 Tile::~Tile(void) {
+  if (num_lod_ > 0) {
+    delete children_[NW];
+    delete children_[NE];
+    delete children_[SW];
+    delete children_[SE];
+  }
   delete[] index_buffer_;
   delete[] height_map_;
 }
 
-void Tile::init(float roughness) {
+void Tile::Init(float roughness) {
   srand(static_cast<unsigned int>(time(0)));
   int block_size = size_ - 1;
 
@@ -60,33 +142,30 @@ void Tile::init(float roughness) {
   height_map_[M(block_size, block_size)] = randf();
 
   while (block_size > 1) {
-    refine(block_size, roughness);
+    Refine(block_size, roughness);
     block_size = block_size / 2;
   }
 }
 
-void Tile::refine(int block_size, float roughness) {
+void Tile::Refine(int block_size, float roughness) {
   int block_size_h = block_size/2;
   float offset_factor = roughness * block_size / size_;
 
   for (int y = block_size_h; y < size_; y += block_size) {
     for (int x = block_size_h; x < size_; x += block_size) {
-      /**
-       * Lookup der umliegenden Werte (-); o ist Position (x, y)
-       * -   -
-       *   o
-       * -   -
-       */
+      // Lookup der umliegenden Werte (-); o ist Position (x, y)
+      // -   -
+      //   o
+      // -   -
       float nw = height_map_[M(x - block_size_h, y - block_size_h)];
       float ne = height_map_[M(x + block_size_h, y - block_size_h)];
       float sw = height_map_[M(x - block_size_h, y + block_size_h)];
       float se = height_map_[M(x + block_size_h, y + block_size_h)];
-      /**
-       * Berechnung der neuen Werte (+)
-       * - + -
-       * + +
-       * -   -
-       */       
+      
+      // Berechnung der neuen Werte (+)
+      // - + -
+      // + +
+      // -   -
       float center = (nw + ne + sw + se) / 4 + offset_factor * randf();
       height_map_[M(x, y)] = center;
       
@@ -107,12 +186,10 @@ void Tile::refine(int block_size, float roughness) {
       }
       height_map_[M(x - block_size_h, y)] = w + offset_factor * randf();
 
-      /**
-       * Edge cases: Berechnung neuer Werte (+) am rechten bzw. unteren Rand
-       * -   -
-       *     +
-       * - + -
-       */ 
+      // Edge cases: Berechnung neuer Werte (+) am rechten bzw. unteren Rand
+      // -   -
+      //     +
+      // - + - 
       if (x == size_ - 1 - block_size_h) {
         height_map_[M(x + block_size_h, y)] =
             (ne + se + center) / 3 + offset_factor * randf();
@@ -125,46 +202,86 @@ void Tile::refine(int block_size, float roughness) {
   } 
 }
 
-float Tile::getMinHeight() const {
+float Tile::GetMinHeight() const {
   static float min = std::numeric_limits<float>::max();
   if (min == std::numeric_limits<float>::max()) {
     for (int i = 0; i < size_*size_; ++i) {
       min = std::min(min, height_map_[i]);
     }
+    if (num_lod_ > 0) {
+      min = std::min(min, children_[NW]->GetMinHeight());
+      min = std::min(min, children_[NE]->GetMinHeight());
+      min = std::min(min, children_[SW]->GetMinHeight());
+      min = std::min(min, children_[SE]->GetMinHeight());
+    }
   }
   return min;
 }
 
-float Tile::getMaxHeight() const {
+float Tile::GetMaxHeight() const {
   static float max = std::numeric_limits<float>::min();
   if (max == std::numeric_limits<float>::min()) {
     for (int i = 1; i < size_*size_; ++i) {
       max = std::max(max, height_map_[i]);
     }
+    if (num_lod_ > 0) {
+      max = std::max(max, children_[NW]->GetMaxHeight());
+      max = std::max(max, children_[NE]->GetMaxHeight());
+      max = std::max(max, children_[SW]->GetMaxHeight());
+      max = std::max(max, children_[SE]->GetMaxHeight());
+    }
   }
   return max;
 }
 
-void Tile::saveImage(const TCHAR *filename) const {
+void Tile::SaveImage0(const std::wstring &basename,
+                      const std::wstring &extension,
+                      float min,
+                      float max) const {
   unsigned char *image_data = new unsigned char[3*size_*size_];
-  const float min = getMinHeight();
-  const float max = getMaxHeight();
   for (int i = 0; i < size_*size_; ++i) {
     unsigned char color =
         static_cast<unsigned char>((height_map_[i] - min) / (max - min) * 255);
     image_data[3*i] = image_data[3*i+1] = image_data[3*i+2] = color;
   }
-  IOTools::SaveImage(filename, size_, size_, image_data, true);
+  std::wstring filename(basename);
+  filename.append(extension);
+  IOTools::SaveImage(filename.c_str(), size_, size_, image_data, true);
+
+  if (num_lod_ > 0) {
+    std::wstring filename;
+    filename = basename;
+    filename.append(L"0");
+    children_[NW]->SaveImage0(filename, extension, min, max);
+    filename = basename;
+    filename.append(L"1");
+    children_[NE]->SaveImage0(filename, extension, min, max);
+    filename = basename;
+    filename.append(L"2");
+    children_[SW]->SaveImage0(filename, extension, min, max);
+    filename = basename;
+    filename.append(L"3");
+    children_[SE]->SaveImage0(filename, extension, min, max);
+  }
 }
 
-void Tile::initIndexBuffer(void) {
+void Tile::SaveImage(const std::wstring &filename) const {
+  float min = GetMinHeight();
+  float max = GetMaxHeight();
+  std::wstring basename(filename);
+  basename.erase(basename.rfind('.'), basename.size());
+  std::wstring extension(filename, filename.rfind('.'));
+  SaveImage0(basename, extension, min, max);
+}
+
+void Tile::InitIndexBuffer(void) {
   if (index_buffer_ == NULL) {
     index_buffer_ = new unsigned int[6*(size_-1)*(size_-1)];
   }    
 }
 
-void Tile::triangulateLines(void)  {
-  initIndexBuffer();
+void Tile::TriangulateLines(void)  {
+  InitIndexBuffer();
   // Dreieck 1 links oben, Dreieck 2 rechts unten
   int i = 0;
   for (int y = 0; y < size_ - 1; y++) {
@@ -181,15 +298,15 @@ void Tile::triangulateLines(void)  {
 //    printf("%i %i %i\n",index_buffer[i],index_buffer[i+1],index_buffer[i+2]);
 }
 
-void Tile::triangulateZOrder(void) {
-  initIndexBuffer();
+void Tile::TriangulateZOrder(void) {
+  InitIndexBuffer();
   int i = 0;
-  z_rec(0, 0, size_-1, size_-1, i);  
+  TriangulateZOrder0(0, 0, size_-1, size_-1, i);
 //  for (int i=0; i<(size_-1)*(size_-1)*6; i+=3)
 //    printf("%i %i %i\n",index_buffer[i],index_buffer[i+1],index_buffer[i+2]);
 }
 
-void Tile::z_rec(int x1, int y1, int x2, int y2, int &i){
+void Tile::TriangulateZOrder0(int x1, int y1, int x2, int y2, int &i){
   if (x1 + 1 == x2) {
     // Rekursionsabbruch, Dreiecke erzeugen
     index_buffer_[i++] = M(x1, y1);     // 1. Dreieck links oben
@@ -202,15 +319,15 @@ void Tile::z_rec(int x1, int y1, int x2, int y2, int &i){
     int x12 = (x1+x2)/2;
     int y12 = (y1+y2)/2;
  
-    z_rec(x1, y1, x12, y12, i);
-    z_rec(x12, y1, x2, y12, i);
-    z_rec(x1, y12, x12, y2, i);
-    z_rec(x12, y12, x2, y2, i);
+    TriangulateZOrder0(x1, y1, x12, y12, i);
+    TriangulateZOrder0(x12, y1, x2, y12, i);
+    TriangulateZOrder0(x1, y12, x12, y2, i);
+    TriangulateZOrder0(x12, y12, x2, y2, i);
   }
 }
 
-void Tile::saveObj(const TCHAR *filename) const {
-  std::ofstream ofs(filename);
+void Tile::SaveObj(const std::wstring &filename) const {
+  std::ofstream ofs(filename.c_str());
   ofs << "# Terrain file" << std::endl;
   for (int y = 0; y < size_; ++y) {
     for (int x = 0; x < size_; ++x) {
@@ -220,7 +337,7 @@ void Tile::saveObj(const TCHAR *filename) const {
       ofs << ((float)y/size_*2-1) << std::endl;
     }
   }
-  if (index_buffer_ != NULL) {
+  if (index_buffer_) {
     const int num_triangles = 2 * (size_ - 1) * (size_ - 1);
     for (int i = 0; i < num_triangles; ++i) {
       ofs << "f ";

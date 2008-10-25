@@ -3,10 +3,8 @@
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-  Tile t(8, 0.5f);
-  t.saveImage(L"Terrain.bmp");
-  t.triangulateZOrder();
-  t.saveObj(L"Terrain.obj");
+  Tile t(8, 0.5f, 3);
+  t.SaveImage(L"Terrain.png");
 
   return 0;
 }

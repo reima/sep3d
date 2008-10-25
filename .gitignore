@@ -13,3 +13,5 @@ doc
 *.zip
 *.user
 *.bmp
+*.png
+Thumbs.db
