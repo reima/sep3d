@@ -209,10 +209,9 @@ float Tile::GetMinHeight() const {
       min = std::min(min, height_map_[i]);
     }
     if (num_lod_ > 0) {
-      min = std::min(min, children_[NW]->GetMinHeight());
-      min = std::min(min, children_[NE]->GetMinHeight());
-      min = std::min(min, children_[SW]->GetMinHeight());
-      min = std::min(min, children_[SE]->GetMinHeight());
+      for (int dir = 0; dir < 4; ++dir) {
+        min = std::min(min, children_[dir]->GetMinHeight());
+      }
     }
   }
   return min;
@@ -225,10 +224,9 @@ float Tile::GetMaxHeight() const {
       max = std::max(max, height_map_[i]);
     }
     if (num_lod_ > 0) {
-      max = std::max(max, children_[NW]->GetMaxHeight());
-      max = std::max(max, children_[NE]->GetMaxHeight());
-      max = std::max(max, children_[SW]->GetMaxHeight());
-      max = std::max(max, children_[SE]->GetMaxHeight());
+      for (int dir = 0; dir < 4; ++dir) {
+        max = std::max(max, children_[dir]->GetMaxHeight());
+      }
     }
   }
   return max;
@@ -294,16 +292,22 @@ void Tile::TriangulateLines(void)  {
       index_buffer_[i++] = M(x, y+1);   // 2. Dreieck links unten
     }
   }
-//  for (int i=0; i<(size_-1)*(size_-1)*6; i+=3)
-//    printf("%i %i %i\n",index_buffer[i],index_buffer[i+1],index_buffer[i+2]);
+  if (num_lod_ > 0) {
+    for (int dir = 0; dir < 4; ++dir) {
+      children_[dir]->TriangulateLines();
+    }
+  }
 }
 
 void Tile::TriangulateZOrder(void) {
   InitIndexBuffer();
   int i = 0;
   TriangulateZOrder0(0, 0, size_-1, size_-1, i);
-//  for (int i=0; i<(size_-1)*(size_-1)*6; i+=3)
-//    printf("%i %i %i\n",index_buffer[i],index_buffer[i+1],index_buffer[i+2]);
+  if (num_lod_ > 0) {
+    for (int dir = 0; dir < 4; ++dir) {
+      children_[dir]->TriangulateZOrder();
+    }
+  }
 }
 
 void Tile::TriangulateZOrder0(int x1, int y1, int x2, int y2, int &i){

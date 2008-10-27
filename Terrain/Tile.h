@@ -40,12 +40,12 @@ class Tile {
   void SaveImage(const std::wstring &filename) const;
   
   /**
-   * Trianguliert streifenweise
+   * Trianguliert streifenweise.
    */
   void TriangulateLines(void);
 
   /**
-   * Trianguliert mit Z-Order
+   * Trianguliert mit Z-Order.
    */
   void TriangulateZOrder(void);
 
