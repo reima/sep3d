@@ -3,10 +3,10 @@
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-  Tile t(6, 1.0f, 3);
+  Tile t(8, 1.0f, 3);
   t.SaveImages(L"Terrain.png");
-  t.TriangulateZOrder();
-  t.SaveObj(L"Terrain.obj");
+//  t.TriangulateZOrder();
+//  t.SaveObj(L"Terrain.obj");
 
   return 0;
 }

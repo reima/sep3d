@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <limits>
+#include <sstream>
 #include <string>
 #include "IOTools.h"
 #include "Tile.h"
@@ -25,9 +26,9 @@ inline float randf() {
 
 }
 
-Tile::Tile(int lod, float roughness, int num_lod)
-    : lod_(lod),
-      size_((1 << lod) + 1),
+Tile::Tile(int n, float roughness, int num_lod)
+    : lod_(0),
+      size_((1 << n) + 1),
       num_lod_(num_lod),
       index_buffer_(NULL),
       parent_(NULL) {
@@ -38,7 +39,7 @@ Tile::Tile(int lod, float roughness, int num_lod)
 
 Tile::Tile(Tile *parent, Tile::Direction direction, float roughness,
            Tile *north, Tile *west)
-    : lod_(parent->lod_),
+    : lod_(parent->lod_ + 1),
       size_(parent->size_),
       num_lod_(parent->num_lod_ - 1),
       index_buffer_(NULL),
@@ -65,7 +66,9 @@ void Tile::Init(float roughness) {
   srand(static_cast<unsigned int>(time(0)));
   int block_size = size_ - 1;
 
-  // x- und z-Koordinaten berechnen
+  // x- und z-Koordinaten berechnen.
+  // Das Wurzel-Tile ersteckt sich entlang der x- und z-Achse immer im Bereich
+  // [-2.5, 2.5]
   int i = 0;
   for (int y = 0; y < size_; ++y) {
     for (int x = 0; x < size_; ++x, ++i) {
@@ -80,6 +83,7 @@ void Tile::Init(float roughness) {
   vertices_[M(block_size, 0)].y = randf();
   vertices_[M(block_size, block_size)].y = randf();
 
+  // Verfeinerungsschritte durchführen bis sämtliche Werte berechnet sind
   while (block_size > 1) {
     Refine(block_size, roughness);
     block_size = block_size / 2;
@@ -194,6 +198,8 @@ void Tile::InitChildren(float roughness, Tile *north, Tile *west) {
   } else {
     child_NWW = child_SWW = NULL;
   }
+
+  // Erzeugen der Kind-Tiles mit Übergabe der Nachbarschaftsinformationen
   children_[NW] = new Tile(this, NW, roughness, child_NNW, child_NWW);
   children_[NE] = new Tile(this, NE, roughness, child_NNE, children_[NW]);
   children_[SW] = new Tile(this, SW, roughness, children_[NW], child_SWW);
@@ -216,7 +222,8 @@ void Tile::FixEdges(Tile *north, Tile *west) {
 float Tile::GetMinHeight() const {
   static float min = std::numeric_limits<float>::max();
   if (min == std::numeric_limits<float>::max()) {
-    for (int i = 0; i < size_*size_; ++i) {
+    const int res = GetResolution();
+    for (int i = 0; i < res; ++i) {
       min = std::min(min, vertices_[i].y);
     }
     if (num_lod_ > 0) {
@@ -231,7 +238,8 @@ float Tile::GetMinHeight() const {
 float Tile::GetMaxHeight() const {
   static float max = std::numeric_limits<float>::min();
   if (max == std::numeric_limits<float>::min()) {
-    for (int i = 1; i < size_*size_; ++i) {
+    const int res = GetResolution();
+    for (int i = 1; i < res; ++i) {
       max = std::max(max, vertices_[i].y);
     }
     if (num_lod_ > 0) {
@@ -249,79 +257,89 @@ void Tile::SaveImages(const std::wstring &filename) const {
   std::wstring basename(filename);
   basename.erase(basename.rfind('.'), basename.size());
   std::wstring extension(filename, filename.rfind('.'));
-  SaveImage0(basename, extension, min, max);
+  int image_size = size_;
+  for (int lod = 0; lod <= num_lod_; ++lod) {
+    unsigned char *image_data = new unsigned char[3 * image_size * image_size];
+    SaveImageTilesForLOD(image_data, image_size, 0, 0, lod);
+    std::wstringstream ss;
+    ss << basename << lod << extension;
+    IOTools::SaveImage(ss.str().c_str(), image_size, image_size, image_data, true);
+    image_size = 2 * image_size - 1;
+    delete[] image_data;
+ }
 }
 
-void Tile::SaveImage0(const std::wstring &basename,
-                      const std::wstring &extension,
-                      float min,
-                      float max) const {
-  unsigned char *image_data = new unsigned char[3*size_*size_];
-  const int num_spots = 8;
-  const float spots[num_spots] = {
-      -1.0f,
-      -0.25f,
-       0.0f,
-       0.0625f,
-       0.125f,
-       0.375f,
-       0.75f,
-       1.0f
+void Tile::SaveImageTilesForLOD(unsigned char *image_data, int image_size,
+                                int x_off, int y_off, int lod) const {
+  if (lod > 0) {
+    // Noch nicht tief genug abgestiegen, Tile mit höherem LOD gesucht
+    children_[NW]->SaveImageTilesForLOD(image_data, image_size,
+                                        x_off, y_off, lod - 1);
+    children_[NE]->SaveImageTilesForLOD(image_data, image_size,
+                                        x_off + (size_ - 1) * (1 << (lod - 1)), y_off, lod - 1);
+    children_[SW]->SaveImageTilesForLOD(image_data, image_size,
+                                        x_off, y_off + (size_ - 1) * (1 << (lod - 1)), lod - 1);
+    children_[SE]->SaveImageTilesForLOD(image_data, image_size,
+                                        x_off + (size_ - 1) * (1 << (lod - 1)),
+                                        y_off + (size_ - 1) * (1 << (lod - 1)), lod - 1);
+    // Hier gibt es sonst nichts zu tun...
+    return;
+  }
+
+  static const int num_spots = 8;
+  static const float spots[num_spots] = {
+    -1.0f,      // Tiefes Wasser
+    -0.25f,     // Seichtes Wasser
+     0.0f,      // Küste
+     0.0625f,   // Strand
+     0.125f,    // Gras
+     0.375f,    // Wald
+     0.75f,     // Gestein
+     1.0f       // Schnee
   };
-  const unsigned char colors[num_spots][3] = {
+  static const unsigned char colors[num_spots][3] = {
     { 160, 0, 0 },      // Tiefes Wasser
     { 255, 64, 0 },     // Seichtes Wasser
     { 255, 128, 0 },    // Küste
     { 64, 240, 240 },   // Strand
     { 0, 160, 32 },     // Gras
-    { 0, 128, 0 },      // Wald
+    { 0, 96, 0 },       // Wald
     { 128, 128, 128 },  // Gestein
     { 255, 255, 255 }   // Schnee
   };
-  for (int i = 0; i < size_*size_; ++i) {
-    float height = vertices_[i].y;
-    if (height < spots[0]) {
-      image_data[3*i]   = colors[0][0];
-      image_data[3*i+1] = colors[0][1];
-      image_data[3*i+2] = colors[0][2];
-    } else if (height > spots[num_spots - 1]) {
-      image_data[3*i]   = colors[num_spots - 1][0];
-      image_data[3*i+1] = colors[num_spots - 1][1];
-      image_data[3*i+2] = colors[num_spots - 1][2];
-    } else {
-      for (int j = 0; j < num_spots - 1; ++j) {
-        if (spots[j] <= height && height <= spots[j+1]) {
-          float interpolated_value = (height - spots[j]) / (spots[j+1] - spots[j]);
-          for (int c = 0; c < 3; ++c) {
-            image_data[3*i+c] =
-                static_cast<unsigned char>(
-                    (1 - interpolated_value) * colors[j][c] +
-                    interpolated_value * colors[j+1][c]);
-          }
-          break;
-        }
-      }
-    }
-  }
-  std::wstring filename(basename);
-  filename.append(extension);
-  IOTools::SaveImage(filename.c_str(), size_, size_, image_data);
-
-  if (num_lod_ > 0) {
-    std::wstring filename;
-    filename = basename;
-    filename.append(L"0");
-    children_[NW]->SaveImage0(filename, extension, min, max);
-    filename = basename;
-    filename.append(L"1");
-    children_[NE]->SaveImage0(filename, extension, min, max);
-    filename = basename;
-    filename.append(L"2");
-    children_[SW]->SaveImage0(filename, extension, min, max);
-    filename = basename;
-    filename.append(L"3");
-    children_[SE]->SaveImage0(filename, extension, min, max);
-  }
+  int i = 0;
+  int image_index = 3 * (y_off * image_size + x_off);
+  for (int y = 0; y < size_; ++y, image_index += 3 * (image_size - size_)) {
+    for (int x = 0; x < size_; ++x, ++i, image_index += 3) {
+      float height = vertices_[i].y;      
+      if (height < spots[0]) {
+        // Wert liegt unterhalb der Bereiche
+        image_data[image_index]   = colors[0][0];
+        image_data[image_index+1] = colors[0][1];
+        image_data[image_index+2] = colors[0][2];
+      } else if (height > spots[num_spots - 1]) {
+        // Wert liegt oberhalb der Bereiche
+        image_data[image_index]   = colors[num_spots - 1][0];
+        image_data[image_index+1] = colors[num_spots - 1][1];
+        image_data[image_index+2] = colors[num_spots - 1][2];
+      } else {
+        // Wert liegt innerhalb eines Bereichs
+        for (int j = 0; j < num_spots - 1; ++j) {
+          if (spots[j] <= height && height <= spots[j+1]) {
+            float interpolated_value = (height - spots[j]) / (spots[j+1] - spots[j]);
+            // Interpolation der beiden angrenzenden Farben des Bereichs
+            for (int c = 0; c < 3; ++c) {
+              image_data[image_index+c] =
+                  static_cast<unsigned char>(
+                      (1 - interpolated_value) * colors[j][c] +
+                      interpolated_value * colors[j+1][c]);
+            }
+            break;
+          } // if
+        } // for
+      } // else
+    } // for (int x = 0; ...
+  } // for (int y = 0; ...
 }
 
 void Tile::InitIndexBuffer(void) {
