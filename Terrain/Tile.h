@@ -61,6 +61,8 @@ class Tile {
 
   void SaveImage0(const std::wstring &basename, const std::wstring &extension,
                   float min, float max) const;
+  void SaveObj0(const std::wstring &basename,
+                const std::wstring &extension) const;
 
   void Init(float roughness);
   void Refine(int block_size, float roughness);
@@ -74,7 +76,10 @@ class Tile {
   const int lod_;
   const int size_;
   const int num_lod_;
-  float *height_map_;
+
+  struct Vector { float x, y, z; };
+
+  Vector *vertices_;
   unsigned int *index_buffer_;
 
   Tile *parent_;

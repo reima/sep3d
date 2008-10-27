@@ -31,7 +31,7 @@ Tile::Tile(int lod, float roughness, int num_lod)
       num_lod_(num_lod),
       index_buffer_(NULL),
       parent_(NULL) {
-  height_map_ = new float[size_*size_];
+  vertices_ = new Vector[size_*size_];
   Init(roughness);
   InitChildren(roughness, NULL, NULL);
 }
@@ -44,11 +44,130 @@ Tile::Tile(Tile *parent, Tile::Direction direction, float roughness,
       index_buffer_(NULL),
       direction_(direction),
       parent_(parent) {
-  height_map_ = new float[size_*size_];
+  vertices_ = new Vector[size_*size_];
   InitFromParent();
   Refine(2, roughness);
   FixEdges(north, west);
   InitChildren(roughness, north, west);
+}
+
+Tile::~Tile(void) {
+  if (num_lod_ > 0) {
+    for (int dir = 0; dir < 4; ++dir) {
+      delete children_[dir];
+    }
+  }
+  delete[] index_buffer_;
+  delete[] vertices_;
+}
+
+void Tile::Init(float roughness) {
+  srand(static_cast<unsigned int>(time(0)));
+  int block_size = size_ - 1;
+
+  // x- und z-Koordinaten berechnen
+  int i = 0;
+  for (int y = 0; y < size_; ++y) {
+    for (int x = 0; x < size_; ++x, ++i) {
+      vertices_[i].x = x * 5.0f / (size_ - 1) - 2.5f;
+      vertices_[i].z = y * 5.0f / (size_ - 1) - 2.5f;
+    }
+  }
+
+  // Ecken mit Zufallshöhenwerten initialisieren
+  vertices_[M(0, 0)].y = randf();
+  vertices_[M(0, block_size)].y = randf();
+  vertices_[M(block_size, 0)].y = randf();
+  vertices_[M(block_size, block_size)].y = randf();
+
+  while (block_size > 1) {
+    Refine(block_size, roughness);
+    block_size = block_size / 2;
+  }
+}
+
+void Tile::InitFromParent(void) {
+  int x1, y1;
+  switch (direction_) {
+    case NW: x1 = 0;         y1 = 0;         break;
+    case NE: x1 = size_ / 2; y1 = 0;         break;
+    case SW: x1 = 0;         y1 = size_ / 2; break;
+    case SE: x1 = size_ / 2; y1 = size_ / 2; break;
+  }
+
+  // y-Werte aus dem entsprechenden Quadranten des Eltern-Tiles übernehmen
+  for (int y = 0; y < size_; y += 2) {
+    for (int x = 0; x < size_; x += 2) {
+      vertices_[M(x,y)].y = parent_->vertices_[M(x/2+x1,y/2+y1)].y;
+    }
+  }
+
+  // x- und z-Koordinaten berechnen
+  Vector &v_min = parent_->vertices_[M(x1, y1)];
+  Vector &v_max = parent_->vertices_[M(x1 + size_ / 2, y1 + size_ / 2)];
+  int i = 0;
+  for (int y = 0; y < size_; ++y) {
+    for (int x = 0; x < size_; ++x, ++i) {
+      vertices_[i].x = x * (v_max.x - v_min.x) / (size_ - 1) + v_min.x;
+      vertices_[i].z = y * (v_max.z - v_min.z) / (size_ - 1) + v_min.z;
+    }
+  }
+}
+
+void Tile::Refine(int block_size, float roughness) {
+  int block_size_h = block_size/2;
+  float offset_factor = roughness * block_size / size_;
+
+  for (int y = block_size_h; y < size_; y += block_size) {
+    for (int x = block_size_h; x < size_; x += block_size) {
+      // Lookup der umliegenden Höhenwerte (-); o ist Position (x, y)
+      // -   -
+      //   o
+      // -   -
+      float nw = vertices_[M(x - block_size_h, y - block_size_h)].y;
+      float ne = vertices_[M(x + block_size_h, y - block_size_h)].y;
+      float sw = vertices_[M(x - block_size_h, y + block_size_h)].y;
+      float se = vertices_[M(x + block_size_h, y + block_size_h)].y;
+      
+      // Berechnung der neuen Höhenwerte (+)
+      // - + -
+      // + +
+      // -   -
+      float center = (nw + ne + sw + se) / 4 + offset_factor * randf();
+      vertices_[M(x, y)].y = center;
+      
+      float n = nw + ne + center;
+      if (y > block_size_h) {
+        n += vertices_[M(x, y - block_size)].y;
+        n /= 4;
+      } else {
+        n /= 3;
+      }
+      vertices_[M(x, y - block_size_h)].y = n + offset_factor * randf();
+
+      float w = nw + sw + center;
+      if (x > block_size_h) {
+        w += vertices_[M(x - block_size, y)].y;
+        w /= 4;
+      } else {
+        w /= 3;
+      }
+      vertices_[M(x - block_size_h, y)].y = w + offset_factor * randf();
+
+      // Edge cases: Berechnung neuer Höhenwerte am rechten bzw. unteren Rand
+      // -   -
+      //     +
+      // - + - 
+      if (x == size_ - 1 - block_size_h) {
+        vertices_[M(x + block_size_h, y)].y =
+            (ne + se + center) / 3 + offset_factor * randf();
+      }
+      if (y == size_ - 1 - block_size_h) {
+        vertices_[M(x, y + block_size_h)].y =
+            (sw + se + center) / 3 + offset_factor * randf();
+      }
+    }
+  } 
 }
 
 void Tile::InitChildren(float roughness, Tile *north, Tile *west) {
@@ -81,132 +200,24 @@ void Tile::InitChildren(float roughness, Tile *north, Tile *west) {
   children_[SE] = new Tile(this, SE, roughness, children_[NE], children_[SW]);
 }
 
-void Tile::InitFromParent(void) {
-  int x1, y1;
-  switch (direction_) {
-    case NW:
-      x1 = 0;
-      y1 = 0;
-      break;
-    case NE:
-      x1 = size_ / 2;
-      y1 = 0;
-      break;
-    case SW:
-      x1 = 0;
-      y1 = size_ / 2;
-      break;
-    case SE:
-      x1 = size_ / 2;
-      y1 = size_ / 2;
-      break;
-  }
-
-  for (int y = 0; y < size_; y += 2)
-    for (int x = 0; x < size_; x += 2)
-      height_map_[M(x,y)] = parent_->height_map_[M(x/2+x1,y/2+y1)];
-}
-
 void Tile::FixEdges(Tile *north, Tile *west) {
   if (north) {
     for (int x = 1; x < size_; x += 2) {
-      height_map_[M(x,0)] = north->height_map_[M(x,size_-1)];
+      vertices_[M(x,0)].y = north->vertices_[M(x,size_-1)].y;
     }
   }
   if (west) {
     for (int y = 1; y < size_; y += 2) {
-      height_map_[M(0,y)] = west->height_map_[M(size_-1,y)];
+      vertices_[M(0,y)].y = west->vertices_[M(size_-1,y)].y;
     }
   }
-}
-
-Tile::~Tile(void) {
-  if (num_lod_ > 0) {
-    delete children_[NW];
-    delete children_[NE];
-    delete children_[SW];
-    delete children_[SE];
-  }
-  delete[] index_buffer_;
-  delete[] height_map_;
-}
-
-void Tile::Init(float roughness) {
-  srand(static_cast<unsigned int>(time(0)));
-  int block_size = size_ - 1;
-
-  // Ecken mit Zufallswerten initialisieren
-  height_map_[M(0, 0)] = randf();
-  height_map_[M(0, block_size)] = randf();
-  height_map_[M(block_size, 0)] = randf();
-  height_map_[M(block_size, block_size)] = randf();
-
-  while (block_size > 1) {
-    Refine(block_size, roughness);
-    block_size = block_size / 2;
-  }
-}
-
-void Tile::Refine(int block_size, float roughness) {
-  int block_size_h = block_size/2;
-  float offset_factor = roughness * block_size / size_;
-
-  for (int y = block_size_h; y < size_; y += block_size) {
-    for (int x = block_size_h; x < size_; x += block_size) {
-      // Lookup der umliegenden Werte (-); o ist Position (x, y)
-      // -   -
-      //   o
-      // -   -
-      float nw = height_map_[M(x - block_size_h, y - block_size_h)];
-      float ne = height_map_[M(x + block_size_h, y - block_size_h)];
-      float sw = height_map_[M(x - block_size_h, y + block_size_h)];
-      float se = height_map_[M(x + block_size_h, y + block_size_h)];
-      
-      // Berechnung der neuen Werte (+)
-      // - + -
-      // + +
-      // -   -
-      float center = (nw + ne + sw + se) / 4 + offset_factor * randf();
-      height_map_[M(x, y)] = center;
-      
-      float n = nw + ne + center;
-      if (y > block_size_h) {
-        n += height_map_[M(x, y - block_size)];
-        n /= 4;
-      } else {
-        n /= 3;
-      }
-      height_map_[M(x, y - block_size_h)] = n + offset_factor * randf();
-      float w = nw + sw + center;
-      if (x > block_size_h) {
-        w += height_map_[M(x - block_size, y)];
-        w /= 4;
-      } else {
-        w /= 3;
-      }
-      height_map_[M(x - block_size_h, y)] = w + offset_factor * randf();
-
-      // Edge cases: Berechnung neuer Werte (+) am rechten bzw. unteren Rand
-      // -   -
-      //     +
-      // - + - 
-      if (x == size_ - 1 - block_size_h) {
-        height_map_[M(x + block_size_h, y)] =
-            (ne + se + center) / 3 + offset_factor * randf();
-      }
-      if (y == size_ - 1 - block_size_h) {
-        height_map_[M(x, y + block_size_h)] =
-            (sw + se + center) / 3 + offset_factor * randf();
-      }
-    }
-  } 
 }
 
 float Tile::GetMinHeight() const {
   static float min = std::numeric_limits<float>::max();
   if (min == std::numeric_limits<float>::max()) {
     for (int i = 0; i < size_*size_; ++i) {
-      min = std::min(min, height_map_[i]);
+      min = std::min(min, vertices_[i].y);
     }
     if (num_lod_ > 0) {
       for (int dir = 0; dir < 4; ++dir) {
@@ -221,7 +232,7 @@ float Tile::GetMaxHeight() const {
   static float max = std::numeric_limits<float>::min();
   if (max == std::numeric_limits<float>::min()) {
     for (int i = 1; i < size_*size_; ++i) {
-      max = std::max(max, height_map_[i]);
+      max = std::max(max, vertices_[i].y);
     }
     if (num_lod_ > 0) {
       for (int dir = 0; dir < 4; ++dir) {
@@ -230,6 +241,15 @@ float Tile::GetMaxHeight() const {
     }
   }
   return max;
+}
+
+void Tile::SaveImages(const std::wstring &filename) const {
+  float min = GetMinHeight();
+  float max = GetMaxHeight();
+  std::wstring basename(filename);
+  basename.erase(basename.rfind('.'), basename.size());
+  std::wstring extension(filename, filename.rfind('.'));
+  SaveImage0(basename, extension, min, max);
 }
 
 void Tile::SaveImage0(const std::wstring &basename,
@@ -259,20 +279,19 @@ void Tile::SaveImage0(const std::wstring &basename,
     { 255, 255, 255 }   // Schnee
   };
   for (int i = 0; i < size_*size_; ++i) {
-    // Wert zwischen -1 und 1
-    float value = height_map_[i];
-    if (value < spots[0]) {
+    float height = vertices_[i].y;
+    if (height < spots[0]) {
       image_data[3*i]   = colors[0][0];
       image_data[3*i+1] = colors[0][1];
       image_data[3*i+2] = colors[0][2];
-    } else if (value > spots[num_spots - 1]) {
+    } else if (height > spots[num_spots - 1]) {
       image_data[3*i]   = colors[num_spots - 1][0];
       image_data[3*i+1] = colors[num_spots - 1][1];
       image_data[3*i+2] = colors[num_spots - 1][2];
     } else {
       for (int j = 0; j < num_spots - 1; ++j) {
-        if (spots[j] <= value && value <= spots[j+1]) {
-          float interpolated_value = (value - spots[j]) / (spots[j+1] - spots[j]);
+        if (spots[j] <= height && height <= spots[j+1]) {
+          float interpolated_value = (height - spots[j]) / (spots[j+1] - spots[j]);
           for (int c = 0; c < 3; ++c) {
             image_data[3*i+c] =
                 static_cast<unsigned char>(
@@ -303,15 +322,6 @@ void Tile::SaveImage0(const std::wstring &basename,
     filename.append(L"3");
     children_[SE]->SaveImage0(filename, extension, min, max);
   }
-}
-
-void Tile::SaveImages(const std::wstring &filename) const {
-  float min = GetMinHeight();
-  float max = GetMaxHeight();
-  std::wstring basename(filename);
-  basename.erase(basename.rfind('.'), basename.size());
-  std::wstring extension(filename, filename.rfind('.'));
-  SaveImage0(basename, extension, min, max);
 }
 
 void Tile::InitIndexBuffer(void) {
@@ -373,16 +383,28 @@ void Tile::TriangulateZOrder0(int x1, int y1, int x2, int y2, int &i){
 }
 
 void Tile::SaveObj(const std::wstring &filename) const {
+  std::wstring basename(filename);
+  basename.erase(basename.rfind('.'), basename.size());
+  std::wstring extension(filename, filename.rfind('.'));
+  SaveObj0(basename, extension);
+}
+
+void Tile::SaveObj0(const std::wstring &basename,
+                    const std::wstring &extension) const {
+  std::wstring filename(basename);
+  filename.append(extension);
+
   std::ofstream ofs(filename.c_str());
   ofs << "# Terrain file" << std::endl;
   // Vertices & Texturkoordinaten
   for (int y = 0; y < size_; ++y) {
     for (int x = 0; x < size_; ++x) {
       // Vertex
+      Vector &v = vertices_[M(x,y)];
       ofs << "v ";
-      ofs << ((float)x/size_*6-3) << " ";
-      ofs << std::max(0.0f, height_map_[M(x,y)]) << " ";
-      ofs << ((float)y/size_*6-3) << std::endl;
+      ofs << v.x << " ";
+      ofs << std::max(0.0f, v.y) << " ";
+      ofs << v.z << std::endl;
       // Texturkoordinaten
       ofs << "vt ";
       ofs << ((float)x/size_) << " ";
@@ -402,4 +424,20 @@ void Tile::SaveObj(const std::wstring &filename) const {
       ofs << (index_buffer_[3*i+2]+1) << std::endl;
     }
   }
-};
+
+  if (num_lod_ > 0) {
+    std::wstring filename;
+    filename = basename;
+    filename.append(L"0");
+    children_[NW]->SaveObj0(filename, extension);
+    filename = basename;
+    filename.append(L"1");
+    children_[NE]->SaveObj0(filename, extension);
+    filename = basename;
+    filename.append(L"2");
+    children_[SW]->SaveObj0(filename, extension);
+    filename = basename;
+    filename.append(L"3");
+    children_[SE]->SaveObj0(filename, extension);
+  }
+}
