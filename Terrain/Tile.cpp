@@ -237,14 +237,56 @@ void Tile::SaveImage0(const std::wstring &basename,
                       float min,
                       float max) const {
   unsigned char *image_data = new unsigned char[3*size_*size_];
+  const int num_spots = 8;
+  const float spots[num_spots] = {
+      -1.0f,
+      -0.25f,
+       0.0f,
+       0.0625f,
+       0.125f,
+       0.375f,
+       0.75f,
+       1.0f
+  };
+  const unsigned char colors[num_spots][3] = {
+    { 160, 0, 0 },      // Tiefes Wasser
+    { 255, 64, 0 },     // Seichtes Wasser
+    { 255, 128, 0 },    // Küste
+    { 64, 240, 240 },   // Strand
+    { 0, 160, 32 },     // Gras
+    { 0, 128, 0 },      // Wald
+    { 128, 128, 128 },  // Gestein
+    { 255, 255, 255 }   // Schnee
+  };
   for (int i = 0; i < size_*size_; ++i) {
-    unsigned char color =
-        static_cast<unsigned char>((height_map_[i] - min) / (max - min) * 255);
-    image_data[3*i] = image_data[3*i+1] = image_data[3*i+2] = color;
+    // Wert zwischen -1 und 1
+    float value = height_map_[i];
+    if (value < spots[0]) {
+      image_data[3*i]   = colors[0][0];
+      image_data[3*i+1] = colors[0][1];
+      image_data[3*i+2] = colors[0][2];
+    } else if (value > spots[num_spots - 1]) {
+      image_data[3*i]   = colors[num_spots - 1][0];
+      image_data[3*i+1] = colors[num_spots - 1][1];
+      image_data[3*i+2] = colors[num_spots - 1][2];
+    } else {
+      for (int j = 0; j < num_spots - 1; ++j) {
+        if (spots[j] <= value && value <= spots[j+1]) {
+          float interpolated_value = (value - spots[j]) / (spots[j+1] - spots[j]);
+          for (int c = 0; c < 3; ++c) {
+            image_data[3*i+c] =
+                static_cast<unsigned char>(
+                    (1 - interpolated_value) * colors[j][c] +
+                    interpolated_value * colors[j+1][c]);
+          }
+          break;
+        }
+      }
+    }
   }
   std::wstring filename(basename);
   filename.append(extension);
-  IOTools::SaveImage(filename.c_str(), size_, size_, image_data, true);
+  IOTools::SaveImage(filename.c_str(), size_, size_, image_data);
 
   if (num_lod_ > 0) {
     std::wstring filename;
@@ -263,7 +305,7 @@ void Tile::SaveImage0(const std::wstring &basename,
   }
 }
 
-void Tile::SaveImage(const std::wstring &filename) const {
+void Tile::SaveImages(const std::wstring &filename) const {
   float min = GetMinHeight();
   float max = GetMaxHeight();
   std::wstring basename(filename);
@@ -333,20 +375,30 @@ void Tile::TriangulateZOrder0(int x1, int y1, int x2, int y2, int &i){
 void Tile::SaveObj(const std::wstring &filename) const {
   std::ofstream ofs(filename.c_str());
   ofs << "# Terrain file" << std::endl;
+  // Vertices & Texturkoordinaten
   for (int y = 0; y < size_; ++y) {
     for (int x = 0; x < size_; ++x) {
+      // Vertex
       ofs << "v ";
-      ofs << ((float)x/size_*2-1) << " ";
-      ofs << height_map_[M(x,y)] << " ";
-      ofs << ((float)y/size_*2-1) << std::endl;
+      ofs << ((float)x/size_*6-3) << " ";
+      ofs << std::max(0.0f, height_map_[M(x,y)]) << " ";
+      ofs << ((float)y/size_*6-3) << std::endl;
+      // Texturkoordinaten
+      ofs << "vt ";
+      ofs << ((float)x/size_) << " ";
+      ofs << ((float)y/size_) << std::endl;
     }
   }
+  // Faces (Dreiecke)
   if (index_buffer_) {
     const int num_triangles = 2 * (size_ - 1) * (size_ - 1);
     for (int i = 0; i < num_triangles; ++i) {
       ofs << "f ";
+      ofs << (index_buffer_[3*i]+1) << "/";
       ofs << (index_buffer_[3*i]+1) << " ";
+      ofs << (index_buffer_[3*i+1]+1) << "/";
       ofs << (index_buffer_[3*i+1]+1) << " ";
+      ofs << (index_buffer_[3*i+2]+1) << "/";
       ofs << (index_buffer_[3*i+2]+1) << std::endl;
     }
   }

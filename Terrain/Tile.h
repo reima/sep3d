@@ -35,9 +35,9 @@ class Tile {
   float GetMaxHeight() const;
 
   /**
-   * Speichert die Höhendaten in ein Graustufenbitmap.
+   * Speichert die Höhendaten in mehrere (farbige) Bitmaps.
    */
-  void SaveImage(const std::wstring &filename) const;
+  void SaveImages(const std::wstring &filename) const;
   
   /**
    * Trianguliert streifenweise.
