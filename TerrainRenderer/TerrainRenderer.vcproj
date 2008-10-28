@@ -174,12 +174,20 @@
 				RelativePath=".\TerrainRenderer.cpp"
 				>
 			</File>
+			<File
+				RelativePath=".\Tile.cpp"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Headerdateien"
 			Filter="h;hpp;hxx;hm;inl;inc;xsd"
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
+			<File
+				RelativePath=".\Tile.h"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Ressourcendateien"
