@@ -66,7 +66,7 @@ Tile::~Tile(void) {
 
 void Tile::Init(float roughness) {
   // Zufallsgenerator initialisieren
-  srand(static_cast<unsigned int>(42));  
+  srand(static_cast<unsigned int>(time(0)));
 
   // x- und z-Koordinaten berechnen.
   // Das Wurzel-Tile ersteckt sich entlang der x- und z-Achse immer im Bereich
