@@ -188,8 +188,6 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   g_pTxtHelper = new CDXUTTextHelper(NULL, NULL, g_pFont10, g_pSprite10, 15);
 
   // Read the D3DX effect file
-  WCHAR str[MAX_PATH];
-  V_RETURN( DXUTFindDXSDKMediaFileCch( str, MAX_PATH, L"TerrainRenderer.fx" ) );
   DWORD dwShaderFlags = D3D10_SHADER_ENABLE_STRICTNESS;
 #if defined( DEBUG ) || defined( _DEBUG )
   // Set the D3D10_SHADER_DEBUG flag to embed debug information in the shaders.
@@ -198,9 +196,9 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   // the release configuration of this program.
   dwShaderFlags |= D3D10_SHADER_DEBUG;
 #endif
-  V_RETURN(D3DX10CreateEffectFromFile(str, NULL, NULL, "fx_4_0", dwShaderFlags,
-                                      0, pd3dDevice, NULL, NULL, &g_pEffect10,
-                                      NULL, NULL));
+  V_RETURN(D3DX10CreateEffectFromFile(L"TerrainRenderer.fx", NULL, NULL,
+                                      "fx_4_0", dwShaderFlags, 0, pd3dDevice,
+                                      NULL, NULL, &g_pEffect10, NULL, NULL));
 
   // Get effects variables
   g_pmWorldViewProj = g_pEffect10->GetVariableByName("g_mWorldViewProjection")->AsMatrix();
