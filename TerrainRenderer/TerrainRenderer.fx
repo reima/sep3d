@@ -57,29 +57,31 @@ VS_OUTPUT RenderSceneVS( VS_INPUT In)
   };
 
   float4 colors[] = {
-	float4(0, 0, 0.625, 1),
-	float4(0, 0.25, 1, 1),
-	float4(0, 0.5, 1, 1),
-	float4(0.9375, 0.9375, 0.25, 1),
-	float4(0.125, 0.625, 0, 1),
-	float4(0, 0.375, 0, 1),
-	float4(0.5, 0.5, 0.5, 1),
-	float4(1, 1, 1, 1)
+    float4(0, 0, 0.625, 1),
+    float4(0, 0.25, 1, 1),
+    float4(0, 0.5, 1, 1),
+    float4(0.9375, 0.9375, 0.25, 1),
+    float4(0.125, 0.625, 0, 1),
+    float4(0, 0.375, 0, 1),
+    float4(0.5, 0.5, 0.5, 1),
+    float4(1, 1, 1, 1)
   };
 
   float v = In.Position.y;
   if (v < spots[0]) Output.Color = colors[0];
   else if (v > spots[7]) Output.Color = colors[7];
   else for (int i = 0; i < 7; ++i) {
-	if (v < spots[i+1]) {
-	  Output.Color = lerp(colors[i], colors[i+1],
-						  (v - spots[i]) / (spots[i+1] - spots[i]));
-	  break;
-	}
+    if (v < spots[i+1]) {
+      Output.Color = lerp(colors[i], colors[i+1],
+                          (v - spots[i]) / (spots[i+1] - spots[i]));
+      break;
+    }
   }
   
   // Create water plane
-  pos.y = max(0, pos.y);
+  if (pos.y < 0) {
+    pos.y = 0.025 * sin(5 * pos.x + g_fTime * 2) * cos(5 * pos.z + g_fTime * 2);
+  }
 
   // Transform the position from object space to homogeneous projection space
   Output.Position = mul(pos, g_mWorldViewProjection);

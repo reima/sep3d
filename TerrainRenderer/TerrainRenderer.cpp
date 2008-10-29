@@ -312,7 +312,7 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   D3DXMATRIX mView;
   D3DXMATRIX mProj;
 
-  float ClearColor[4] = { 0.176f, 0.196f, 0.667f, 0.0f };
+  float ClearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
   ID3D10RenderTargetView* pRTV = DXUTGetD3D10RenderTargetView();
   pd3dDevice->ClearRenderTargetView(pRTV, ClearColor);
 
