@@ -1,5 +1,13 @@
 #pragma once
+#ifndef TILE_H
+#define TILE_H
 #include <string>
+
+/**
+ * 3-dimensionaler Vektor, wird für Vertices verwendet.
+ * @see Tile::vertices_
+ */
+struct Vector { float x, y, z; };
 
 /**
  * Höhenfeld-Tile
@@ -47,6 +55,11 @@ class Tile {
   void TriangulateZOrder(void);
 
   /**
+   * Gibt einen Zeiger auf das Vertices-Array zurück.
+   */
+  const Vector *GetVertexArray(void) { return vertices_; }
+
+  /**
    * Speichert Terrain-Mesh für jedes Tile im OBJ-Dateiformat.
    */
   void SaveObjs(const std::wstring &filename) const;
@@ -56,11 +69,6 @@ class Tile {
    * Richtungstyp, der einen Quadranten eines Tiles spezifiziert
    */
   enum Direction { NW = 0, NE, SW, SE };
-  /**
-   * 3-dimensionaler Vektor, wird für Vertices verwendet.
-   * @see Tile::vertices_
-   */
-  struct Vector { float x, y, z; };
 
   // Kopierkonstruktor und Zuweisungsoperator verbieten.
   Tile(const Tile &t);
@@ -159,3 +167,5 @@ class Tile {
    */
   Tile *children_[4];
 };
+
+#endif

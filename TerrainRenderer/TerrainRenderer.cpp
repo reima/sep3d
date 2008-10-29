@@ -6,6 +6,8 @@
 //
 // Copyright (c) Microsoft Corporation. All rights reserved.
 //--------------------------------------------------------------------------------------
+#include "Tile.h"
+
 #include "DXUT.h"
 #include "DXUTgui.h"
 #include "DXUTmisc.h"
@@ -38,7 +40,9 @@ extern ID3DXSprite*         g_pSprite9;
 ID3DX10Font*                g_pFont10 = NULL;
 ID3DX10Sprite*              g_pSprite10 = NULL;
 ID3D10Effect*               g_pEffect10 = NULL;
+ID3D10EffectTechnique*      g_pTechnique = NULL;
 ID3D10InputLayout*          g_pVertexLayout = NULL;
+ID3D10Buffer*               g_pVertexBuffer = NULL;
 ID3D10EffectMatrixVariable* g_pmWorldViewProj = NULL;
 ID3D10EffectMatrixVariable* g_pmWorld = NULL;
 ID3D10EffectScalarVariable* g_pfTime = NULL;
@@ -199,6 +203,7 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   V_RETURN(D3DX10CreateEffectFromFile(L"TerrainRenderer.fx", NULL, NULL,
                                       "fx_4_0", dwShaderFlags, 0, pd3dDevice,
                                       NULL, NULL, &g_pEffect10, NULL, NULL));
+  g_pTechnique = g_pEffect10->GetTechniqueByName("RenderScene");
 
   // Get effects variables
   g_pmWorldViewProj = g_pEffect10->GetVariableByName("g_mWorldViewProjection")->AsMatrix();
@@ -209,6 +214,37 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   D3DXVECTOR3 vecEye(0.0f, 0.0f, -5.0f);
   D3DXVECTOR3 vecAt (0.0f, 0.0f, -0.0f);
   g_Camera.SetViewParams(&vecEye, &vecAt);
+
+  // Vertex Layout festlegen
+  D3D10_INPUT_ELEMENT_DESC layout[] = {
+    { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
+      D3D10_INPUT_PER_VERTEX_DATA, 0 },
+  };
+  UINT num_elements = sizeof(layout) / sizeof(layout[0]);
+  D3D10_PASS_DESC pass_desc;
+  g_pTechnique->GetPassByIndex(0)->GetDesc(&pass_desc);
+  V_RETURN(pd3dDevice->CreateInputLayout(layout, num_elements,
+                                         pass_desc.pIAInputSignature,
+                                         pass_desc.IAInputSignatureSize,
+                                         &g_pVertexLayout));
+
+  // Terrain erzeugen
+  Tile tile(8, 1.f, 0);
+
+  // Vertex Buffer anlegen
+  D3D10_BUFFER_DESC buffer_desc;
+  buffer_desc.Usage = D3D10_USAGE_DEFAULT;
+  buffer_desc.ByteWidth = sizeof(Vector) * tile.GetResolution();
+  buffer_desc.BindFlags = D3D10_BIND_VERTEX_BUFFER;
+  buffer_desc.CPUAccessFlags = 0;
+  buffer_desc.MiscFlags = 0;
+
+  D3D10_SUBRESOURCE_DATA init_data;
+  init_data.pSysMem = tile.GetVertexArray();
+
+  V_RETURN(pd3dDevice->CreateBuffer(&buffer_desc,
+                                    &init_data,
+                                    &g_pVertexBuffer));
 
   return S_OK;
 }
@@ -288,6 +324,11 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   // Set vertex Layout
   pd3dDevice->IASetInputLayout(g_pVertexLayout);
 
+  // Vertex buffer setzen
+  UINT stride = sizeof(Vector);
+  UINT offset = 0;
+  pd3dDevice->IASetVertexBuffers(0, 1, &g_pVertexBuffer, &stride, &offset);
+
   DXUT_BeginPerfEvent(DXUT_PERFEVENTCOLOR, L"HUD / Stats");
   RenderText();
   g_HUD.OnRender(fElapsedTime);
@@ -313,6 +354,7 @@ void CALLBACK OnD3D10DestroyDevice(void* pUserContext) {
   SAFE_RELEASE(g_pFont10);
   SAFE_RELEASE(g_pEffect10);
   SAFE_RELEASE(g_pVertexLayout);
+  SAFE_RELEASE(g_pVertexBuffer);
   SAFE_RELEASE(g_pSprite10);
   SAFE_DELETE(g_pTxtHelper);
 }
