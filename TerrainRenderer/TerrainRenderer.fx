@@ -44,11 +44,42 @@ VS_OUTPUT RenderSceneVS( VS_INPUT In)
 
   float4 pos = float4(In.Position, 1.0f);
 
-  // encode color depending on z-coordinate (approx. the height)
-  float maxZ = 4.0;
-  float minZ = 0.0;
-  float c = (In.Position.z - minZ) / maxZ;
-  Output.Color = float4(c, c, c, 1);
+  // encode color depending on y-coordinate (approx. the height)
+  float spots[] = {
+    -1.0,      // Tiefes Wasser
+    -0.25,     // Seichtes Wasser
+     0.0,      // Küste
+     0.0625,   // Strand
+     0.125,    // Gras
+     0.375,    // Wald
+     0.75,     // Gestein
+     1.0       // Schnee
+  };
+
+  float4 colors[] = {
+	float4(0, 0, 0.625, 1),
+	float4(0, 0.25, 1, 1),
+	float4(0, 0.5, 1, 1),
+	float4(0.9375, 0.9375, 0.25, 1),
+	float4(0.125, 0.625, 0, 1),
+	float4(0, 0.375, 0, 1),
+	float4(0.5, 0.5, 0.5, 1),
+	float4(1, 1, 1, 1)
+  };
+
+  float v = In.Position.y;
+  if (v < spots[0]) Output.Color = colors[0];
+  else if (v > spots[7]) Output.Color = colors[7];
+  else for (int i = 0; i < 7; ++i) {
+	if (v < spots[i+1]) {
+	  Output.Color = lerp(colors[i], colors[i+1],
+						  (v - spots[i]) / (spots[i+1] - spots[i]));
+	  break;
+	}
+  }
+  
+  // Create water plane
+  pos.y = max(0, pos.y);
 
   // Transform the position from object space to homogeneous projection space
   Output.Position = mul(pos, g_mWorldViewProjection);

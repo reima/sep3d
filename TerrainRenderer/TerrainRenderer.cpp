@@ -17,6 +17,10 @@
 #include "SDKmesh.h"
 #include "resource.h"
 
+#define TERRAIN_N         8
+#define TERRAIN_ROUGHNESS 1.5f
+#define TERRAIN_NUM_LOD   0
+
 //#define DEBUG_VS   // Uncomment this line to debug D3D9 vertex shaders 
 //#define DEBUG_PS   // Uncomment this line to debug D3D9 pixel shaders 
 
@@ -24,7 +28,7 @@
 //--------------------------------------------------------------------------------------
 // Global variables
 //--------------------------------------------------------------------------------------
-CModelViewerCamera          g_Camera;               // A model viewing camera
+CFirstPersonCamera          g_Camera;               // A first person camera
 CDXUTDialogResourceManager  g_DialogResourceManager; // manager for shared resources of dialogs
 CD3DSettingsDlg             g_SettingsDlg;          // Device settings dialog
 CDXUTTextHelper*            g_pTxtHelper = NULL;
@@ -43,6 +47,7 @@ ID3D10Effect*               g_pEffect10 = NULL;
 ID3D10EffectTechnique*      g_pTechnique = NULL;
 ID3D10InputLayout*          g_pVertexLayout = NULL;
 ID3D10Buffer*               g_pVertexBuffer = NULL;
+ID3D10Buffer*               g_pIndexBuffer = NULL;
 ID3D10EffectMatrixVariable* g_pmWorldViewProj = NULL;
 ID3D10EffectMatrixVariable* g_pmWorld = NULL;
 ID3D10EffectScalarVariable* g_pfTime = NULL;
@@ -211,7 +216,7 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   g_pfTime = g_pEffect10->GetVariableByName("g_fTime")->AsScalar();
 
   // Setup the camera's view parameters
-  D3DXVECTOR3 vecEye(0.0f, 0.0f, -5.0f);
+  D3DXVECTOR3 vecEye(0.0f, 5.0f, -5.0f);
   D3DXVECTOR3 vecAt (0.0f, 0.0f, -0.0f);
   g_Camera.SetViewParams(&vecEye, &vecAt);
 
@@ -229,7 +234,8 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
                                          &g_pVertexLayout));
 
   // Terrain erzeugen
-  Tile tile(8, 1.f, 0);
+  Tile tile(TERRAIN_N, TERRAIN_ROUGHNESS, TERRAIN_NUM_LOD);
+  tile.TriangulateZOrder();
 
   // Vertex Buffer anlegen
   D3D10_BUFFER_DESC buffer_desc;
@@ -241,10 +247,25 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
 
   D3D10_SUBRESOURCE_DATA init_data;
   init_data.pSysMem = tile.GetVertexArray();
+  init_data.SysMemPitch = 0;
+  init_data.SysMemSlicePitch = 0;
 
   V_RETURN(pd3dDevice->CreateBuffer(&buffer_desc,
                                     &init_data,
                                     &g_pVertexBuffer));
+
+  // Index Buffer anlegen
+  buffer_desc.Usage = D3D10_USAGE_DEFAULT;
+  buffer_desc.ByteWidth = sizeof(unsigned int) * tile.GetNumIndices();
+  buffer_desc.BindFlags = D3D10_BIND_INDEX_BUFFER;
+  buffer_desc.CPUAccessFlags = 0;
+  buffer_desc.MiscFlags = 0;
+
+  init_data.pSysMem = tile.GetIndexArray();
+
+  V_RETURN(pd3dDevice->CreateBuffer(&buffer_desc,
+                                    &init_data,
+                                    &g_pIndexBuffer));  
 
   return S_OK;
 }
@@ -270,9 +291,6 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain(ID3D10Device* pd3dDevice,
   float fAspectRatio = pBackBufferSurfaceDesc->Width /
       (FLOAT)pBackBufferSurfaceDesc->Height;
   g_Camera.SetProjParams(D3DX_PI / 4, fAspectRatio, 0.1f, 1000.0f);
-  g_Camera.SetWindow(pBackBufferSurfaceDesc->Width,
-                     pBackBufferSurfaceDesc->Height);
-  g_Camera.SetButtonMasks(MOUSE_LEFT_BUTTON, MOUSE_WHEEL, MOUSE_MIDDLE_BUTTON);
 
   g_HUD.SetLocation(pBackBufferSurfaceDesc->Width - 170, 0);
   g_HUD.SetSize(170, 170);
@@ -312,7 +330,7 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   mWorld = *g_Camera.GetWorldMatrix();
   mProj = *g_Camera.GetProjMatrix();
   mView = *g_Camera.GetViewMatrix();
-  mWorldViewProjection = mWorld * mView * mProj;
+  mWorldViewProjection = mView * mProj;
 
   // Update the effect's variables.  Instead of using strings, it would 
   // be more efficient to cache a handle to the parameter by calling 
@@ -324,10 +342,22 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   // Set vertex Layout
   pd3dDevice->IASetInputLayout(g_pVertexLayout);
 
-  // Vertex buffer setzen
+  // Vertex Buffer setzen
   UINT stride = sizeof(Vector);
   UINT offset = 0;
   pd3dDevice->IASetVertexBuffers(0, 1, &g_pVertexBuffer, &stride, &offset);
+
+  // Index Buffer setzen
+  pd3dDevice->IASetIndexBuffer(g_pIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+
+  // Rendern
+  pd3dDevice->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+  D3D10_TECHNIQUE_DESC tech_desc;
+  g_pTechnique->GetDesc(&tech_desc);
+  for (UINT p = 0; p < tech_desc.Passes; ++p) {
+    g_pTechnique->GetPassByIndex(p)->Apply(0);
+    pd3dDevice->DrawIndexed(256*256*2*3, 0, 0);
+  }
 
   DXUT_BeginPerfEvent(DXUT_PERFEVENTCOLOR, L"HUD / Stats");
   RenderText();
@@ -355,6 +385,7 @@ void CALLBACK OnD3D10DestroyDevice(void* pUserContext) {
   SAFE_RELEASE(g_pEffect10);
   SAFE_RELEASE(g_pVertexLayout);
   SAFE_RELEASE(g_pVertexBuffer);
+  SAFE_RELEASE(g_pIndexBuffer);
   SAFE_RELEASE(g_pSprite10);
   SAFE_DELETE(g_pTxtHelper);
 }

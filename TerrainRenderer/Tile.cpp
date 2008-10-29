@@ -269,11 +269,11 @@ void Tile::TriangulateLines(void)  {
   for (int y = 0; y < size_ - 1; y++) {
     for (int x = 0; x < size_ - 1; x++) {
       index_buffer_[i++] = I(x, y);     // 1. Dreieck links oben
-      index_buffer_[i++] = I(x+1, y);   // 1. Dreieck rechts oben
       index_buffer_[i++] = I(x, y+1);   // 1. Dreieck links unten
+      index_buffer_[i++] = I(x+1, y);   // 1. Dreieck rechts oben      
       index_buffer_[i++] = I(x+1, y);   // 2. Dreieck rechts oben
-      index_buffer_[i++] = I(x+1, y+1); // 2. Dreieck rechts unten
       index_buffer_[i++] = I(x, y+1);   // 2. Dreieck links unten
+      index_buffer_[i++] = I(x+1, y+1); // 2. Dreieck rechts unten      
     }
   }
   if (num_lod_ > 0) {
@@ -298,11 +298,11 @@ void Tile::TriangulateZOrder0(int x1, int y1, int x2, int y2, int &i){
   if (x1 + 1 == x2) {
     // Rekursionsabbruch, Dreiecke erzeugen
     index_buffer_[i++] = I(x1, y1);     // 1. Dreieck links oben
-    index_buffer_[i++] = I(x1+1, y1);   // 1. Dreieck rechts oben
     index_buffer_[i++] = I(x1, y1+1);   // 1. Dreieck links unten
+    index_buffer_[i++] = I(x1+1, y1);   // 1. Dreieck rechts oben
     index_buffer_[i++] = I(x1+1, y1);   // 2. Dreieck rechts oben
-    index_buffer_[i++] = I(x1+1, y1+1); // 2. Dreieck rechts unten
     index_buffer_[i++] = I(x1, y1+1);   // 2. Dreieck links unten
+    index_buffer_[i++] = I(x1+1, y1+1); // 2. Dreieck rechts unten    
   } else {
     int x12 = (x1+x2)/2;
     int y12 = (y1+y2)/2;

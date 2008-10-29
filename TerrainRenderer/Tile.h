@@ -57,7 +57,17 @@ class Tile {
   /**
    * Gibt einen Zeiger auf das Vertices-Array zurück.
    */
-  const Vector *GetVertexArray(void) { return vertices_; }
+  const Vector *GetVertexArray(void) const { return vertices_; }
+
+  /**
+   * Gibt einen Zeiger auf das Index-Array zurück.
+   */
+  const unsigned int *GetIndexArray(void) const { return index_buffer_; }
+
+  /**
+   * Gibt die Anzahl der Indizes zurück
+   */
+  int GetNumIndices(void) const { return (size_-1)*(size_-1)*2*3; }
 
   /**
    * Speichert Terrain-Mesh für jedes Tile im OBJ-Dateiformat.
