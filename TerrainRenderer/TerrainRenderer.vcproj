@@ -724,15 +724,7 @@
 			</File>
 		</Filter>
 		<File
-			RelativePath="SimpleSample.fx"
-			>
-		</File>
-		<File
 			RelativePath=".\TerrainRenderer.cpp"
-			>
-		</File>
-		<File
-			RelativePath=".\TerrainRenderer.fx"
 			>
 		</File>
 		<File
