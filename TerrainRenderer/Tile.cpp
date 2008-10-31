@@ -99,7 +99,7 @@ void Tile::Init(float roughness) {
 }
 
 void Tile::InitFromParent(void) {
-  int x1, y1;
+  int x1 = 0, y1 = 0;
   switch (direction_) {
     case NW: x1 = 0;         y1 = 0;         break;
     case NE: x1 = size_ / 2; y1 = 0;         break;

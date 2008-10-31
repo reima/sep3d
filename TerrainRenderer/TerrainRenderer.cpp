@@ -217,13 +217,12 @@ bool CALLBACK IsD3D10DeviceAcceptable(UINT Adapter, UINT Output,
 }
 
 
-HRESULT CreateTerrain(ID3D10Device *pd3dDevice,int terrain_n = TERRAIN_N, float terrain_roughness = TERRAIN_ROUGHNESS, 
+HRESULT CreateTerrain(ID3D10Device *pd3dDevice,int terrain_n = TERRAIN_N,
+                      float terrain_roughness = TERRAIN_ROUGHNESS,
                       int terrain_num_lod = TERRAIN_NUM_LOD) {
   HRESULT hr;
-
-  // Terrain erzeugen
   if (g_pTile) delete g_pTile;
-
+  // Terrain erzeugen
   g_pTile = new Tile(terrain_n, terrain_roughness, terrain_num_lod);
   g_pTile->TriangulateZOrder();
   V_RETURN(g_pTile->CreateBuffers(pd3dDevice));
@@ -400,7 +399,8 @@ void CALLBACK OnD3D10DestroyDevice(void* pUserContext) {
   SAFE_RELEASE(g_pVertexLayout);
   SAFE_RELEASE(g_pSprite10);
   SAFE_DELETE(g_pTxtHelper);
-  delete g_pTile;
+  SAFE_DELETE(g_pTile);
+  SAFE_DELETE(g_pLODSelector);
 }
 
 

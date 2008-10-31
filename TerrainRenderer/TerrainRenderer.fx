@@ -128,7 +128,6 @@ technique10 RenderSceneWireframe
   }
   pass P1
   {
-	SetVertexShader( NULL );
 	SetPixelShader( NULL );
 	SetRasterizerState( rsSolid );
   }
