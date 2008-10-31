@@ -2,6 +2,9 @@
 #ifndef TILE_H
 #define TILE_H
 #include <string>
+#include "DXUT.h"
+
+class LODSelector;
 
 /**
  * 3-dimensionaler Vektor, wird für Vertices verwendet.
@@ -55,24 +58,13 @@ class Tile {
   void TriangulateZOrder(void);
 
   /**
-   * Gibt einen Zeiger auf das Vertices-Array zurück.
-   */
-  const Vector *GetVertexArray(void) const { return vertices_; }
-
-  /**
-   * Gibt einen Zeiger auf das Index-Array zurück.
-   */
-  const unsigned int *GetIndexArray(void) const { return index_buffer_; }
-
-  /**
-   * Gibt die Anzahl der Indizes zurück
-   */
-  int GetNumIndices(void) const { return (size_-1)*(size_-1)*2*3; }
-
-  /**
    * Speichert Terrain-Mesh für jedes Tile im OBJ-Dateiformat.
    */
   void SaveObjs(const std::wstring &filename) const;
+
+  HRESULT CreateBuffers(ID3D10Device *pd3dDevice);
+  void Draw(ID3D10Device *pd3dDevice, LODSelector *lod_selector,
+            const D3DXVECTOR3 *cam_pos) const;
 
  private:
   /**
@@ -141,6 +133,8 @@ class Tile {
    */
   void TriangulateZOrder0(int x1, int y1, int x2, int y2, int &i);
 
+  void ReleaseBuffers(void);
+
   /**
    * LOD-Stufe des Tiles
    */
@@ -163,7 +157,7 @@ class Tile {
    * @see Tile::TriangulateLines
    * @see Tile::TriangulateZOrder
    */
-  unsigned int *index_buffer_;
+  unsigned int *indices_;
   /**
    * Übergeordnetes Eltern-Tile
    */
@@ -176,6 +170,9 @@ class Tile {
    * Feld der Kind-Tiles (falls vorhanden)
    */
   Tile *children_[4];
+
+  ID3D10Buffer *vertex_buffer_;
+  ID3D10Buffer *index_buffer_;
 };
 
 #endif

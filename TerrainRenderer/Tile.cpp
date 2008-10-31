@@ -6,6 +6,7 @@
 #include <sstream>
 #include <string>
 #include "Tile.h"
+#include "LODSelector.h"
 
 // Die Makros min und max aus windef.h vertragen sich nicht mit std::min,
 // std::max, std::numeric_limits<*>::min, std::numeric_limits<*>::max.
@@ -31,8 +32,10 @@ Tile::Tile(int n, float roughness, int num_lod)
     : lod_(0),
       size_((1 << n) + 1),
       num_lod_(num_lod),
-      index_buffer_(NULL),
-      parent_(NULL) {
+      indices_(NULL),
+      parent_(NULL),
+      vertex_buffer_(NULL),
+      index_buffer_(NULL) {
   vertices_ = new Vector[size_*size_];
   Init(roughness);
   InitChildren(roughness, NULL, NULL);
@@ -43,9 +46,11 @@ Tile::Tile(Tile *parent, Tile::Direction direction, float roughness,
     : lod_(parent->lod_ + 1),
       size_(parent->size_),
       num_lod_(parent->num_lod_ - 1),
-      index_buffer_(NULL),
+      indices_(NULL),
       direction_(direction),
-      parent_(parent) {
+      parent_(parent),
+      vertex_buffer_(NULL),
+      index_buffer_(NULL) {
   vertices_ = new Vector[size_*size_];
   InitFromParent();
   Refine(2, roughness);
@@ -59,8 +64,9 @@ Tile::~Tile(void) {
       delete children_[dir];
     }
   }
-  delete[] index_buffer_;
+  delete[] indices_;
   delete[] vertices_;
+  ReleaseBuffers();
 }
 
 void Tile::Init(float roughness) {
@@ -256,9 +262,9 @@ float Tile::GetMaxHeight() const {
 }
 
 void Tile::InitIndexBuffer(void) {
-  if (index_buffer_ == NULL) {
+  if (indices_ == NULL) {
     // (size_-1)^2 Blöcke, pro Block 2 Dreiecke, pro Dreieck 3 Indizes
-    index_buffer_ = new unsigned int[(size_-1)*(size_-1)*2*3];
+    indices_ = new unsigned int[(size_-1)*(size_-1)*2*3];
   }    
 }
 
@@ -268,12 +274,12 @@ void Tile::TriangulateLines(void)  {
   int i = 0;
   for (int y = 0; y < size_ - 1; y++) {
     for (int x = 0; x < size_ - 1; x++) {
-      index_buffer_[i++] = I(x, y);     // 1. Dreieck links oben
-      index_buffer_[i++] = I(x, y+1);   // 1. Dreieck links unten
-      index_buffer_[i++] = I(x+1, y);   // 1. Dreieck rechts oben      
-      index_buffer_[i++] = I(x+1, y);   // 2. Dreieck rechts oben
-      index_buffer_[i++] = I(x, y+1);   // 2. Dreieck links unten
-      index_buffer_[i++] = I(x+1, y+1); // 2. Dreieck rechts unten      
+      indices_[i++] = I(x, y);     // 1. Dreieck links oben
+      indices_[i++] = I(x, y+1);   // 1. Dreieck links unten
+      indices_[i++] = I(x+1, y);   // 1. Dreieck rechts oben
+      indices_[i++] = I(x+1, y);   // 2. Dreieck rechts oben
+      indices_[i++] = I(x, y+1);   // 2. Dreieck links unten
+      indices_[i++] = I(x+1, y+1); // 2. Dreieck rechts unten
     }
   }
   if (num_lod_ > 0) {
@@ -297,12 +303,12 @@ void Tile::TriangulateZOrder(void) {
 void Tile::TriangulateZOrder0(int x1, int y1, int x2, int y2, int &i){
   if (x1 + 1 == x2) {
     // Rekursionsabbruch, Dreiecke erzeugen
-    index_buffer_[i++] = I(x1, y1);     // 1. Dreieck links oben
-    index_buffer_[i++] = I(x1, y1+1);   // 1. Dreieck links unten
-    index_buffer_[i++] = I(x1+1, y1);   // 1. Dreieck rechts oben
-    index_buffer_[i++] = I(x1+1, y1);   // 2. Dreieck rechts oben
-    index_buffer_[i++] = I(x1, y1+1);   // 2. Dreieck links unten
-    index_buffer_[i++] = I(x1+1, y1+1); // 2. Dreieck rechts unten    
+    indices_[i++] = I(x1, y1);     // 1. Dreieck links oben
+    indices_[i++] = I(x1, y1+1);   // 1. Dreieck links unten
+    indices_[i++] = I(x1+1, y1);   // 1. Dreieck rechts oben
+    indices_[i++] = I(x1+1, y1);   // 2. Dreieck rechts oben
+    indices_[i++] = I(x1, y1+1);   // 2. Dreieck links unten
+    indices_[i++] = I(x1+1, y1+1); // 2. Dreieck rechts unten
   } else {
     int x12 = (x1+x2)/2;
     int y12 = (y1+y2)/2;
@@ -341,13 +347,13 @@ void Tile::SaveObjs0(const std::wstring &basename,
     }
   }
   // Faces (Dreiecke)
-  if (index_buffer_) {
+  if (indices_) {
     const int num_triangles = 2 * (size_ - 1) * (size_ - 1);
     for (int i = 0; i < num_triangles; ++i) {
       ofs << "f ";
-      ofs << (index_buffer_[3*i]+1) << " ";
-      ofs << (index_buffer_[3*i+1]+1) << " ";
-      ofs << (index_buffer_[3*i+2]+1) << std::endl;
+      ofs << (indices_[3*i]+1) << " ";
+      ofs << (indices_[3*i+1]+1) << " ";
+      ofs << (indices_[3*i+2]+1) << std::endl;
     }
   }
 
@@ -365,5 +371,76 @@ void Tile::SaveObjs0(const std::wstring &basename,
     filename = basename;
     filename.append(L"3");
     children_[SE]->SaveObjs0(filename, extension);
+  }
+}
+
+HRESULT Tile::CreateBuffers(ID3D10Device *pd3dDevice) {
+  HRESULT hr;
+
+  // Vertex Buffer anlegen
+  D3D10_BUFFER_DESC buffer_desc;
+  buffer_desc.Usage = D3D10_USAGE_DEFAULT;
+  buffer_desc.ByteWidth = sizeof(Vector) * GetResolution();
+  buffer_desc.BindFlags = D3D10_BIND_VERTEX_BUFFER;
+  buffer_desc.CPUAccessFlags = 0;
+  buffer_desc.MiscFlags = 0;
+
+  D3D10_SUBRESOURCE_DATA init_data;
+  init_data.pSysMem = vertices_;
+  init_data.SysMemPitch = 0;
+  init_data.SysMemSlicePitch = 0;
+
+  V_RETURN(pd3dDevice->CreateBuffer(&buffer_desc,
+                                    &init_data,
+                                    &vertex_buffer_));
+
+  // Index Buffer anlegen
+  buffer_desc.Usage = D3D10_USAGE_DEFAULT;
+  buffer_desc.ByteWidth = sizeof(unsigned int) * (size_ - 1)*(size_ - 1)*2*3;
+  buffer_desc.BindFlags = D3D10_BIND_INDEX_BUFFER;
+  buffer_desc.CPUAccessFlags = 0;
+  buffer_desc.MiscFlags = 0;
+
+  init_data.pSysMem = indices_;
+
+  V_RETURN(pd3dDevice->CreateBuffer(&buffer_desc,
+                                    &init_data,
+                                    &index_buffer_));
+
+  SAFE_DELETE_ARRAY(vertices_);
+  SAFE_DELETE_ARRAY(indices_);
+
+  if (num_lod_ > 0) {
+    for (int dir = 0; dir < 4; ++dir) {
+      V_RETURN(children_[dir]->CreateBuffers(pd3dDevice));
+    }
+  }
+
+  return S_OK;
+}
+
+void Tile::ReleaseBuffers(void) {
+  SAFE_RELEASE(vertex_buffer_);
+  SAFE_RELEASE(index_buffer_);
+}
+
+void Tile::Draw(ID3D10Device *pd3dDevice, LODSelector *lod_selector,
+                const D3DXVECTOR3 *cam_pos) const {
+  if (lod_selector->IsLODSufficient(this, cam_pos) || num_lod_ == 0) {
+    // Vertex Buffer setzen
+    UINT stride = sizeof(Vector);
+    UINT offset = 0;
+    pd3dDevice->IASetVertexBuffers(0, 1, &vertex_buffer_, &stride, &offset);
+
+    // Index Buffer setzen
+    pd3dDevice->IASetIndexBuffer(index_buffer_, DXGI_FORMAT_R32_UINT, 0);
+
+    // Rendern
+    pd3dDevice->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    pd3dDevice->DrawIndexed((size_-1)*(size_-1)*2*3, 0, 0);
+  } else {
+    for (int dir = 0; dir < 4; ++dir) {
+      children_[dir]->Draw(pd3dDevice, lod_selector, cam_pos);
+    }
   }
 }

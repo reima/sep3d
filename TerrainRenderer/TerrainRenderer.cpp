@@ -16,10 +16,12 @@
 #include "SDKmisc.h"
 #include "SDKmesh.h"
 #include "resource.h"
+#include "LODSelector.h"
+#include "FixedLODSelector.h"
 
 #define TERRAIN_N         8
-#define TERRAIN_ROUGHNESS 1.5f
-#define TERRAIN_NUM_LOD   0
+#define TERRAIN_ROUGHNESS 1.0f
+#define TERRAIN_NUM_LOD   3
 
 //#define DEBUG_VS   // Uncomment this line to debug D3D9 vertex shaders 
 //#define DEBUG_PS   // Uncomment this line to debug D3D9 pixel shaders 
@@ -46,19 +48,32 @@ ID3DX10Sprite*              g_pSprite10 = NULL;
 ID3D10Effect*               g_pEffect10 = NULL;
 ID3D10EffectTechnique*      g_pTechnique = NULL;
 ID3D10InputLayout*          g_pVertexLayout = NULL;
-ID3D10Buffer*               g_pVertexBuffer = NULL;
-ID3D10Buffer*               g_pIndexBuffer = NULL;
 ID3D10EffectMatrixVariable* g_pmWorldViewProj = NULL;
 ID3D10EffectMatrixVariable* g_pmWorld = NULL;
 ID3D10EffectScalarVariable* g_pfTime = NULL;
+
+Tile*                       g_pTile = NULL;
+LODSelector*                g_pLODSelector = NULL;
+
 
 
 //--------------------------------------------------------------------------------------
 // UI control IDs
 //--------------------------------------------------------------------------------------
-#define IDC_TOGGLEFULLSCREEN    1
-#define IDC_TOGGLEREF           2
-#define IDC_CHANGEDEVICE        3
+#define IDC_TOGGLEFULLSCREEN        1
+#define IDC_TOGGLEREF               2
+#define IDC_CHANGEDEVICE            3
+#define IDC_NEWTERRAIN              4
+#define IDC_LODSLIDER               5
+#define IDC_WIREFRAME               6
+#define IDC_NEWTERRAIN_LOD          7
+#define IDC_NEWTERRAIN_SIZE         8
+#define IDC_NEWTERRAIN_ROUGHNESS    9
+#define IDC_NEWTERRAIN_LOD_S        10
+#define IDC_NEWTERRAIN_SIZE_S       11
+#define IDC_NEWTERRAIN_ROUGHNESS_S  12
+#define IDC_NEWTERRAIN_OK           13
+
 
 
 //--------------------------------------------------------------------------------------
@@ -148,6 +163,30 @@ void InitApp() {
   g_HUD.AddButton(IDC_CHANGEDEVICE, L"Change device (F2)", 35, iY += 24, 125,
                   22, VK_F2);
 
+  g_HUD.AddButton(IDC_NEWTERRAIN, L"New Terrain", 35, iY += 24, 125,
+                  22, VK_F2);
+  g_HUD.AddStatic(0, L"LOD", 35, iY += 24, 125, 22);
+  g_HUD.AddSlider(IDC_LODSLIDER, 35, iY += 24, 125, 22, 0, TERRAIN_NUM_LOD, 0);
+  g_HUD.AddCheckBox(IDC_WIREFRAME, L"Wireframe", 35, iY += 24, 125, 22);
+
+  g_HUD.AddSlider(IDC_NEWTERRAIN_LOD, -200, 200, 125, 22, 1, 10, 5);
+  g_HUD.AddStatic(IDC_NEWTERRAIN_LOD_S, L"LOD", -250, 200, 50, 22);
+  g_HUD.GetSlider(IDC_NEWTERRAIN_LOD)->SetVisible(false);
+  g_HUD.GetStatic(IDC_NEWTERRAIN_LOD_S)->SetVisible(false);
+
+  g_HUD.AddSlider(IDC_NEWTERRAIN_ROUGHNESS, -200, 224, 125, 22, 0, 10, 5);
+  g_HUD.AddStatic(IDC_NEWTERRAIN_ROUGHNESS_S, L"Roughness", -250, 224, 50, 22);
+  g_HUD.GetSlider(IDC_NEWTERRAIN_ROUGHNESS)->SetVisible(false);
+  g_HUD.GetStatic(IDC_NEWTERRAIN_ROUGHNESS_S)->SetVisible(false);
+
+  g_HUD.AddSlider(IDC_NEWTERRAIN_SIZE, -200, 248, 125, 22, 1, 8, 5);
+  g_HUD.AddStatic(IDC_NEWTERRAIN_SIZE_S, L"Size", -250, 248, 50, 22);
+  g_HUD.GetSlider(IDC_NEWTERRAIN_SIZE)->SetVisible(false);
+  g_HUD.GetStatic(IDC_NEWTERRAIN_SIZE_S)->SetVisible(false);
+
+  g_HUD.AddButton(IDC_NEWTERRAIN_OK, L"OK", -190, 272, 50, 22);
+  g_HUD.GetButton(IDC_NEWTERRAIN_OK)->SetVisible(false);
+
   g_SampleUI.SetCallback(OnGUIEvent);
   iY = 10;
 }
@@ -175,6 +214,21 @@ bool CALLBACK IsD3D10DeviceAcceptable(UINT Adapter, UINT Output,
                                       DXGI_FORMAT BackBufferFormat,
                                       bool bWindowed, void* pUserContext) {
   return true;
+}
+
+
+HRESULT CreateTerrain(ID3D10Device *pd3dDevice,int terrain_n = TERRAIN_N, float terrain_roughness = TERRAIN_ROUGHNESS, 
+                      int terrain_num_lod = TERRAIN_NUM_LOD) {
+  HRESULT hr;
+
+  // Terrain erzeugen
+  if (g_pTile) delete g_pTile;
+
+  g_pTile = new Tile(terrain_n, terrain_roughness, terrain_num_lod);
+  g_pTile->TriangulateZOrder();
+  V_RETURN(g_pTile->CreateBuffers(pd3dDevice));
+
+  return S_OK;
 }
 
 
@@ -233,39 +287,9 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
                                          pass_desc.IAInputSignatureSize,
                                          &g_pVertexLayout));
 
-  // Terrain erzeugen
-  Tile tile(TERRAIN_N, TERRAIN_ROUGHNESS, TERRAIN_NUM_LOD);
-  tile.TriangulateZOrder();
+  V_RETURN(CreateTerrain(pd3dDevice));
 
-  // Vertex Buffer anlegen
-  D3D10_BUFFER_DESC buffer_desc;
-  buffer_desc.Usage = D3D10_USAGE_DEFAULT;
-  buffer_desc.ByteWidth = sizeof(Vector) * tile.GetResolution();
-  buffer_desc.BindFlags = D3D10_BIND_VERTEX_BUFFER;
-  buffer_desc.CPUAccessFlags = 0;
-  buffer_desc.MiscFlags = 0;
-
-  D3D10_SUBRESOURCE_DATA init_data;
-  init_data.pSysMem = tile.GetVertexArray();
-  init_data.SysMemPitch = 0;
-  init_data.SysMemSlicePitch = 0;
-
-  V_RETURN(pd3dDevice->CreateBuffer(&buffer_desc,
-                                    &init_data,
-                                    &g_pVertexBuffer));
-
-  // Index Buffer anlegen
-  buffer_desc.Usage = D3D10_USAGE_DEFAULT;
-  buffer_desc.ByteWidth = sizeof(unsigned int) * tile.GetNumIndices();
-  buffer_desc.BindFlags = D3D10_BIND_INDEX_BUFFER;
-  buffer_desc.CPUAccessFlags = 0;
-  buffer_desc.MiscFlags = 0;
-
-  init_data.pSysMem = tile.GetIndexArray();
-
-  V_RETURN(pd3dDevice->CreateBuffer(&buffer_desc,
-                                    &init_data,
-                                    &g_pIndexBuffer));  
+  g_pLODSelector = new FixedLODSelector(0);
 
   return S_OK;
 }
@@ -342,21 +366,11 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   // Set vertex Layout
   pd3dDevice->IASetInputLayout(g_pVertexLayout);
 
-  // Vertex Buffer setzen
-  UINT stride = sizeof(Vector);
-  UINT offset = 0;
-  pd3dDevice->IASetVertexBuffers(0, 1, &g_pVertexBuffer, &stride, &offset);
-
-  // Index Buffer setzen
-  pd3dDevice->IASetIndexBuffer(g_pIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
-
-  // Rendern
-  pd3dDevice->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   D3D10_TECHNIQUE_DESC tech_desc;
   g_pTechnique->GetDesc(&tech_desc);
   for (UINT p = 0; p < tech_desc.Passes; ++p) {
     g_pTechnique->GetPassByIndex(p)->Apply(0);
-    pd3dDevice->DrawIndexed((1<<TERRAIN_N)*(1<<TERRAIN_N)*2*3, 0, 0);
+    g_pTile->Draw(pd3dDevice, g_pLODSelector, g_Camera.GetEyePt());
   }
 
   DXUT_BeginPerfEvent(DXUT_PERFEVENTCOLOR, L"HUD / Stats");
@@ -384,10 +398,9 @@ void CALLBACK OnD3D10DestroyDevice(void* pUserContext) {
   SAFE_RELEASE(g_pFont10);
   SAFE_RELEASE(g_pEffect10);
   SAFE_RELEASE(g_pVertexLayout);
-  SAFE_RELEASE(g_pVertexBuffer);
-  SAFE_RELEASE(g_pIndexBuffer);
   SAFE_RELEASE(g_pSprite10);
   SAFE_DELETE(g_pTxtHelper);
+  delete g_pTile;
 }
 
 
@@ -505,6 +518,41 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
       DXUTToggleREF(); break;
     case IDC_CHANGEDEVICE:
       g_SettingsDlg.SetActive(!g_SettingsDlg.IsActive()); break;
+    case IDC_NEWTERRAIN:
+      g_HUD.GetSlider(IDC_NEWTERRAIN_LOD)->SetVisible(true);
+      g_HUD.GetSlider(IDC_NEWTERRAIN_SIZE)->SetVisible(true);
+      g_HUD.GetSlider(IDC_NEWTERRAIN_ROUGHNESS)->SetVisible(true);
+      g_HUD.GetStatic(IDC_NEWTERRAIN_LOD_S)->SetVisible(true);
+      g_HUD.GetStatic(IDC_NEWTERRAIN_SIZE_S)->SetVisible(true);
+      g_HUD.GetStatic(IDC_NEWTERRAIN_ROUGHNESS_S)->SetVisible(true);
+      g_HUD.GetButton(IDC_NEWTERRAIN_OK)->SetVisible(true);
+      break;
+    case IDC_LODSLIDER:
+      delete g_pLODSelector;
+      g_pLODSelector = new FixedLODSelector(
+        g_HUD.GetSlider(IDC_LODSLIDER)->GetValue());
+      break;
+    case IDC_WIREFRAME:
+      if (g_HUD.GetCheckBox(IDC_WIREFRAME)->GetChecked()) {
+        g_pTechnique = g_pEffect10->GetTechniqueByName("RenderSceneWireframe");
+      } else {
+        g_pTechnique = g_pEffect10->GetTechniqueByName("RenderScene");
+      }
+      break;
+    case IDC_NEWTERRAIN_OK:
+      g_HUD.GetSlider(IDC_NEWTERRAIN_LOD)->SetVisible(false);
+      g_HUD.GetSlider(IDC_NEWTERRAIN_SIZE)->SetVisible(false);
+      g_HUD.GetSlider(IDC_NEWTERRAIN_ROUGHNESS)->SetVisible(false);
+      g_HUD.GetStatic(IDC_NEWTERRAIN_LOD_S)->SetVisible(false);
+      g_HUD.GetStatic(IDC_NEWTERRAIN_SIZE_S)->SetVisible(false);
+      g_HUD.GetStatic(IDC_NEWTERRAIN_ROUGHNESS_S)->SetVisible(false);
+      g_HUD.GetButton(IDC_NEWTERRAIN_OK)->SetVisible(false);
+    
+      CreateTerrain(DXUTGetD3D10Device(),
+                    g_HUD.GetSlider(IDC_NEWTERRAIN_SIZE)->GetValue(),
+                    (float)g_HUD.GetSlider(IDC_NEWTERRAIN_ROUGHNESS)->GetValue(),
+                    g_HUD.GetSlider(IDC_NEWTERRAIN_LOD)->GetValue());
+      break;
   }
 }
 

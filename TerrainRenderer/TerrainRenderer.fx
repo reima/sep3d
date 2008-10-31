@@ -44,6 +44,9 @@ VS_OUTPUT RenderSceneVS( VS_INPUT In)
 
   float4 pos = float4(In.Position, 1.0f);
 
+// Uncomment following line for additional fun!
+//  pos.y *= sin(g_fTime);
+
   // encode color depending on y-coordinate (approx. the height)
   float spots[] = {
     -1.0,      // Tiefes Wasser
@@ -67,7 +70,7 @@ VS_OUTPUT RenderSceneVS( VS_INPUT In)
     float4(1, 1, 1, 1)
   };
 
-  float v = In.Position.y;
+  float v = pos.y;
   if (v < spots[0]) Output.Color = colors[0];
   else if (v > spots[7]) Output.Color = colors[7];
   else for (int i = 0; i < 7; ++i) {
@@ -78,9 +81,9 @@ VS_OUTPUT RenderSceneVS( VS_INPUT In)
     }
   }
   
-  // Create water plane
+  // Create water plane with waves
   if (pos.y < 0) {
-    pos.y = 0.025 * sin(5 * pos.x + g_fTime * 2) * cos(5 * pos.z + g_fTime * 2);
+    pos.y = 0.05 * sin(3 * pos.x + g_fTime * 2) * cos(3 * pos.z + g_fTime * 3);
   }
 
   // Transform the position from object space to homogeneous projection space
@@ -98,6 +101,9 @@ float4 RenderScenePS( VS_OUTPUT In ) : SV_Target
   return In.Color;
 }
 
+RasterizerState rsWireframe { FillMode = WireFrame; };
+RasterizerState rsSolid { FillMode = Solid; };
+
 //--------------------------------------------------------------------------------------
 // Renders scene 
 //--------------------------------------------------------------------------------------
@@ -108,5 +114,22 @@ technique10 RenderScene
     SetVertexShader( CompileShader( vs_4_0, RenderSceneVS() ) );
     SetGeometryShader( NULL );
     SetPixelShader( CompileShader( ps_4_0, RenderScenePS() ) );
+  }
+}
+
+technique10 RenderSceneWireframe
+{
+  pass P0
+  {
+    SetVertexShader( CompileShader( vs_4_0, RenderSceneVS() ) );
+    SetGeometryShader( NULL );
+    SetPixelShader( CompileShader( ps_4_0, RenderScenePS() ) );
+    SetRasterizerState( rsWireframe );
+  }
+  pass P1
+  {
+	SetVertexShader( NULL );
+	SetPixelShader( NULL );
+	SetRasterizerState( rsSolid );
   }
 }

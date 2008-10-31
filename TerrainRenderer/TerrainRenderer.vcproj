@@ -6,7 +6,7 @@
 	ProjectGUID="{D3D10110-96D0-4629-88B8-122C0256058C}"
 	RootNamespace="TerrainRenderer"
 	Keyword="Win32Proj"
-	TargetFrameworkVersion="131072"
+	TargetFrameworkVersion="0"
 	>
 	<Platforms>
 		<Platform
@@ -75,8 +75,6 @@
 				GenerateDebugInformation="true"
 				SubSystem="2"
 				LargeAddressAware="2"
-				RandomizedBaseAddress="1"
-				DataExecutionPrevention="0"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -159,8 +157,6 @@
 				GenerateDebugInformation="true"
 				SubSystem="2"
 				LargeAddressAware="2"
-				RandomizedBaseAddress="1"
-				DataExecutionPrevention="0"
 				TargetMachine="17"
 			/>
 			<Tool
@@ -247,8 +243,6 @@
 				LargeAddressAware="2"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
-				RandomizedBaseAddress="1"
-				DataExecutionPrevention="0"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -336,8 +330,6 @@
 				LargeAddressAware="2"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
-				RandomizedBaseAddress="1"
-				DataExecutionPrevention="0"
 				TargetMachine="17"
 			/>
 			<Tool
@@ -424,8 +416,6 @@
 				LargeAddressAware="2"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
-				RandomizedBaseAddress="1"
-				DataExecutionPrevention="0"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -513,8 +503,6 @@
 				LargeAddressAware="2"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
-				RandomizedBaseAddress="1"
-				DataExecutionPrevention="0"
 				TargetMachine="17"
 			/>
 			<Tool
@@ -723,6 +711,18 @@
 				>
 			</File>
 		</Filter>
+		<File
+			RelativePath=".\FixedLODSelector.cpp"
+			>
+		</File>
+		<File
+			RelativePath=".\FixedLODSelector.h"
+			>
+		</File>
+		<File
+			RelativePath=".\LODSelector.h"
+			>
+		</File>
 		<File
 			RelativePath=".\TerrainRenderer.cpp"
 			>
