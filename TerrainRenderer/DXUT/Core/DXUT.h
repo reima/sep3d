@@ -106,7 +106,7 @@
 
 // strsafe.h deprecates old unsecure string functions.  If you 
 // really do not want to it to (not recommended), then uncomment the next line 
-//#define STRSAFE_NO_DEPRECATE
+#define STRSAFE_NO_DEPRECATE
 
 #ifndef STRSAFE_NO_DEPRECATE
 #pragma deprecated("strncpy")

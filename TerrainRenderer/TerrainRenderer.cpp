@@ -6,7 +6,6 @@
 //
 // Copyright (c) Microsoft Corporation. All rights reserved.
 //--------------------------------------------------------------------------------------
-#include "Tile.h"
 
 #include "DXUT.h"
 #include "DXUTgui.h"
@@ -16,8 +15,11 @@
 #include "SDKmisc.h"
 #include "SDKmesh.h"
 #include "resource.h"
+
+#include "Tile.h"
 #include "LODSelector.h"
 #include "FixedLODSelector.h"
+
 
 #define TERRAIN_N         8
 #define TERRAIN_ROUGHNESS 1.0f
