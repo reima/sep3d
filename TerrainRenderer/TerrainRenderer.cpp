@@ -356,7 +356,7 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   g_pTechnique->GetDesc(&tech_desc);
   for (UINT p = 0; p < tech_desc.Passes; ++p) {
     g_pTechnique->GetPassByIndex(p)->Apply(0);
-    pd3dDevice->DrawIndexed(256*256*2*3, 0, 0);
+    pd3dDevice->DrawIndexed((1<<TERRAIN_N)*(1<<TERRAIN_N)*2*3, 0, 0);
   }
 
   DXUT_BeginPerfEvent(DXUT_PERFEVENTCOLOR, L"HUD / Stats");
