@@ -64,8 +64,8 @@ Tile::~Tile(void) {
       delete children_[dir];
     }
   }
-  delete[] indices_;
-  delete[] vertices_;
+  SAFE_DELETE_ARRAY(indices_);
+  SAFE_DELETE_ARRAY(vertices_);
   ReleaseBuffers();
 }
 
@@ -377,6 +377,9 @@ void Tile::SaveObjs0(const std::wstring &basename,
 HRESULT Tile::CreateBuffers(ID3D10Device *pd3dDevice) {
   HRESULT hr;
 
+  // Evtl. bereits vorhandene Buffer freigeben
+  ReleaseBuffers();
+
   // Vertex Buffer anlegen
   D3D10_BUFFER_DESC buffer_desc;
   buffer_desc.Usage = D3D10_USAGE_DEFAULT;
@@ -410,6 +413,7 @@ HRESULT Tile::CreateBuffers(ID3D10Device *pd3dDevice) {
   SAFE_DELETE_ARRAY(vertices_);
   SAFE_DELETE_ARRAY(indices_);
 
+  // Rekursiver Aufruf über alle Kinder
   if (num_lod_ > 0) {
     for (int dir = 0; dir < 4; ++dir) {
       V_RETURN(children_[dir]->CreateBuffers(pd3dDevice));

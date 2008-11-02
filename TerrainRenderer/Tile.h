@@ -62,7 +62,30 @@ class Tile {
    */
   void SaveObjs(const std::wstring &filename) const;
 
+  /**
+   * Erzeugt Vertex- und Index-Buffer lädt das Dreieckgitter des Tiles in diese
+   * hoch. Wird ggf. rekursiv für alle Kinder des Tiles aufgerufen.
+   * @warning Das Tile muss zuvor trianguliert worden sein (durch Aufruf von
+   *          Tile::TriangulateLines oder Tile::TriangulateZOrder).
+   * @see Tile::ReleaseBuffers
+   */
   HRESULT CreateBuffers(ID3D10Device *pd3dDevice);
+
+  /**
+   * Gibt die von CreateBuffers erzeugten Buffer wieder frei.
+   */
+  void ReleaseBuffers(void);
+
+  /**
+   * Gibt das Tile auf dem D3D10-Gerät aus.
+   * @param pd3dDevice Das D3D10-Gerät.
+   * @param lod_selector Ein LODSelector, der bestimmt, ob die LOD-Stufe des
+   *                     Tiles ausreicht. Wenn nicht, werden rekursiv die
+   *                     Kinder des Tiles gezeichnet.
+   * @param cam_pos Die Position der Kamera, zur Übergabe an den LODSelector.
+   * @warning Vor dem Aufruf müssen die D3D10-Buffer mit Tile::CreateBuffers
+   *          erzeugt werden.
+   */
   void Draw(ID3D10Device *pd3dDevice, LODSelector *lod_selector,
             const D3DXVECTOR3 *cam_pos) const;
 
@@ -133,8 +156,6 @@ class Tile {
    */
   void TriangulateZOrder0(int x1, int y1, int x2, int y2, int &i);
 
-  void ReleaseBuffers(void);
-
   /**
    * LOD-Stufe des Tiles
    */
@@ -171,7 +192,13 @@ class Tile {
    */
   Tile *children_[4];
 
+  /**
+   * Zeiger auf den D3D10-Vertex-Buffer.
+   */
   ID3D10Buffer *vertex_buffer_;
+  /**
+   * Zeiger auf den D3D10-Index-Buffer.
+   */
   ID3D10Buffer *index_buffer_;
 };
 

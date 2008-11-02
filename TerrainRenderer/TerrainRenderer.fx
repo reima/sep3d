@@ -101,9 +101,6 @@ float4 RenderScenePS( VS_OUTPUT In ) : SV_Target
   return In.Color;
 }
 
-RasterizerState rsWireframe { FillMode = WireFrame; };
-RasterizerState rsSolid { FillMode = Solid; };
-
 //--------------------------------------------------------------------------------------
 // Renders scene 
 //--------------------------------------------------------------------------------------
@@ -114,21 +111,5 @@ technique10 RenderScene
     SetVertexShader( CompileShader( vs_4_0, RenderSceneVS() ) );
     SetGeometryShader( NULL );
     SetPixelShader( CompileShader( ps_4_0, RenderScenePS() ) );
-  }
-}
-
-technique10 RenderSceneWireframe
-{
-  pass P0
-  {
-    SetVertexShader( CompileShader( vs_4_0, RenderSceneVS() ) );
-    SetGeometryShader( NULL );
-    SetPixelShader( CompileShader( ps_4_0, RenderScenePS() ) );
-    SetRasterizerState( rsWireframe );
-  }
-  pass P1
-  {
-	SetPixelShader( NULL );
-	SetRasterizerState( rsSolid );
   }
 }

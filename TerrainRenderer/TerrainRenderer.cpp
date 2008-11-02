@@ -57,7 +57,8 @@ ID3D10EffectScalarVariable* g_pfTime = NULL;
 Tile*                       g_pTile = NULL;
 LODSelector*                g_pLODSelector = NULL;
 
-
+bool                        g_bWireframe = false;
+ID3D10RasterizerState*      g_pRSWireframe = NULL;
 
 //--------------------------------------------------------------------------------------
 // UI control IDs
@@ -67,14 +68,15 @@ LODSelector*                g_pLODSelector = NULL;
 #define IDC_CHANGEDEVICE            3
 #define IDC_NEWTERRAIN              4
 #define IDC_LODSLIDER               5
-#define IDC_WIREFRAME               6
-#define IDC_NEWTERRAIN_LOD          7
-#define IDC_NEWTERRAIN_SIZE         8
-#define IDC_NEWTERRAIN_ROUGHNESS    9
-#define IDC_NEWTERRAIN_LOD_S        10
-#define IDC_NEWTERRAIN_SIZE_S       11
-#define IDC_NEWTERRAIN_ROUGHNESS_S  12
-#define IDC_NEWTERRAIN_OK           13
+#define IDC_LODSLIDER_S             6
+#define IDC_WIREFRAME               7
+#define IDC_NEWTERRAIN_LOD          8
+#define IDC_NEWTERRAIN_SIZE         9
+#define IDC_NEWTERRAIN_ROUGHNESS    10
+#define IDC_NEWTERRAIN_LOD_S        11
+#define IDC_NEWTERRAIN_SIZE_S       12
+#define IDC_NEWTERRAIN_ROUGHNESS_S  13
+#define IDC_NEWTERRAIN_OK           14
 
 
 
@@ -165,32 +167,42 @@ void InitApp() {
   g_HUD.AddButton(IDC_CHANGEDEVICE, L"Change device (F2)", 35, iY += 24, 125,
                   22, VK_F2);
 
-  g_HUD.AddButton(IDC_NEWTERRAIN, L"New Terrain", 35, iY += 24, 125,
+  g_HUD.AddButton(IDC_NEWTERRAIN, L"New Terrain...", 35, iY += 24, 125,
                   22, VK_F2);
-  g_HUD.AddStatic(0, L"LOD", 35, iY += 24, 125, 22);
+  g_HUD.AddCheckBox(IDC_WIREFRAME, L"Wireframe (F5)", 35, iY += 24, 125, 22,
+                    g_bWireframe, VK_F5);
+
+  WCHAR sz[100];
+  StringCchPrintf(sz, 100, L"LOD: %d", 0);
+  g_HUD.AddStatic(IDC_LODSLIDER_S, sz, 35, iY += 24, 125, 22);
   g_HUD.AddSlider(IDC_LODSLIDER, 35, iY += 24, 125, 22, 0, TERRAIN_NUM_LOD, 0);
-  g_HUD.AddCheckBox(IDC_WIREFRAME, L"Wireframe", 35, iY += 24, 125, 22);
-
-  g_HUD.AddSlider(IDC_NEWTERRAIN_LOD, -200, 200, 125, 22, 1, 10, 5);
-  g_HUD.AddStatic(IDC_NEWTERRAIN_LOD_S, L"LOD", -250, 200, 50, 22);
-  g_HUD.GetSlider(IDC_NEWTERRAIN_LOD)->SetVisible(false);
-  g_HUD.GetStatic(IDC_NEWTERRAIN_LOD_S)->SetVisible(false);
-
-  g_HUD.AddSlider(IDC_NEWTERRAIN_ROUGHNESS, -200, 224, 125, 22, 0, 10, 5);
-  g_HUD.AddStatic(IDC_NEWTERRAIN_ROUGHNESS_S, L"Roughness", -250, 224, 50, 22);
-  g_HUD.GetSlider(IDC_NEWTERRAIN_ROUGHNESS)->SetVisible(false);
-  g_HUD.GetStatic(IDC_NEWTERRAIN_ROUGHNESS_S)->SetVisible(false);
-
-  g_HUD.AddSlider(IDC_NEWTERRAIN_SIZE, -200, 248, 125, 22, 1, 8, 5);
-  g_HUD.AddStatic(IDC_NEWTERRAIN_SIZE_S, L"Size", -250, 248, 50, 22);
-  g_HUD.GetSlider(IDC_NEWTERRAIN_SIZE)->SetVisible(false);
+  
+  iY = 10;
+  StringCchPrintf(sz, 100, L"Size: %dx%d", (1<<TERRAIN_N)+1, (1<<TERRAIN_N)+1);
+  g_HUD.AddStatic(IDC_NEWTERRAIN_SIZE_S, sz, -150, iY, 125, 22);
+  g_HUD.AddSlider(IDC_NEWTERRAIN_SIZE, -150, iY += 24, 125, 22, 1, 10,
+                  TERRAIN_N);
   g_HUD.GetStatic(IDC_NEWTERRAIN_SIZE_S)->SetVisible(false);
+  g_HUD.GetSlider(IDC_NEWTERRAIN_SIZE)->SetVisible(false);
 
-  g_HUD.AddButton(IDC_NEWTERRAIN_OK, L"OK", -190, 272, 50, 22);
+  StringCchPrintf(sz, 100, L"Roughness: %.2f", TERRAIN_ROUGHNESS);
+  g_HUD.AddStatic(IDC_NEWTERRAIN_ROUGHNESS_S, sz, -150, iY += 24, 125, 22);
+  g_HUD.AddSlider(IDC_NEWTERRAIN_ROUGHNESS, -150, iY += 24, 125, 22, 0, 1000,
+                  (int)(TERRAIN_ROUGHNESS*100));
+  g_HUD.GetStatic(IDC_NEWTERRAIN_ROUGHNESS_S)->SetVisible(false);
+  g_HUD.GetSlider(IDC_NEWTERRAIN_ROUGHNESS)->SetVisible(false);
+
+  StringCchPrintf(sz, 100, L"LOD Levels: %d", TERRAIN_NUM_LOD);
+  g_HUD.AddStatic(IDC_NEWTERRAIN_LOD_S, sz, -150, iY += 24, 125, 22);
+  g_HUD.AddSlider(IDC_NEWTERRAIN_LOD, -150, iY += 24, 125, 22, 0, 5,
+                  TERRAIN_NUM_LOD);
+  g_HUD.GetStatic(IDC_NEWTERRAIN_LOD_S)->SetVisible(false);
+  g_HUD.GetSlider(IDC_NEWTERRAIN_LOD)->SetVisible(false);
+
+  g_HUD.AddButton(IDC_NEWTERRAIN_OK, L"Generate", -150, iY += 24, 125, 22);
   g_HUD.GetButton(IDC_NEWTERRAIN_OK)->SetVisible(false);
 
   g_SampleUI.SetCallback(OnGUIEvent);
-  iY = 10;
 }
 
 
@@ -218,17 +230,18 @@ bool CALLBACK IsD3D10DeviceAcceptable(UINT Adapter, UINT Output,
   return true;
 }
 
-
-HRESULT CreateTerrain(ID3D10Device *pd3dDevice,int terrain_n = TERRAIN_N,
+/**
+ * Erzeugt ein neues Terrain mit den übergebenen Parametern und bereitet es auf
+ * das Rendering vor.
+ */
+HRESULT CreateTerrain(ID3D10Device *pd3dDevice, int terrain_n = TERRAIN_N,
                       float terrain_roughness = TERRAIN_ROUGHNESS,
                       int terrain_num_lod = TERRAIN_NUM_LOD) {
   HRESULT hr;
-  if (g_pTile) delete g_pTile;
-  // Terrain erzeugen
+  SAFE_DELETE(g_pTile);
   g_pTile = new Tile(terrain_n, terrain_roughness, terrain_num_lod);
   g_pTile->TriangulateZOrder();
   V_RETURN(g_pTile->CreateBuffers(pd3dDevice));
-
   return S_OK;
 }
 
@@ -266,7 +279,8 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   g_pTechnique = g_pEffect10->GetTechniqueByName("RenderScene");
 
   // Get effects variables
-  g_pmWorldViewProj = g_pEffect10->GetVariableByName("g_mWorldViewProjection")->AsMatrix();
+  g_pmWorldViewProj =
+      g_pEffect10->GetVariableByName("g_mWorldViewProjection")->AsMatrix();
   g_pmWorld = g_pEffect10->GetVariableByName("g_mWorld")->AsMatrix();
   g_pfTime = g_pEffect10->GetVariableByName("g_fTime")->AsScalar();
 
@@ -288,9 +302,20 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
                                          pass_desc.IAInputSignatureSize,
                                          &g_pVertexLayout));
 
+  // Terrain erzeugen
   V_RETURN(CreateTerrain(pd3dDevice));
 
+  // FixedLODSelector mit LOD-Stufe 0
   g_pLODSelector = new FixedLODSelector(0);
+
+  // RasterizerState für Wireframe erzeugen
+  D3D10_RASTERIZER_DESC rast_desc = {
+    D3D10_FILL_WIREFRAME, D3D10_CULL_BACK,
+    FALSE,
+    0, 0.0f, 0.0f,
+    TRUE, FALSE, FALSE, FALSE
+  };
+  V_RETURN(pd3dDevice->CreateRasterizerState(&rast_desc, &g_pRSWireframe));
 
   return S_OK;
 }
@@ -367,12 +392,16 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   // Set vertex Layout
   pd3dDevice->IASetInputLayout(g_pVertexLayout);
 
+  if (g_bWireframe) pd3dDevice->RSSetState(g_pRSWireframe);
+
   D3D10_TECHNIQUE_DESC tech_desc;
   g_pTechnique->GetDesc(&tech_desc);
   for (UINT p = 0; p < tech_desc.Passes; ++p) {
     g_pTechnique->GetPassByIndex(p)->Apply(0);
     g_pTile->Draw(pd3dDevice, g_pLODSelector, g_Camera.GetEyePt());
   }
+
+  if (g_bWireframe) pd3dDevice->RSSetState(NULL);
 
   DXUT_BeginPerfEvent(DXUT_PERFEVENTCOLOR, L"HUD / Stats");
   RenderText();
@@ -400,6 +429,7 @@ void CALLBACK OnD3D10DestroyDevice(void* pUserContext) {
   SAFE_RELEASE(g_pEffect10);
   SAFE_RELEASE(g_pVertexLayout);
   SAFE_RELEASE(g_pSprite10);
+  SAFE_RELEASE(g_pRSWireframe);
   SAFE_DELETE(g_pTxtHelper);
   SAFE_DELETE(g_pTile);
   SAFE_DELETE(g_pLODSelector);
@@ -529,19 +559,41 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
       g_HUD.GetStatic(IDC_NEWTERRAIN_ROUGHNESS_S)->SetVisible(true);
       g_HUD.GetButton(IDC_NEWTERRAIN_OK)->SetVisible(true);
       break;
-    case IDC_LODSLIDER:
-      delete g_pLODSelector;
-      g_pLODSelector = new FixedLODSelector(
-        g_HUD.GetSlider(IDC_LODSLIDER)->GetValue());
+    case IDC_LODSLIDER: {
+      SAFE_DELETE(g_pLODSelector);
+      int value = g_HUD.GetSlider(IDC_LODSLIDER)->GetValue();
+      g_pLODSelector = new FixedLODSelector(value);
+      WCHAR sz[100];
+      StringCchPrintf(sz, 100, L"LOD: %d", value);
+      g_HUD.GetStatic(IDC_LODSLIDER_S)->SetText(sz);
       break;
+    }
     case IDC_WIREFRAME:
-      if (g_HUD.GetCheckBox(IDC_WIREFRAME)->GetChecked()) {
-        g_pTechnique = g_pEffect10->GetTechniqueByName("RenderSceneWireframe");
-      } else {
-        g_pTechnique = g_pEffect10->GetTechniqueByName("RenderScene");
-      }
+      g_bWireframe = g_HUD.GetCheckBox(IDC_WIREFRAME)->GetChecked();
       break;
-    case IDC_NEWTERRAIN_OK:
+    case IDC_NEWTERRAIN_SIZE: {
+      int value = (1 << g_HUD.GetSlider(IDC_NEWTERRAIN_SIZE)->GetValue()) + 1;
+      WCHAR sz[100];
+      StringCchPrintf(sz, 100, L"Size: %dx%d", value, value);
+      g_HUD.GetStatic(IDC_NEWTERRAIN_SIZE_S)->SetText(sz);
+      break;
+    }
+    case IDC_NEWTERRAIN_ROUGHNESS: {
+      float value =
+          g_HUD.GetSlider(IDC_NEWTERRAIN_ROUGHNESS)->GetValue() / 100.0f;
+      WCHAR sz[100];
+      StringCchPrintf(sz, 100, L"Roughness: %.2f", value);
+      g_HUD.GetStatic(IDC_NEWTERRAIN_ROUGHNESS_S)->SetText(sz);
+      break;
+    }
+    case IDC_NEWTERRAIN_LOD: {
+      int value = g_HUD.GetSlider(IDC_NEWTERRAIN_LOD)->GetValue();
+      WCHAR sz[100];
+      StringCchPrintf(sz, 100, L"LOD Levels: %d", value);
+      g_HUD.GetStatic(IDC_NEWTERRAIN_LOD_S)->SetText(sz);
+      break;
+    }
+    case IDC_NEWTERRAIN_OK: {
       g_HUD.GetSlider(IDC_NEWTERRAIN_LOD)->SetVisible(false);
       g_HUD.GetSlider(IDC_NEWTERRAIN_SIZE)->SetVisible(false);
       g_HUD.GetSlider(IDC_NEWTERRAIN_ROUGHNESS)->SetVisible(false);
@@ -549,13 +601,20 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
       g_HUD.GetStatic(IDC_NEWTERRAIN_SIZE_S)->SetVisible(false);
       g_HUD.GetStatic(IDC_NEWTERRAIN_ROUGHNESS_S)->SetVisible(false);
       g_HUD.GetButton(IDC_NEWTERRAIN_OK)->SetVisible(false);
+
+      int n = g_HUD.GetSlider(IDC_NEWTERRAIN_SIZE)->GetValue();
+      float roughness =
+          g_HUD.GetSlider(IDC_NEWTERRAIN_ROUGHNESS)->GetValue()/100.0f;
+      int num_lod = g_HUD.GetSlider(IDC_NEWTERRAIN_LOD)->GetValue();
     
-      CreateTerrain(DXUTGetD3D10Device(),
-                    g_HUD.GetSlider(IDC_NEWTERRAIN_SIZE)->GetValue(),
-                    (float)g_HUD.GetSlider(IDC_NEWTERRAIN_ROUGHNESS)->GetValue(),
-                    g_HUD.GetSlider(IDC_NEWTERRAIN_LOD)->GetValue());
+      CreateTerrain(DXUTGetD3D10Device(), n, roughness, num_lod);
+
+      g_HUD.GetSlider(IDC_LODSLIDER)->SetValue(0);
+      g_HUD.GetSlider(IDC_LODSLIDER)->SetRange(0, num_lod);
+      g_HUD.GetStatic(IDC_LODSLIDER_S)->SetText(L"LOD: 0");
+      SAFE_DELETE(g_pLODSelector);
+      g_pLODSelector = new FixedLODSelector(0);
       break;
+    }
   }
 }
-
-
