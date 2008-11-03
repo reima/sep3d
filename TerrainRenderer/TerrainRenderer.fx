@@ -1,9 +1,5 @@
 //--------------------------------------------------------------------------------------
-// File: SimpleSample.fx
-//
-// The effect file for the SimpleSample sample.  
-// 
-// Copyright (c) Microsoft Corporation. All rights reserved.
+// File: TerrainRenderer.fx
 //--------------------------------------------------------------------------------------
 
 

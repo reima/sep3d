@@ -1,6 +1,6 @@
 //{{NO_DEPENDENCIES}}
 // Microsoft Visual C++ generated include file.
-// Used by SimpleSample.rc
+// Used by TerrainRenderer.rc
 //
 #define IDI_MAIN_ICON                   101
 
