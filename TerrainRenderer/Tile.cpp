@@ -22,7 +22,7 @@ namespace {
 /**
  * Generiert zuf‰llige Flieﬂkommazahl zwischen -1 und 1
  */
-inline float randf() {
+inline float randf(void) {
   return rand() / (RAND_MAX * 0.5f) - 1.0f;
 }
 
@@ -229,7 +229,7 @@ void Tile::FixEdges(Tile *north, Tile *west) {
   }
 }
 
-float Tile::GetMinHeight() const {
+float Tile::GetMinHeight(void) const {
   static float min = std::numeric_limits<float>::max();
   if (min == std::numeric_limits<float>::max()) {
     const int res = GetResolution();
@@ -245,7 +245,7 @@ float Tile::GetMinHeight() const {
   return min;
 }
 
-float Tile::GetMaxHeight() const {
+float Tile::GetMaxHeight(void) const {
   static float max = std::numeric_limits<float>::min();
   if (max == std::numeric_limits<float>::min()) {
     const int res = GetResolution();
@@ -410,9 +410,6 @@ HRESULT Tile::CreateBuffers(ID3D10Device *pd3dDevice) {
                                     &init_data,
                                     &index_buffer_));
 
-  SAFE_DELETE_ARRAY(vertices_);
-  SAFE_DELETE_ARRAY(indices_);
-
   // Rekursiver Aufruf ¸ber alle Kinder
   if (num_lod_ > 0) {
     for (int dir = 0; dir < 4; ++dir) {
@@ -426,6 +423,16 @@ HRESULT Tile::CreateBuffers(ID3D10Device *pd3dDevice) {
 void Tile::ReleaseBuffers(void) {
   SAFE_RELEASE(vertex_buffer_);
   SAFE_RELEASE(index_buffer_);
+}
+
+void Tile::FreeMemory(void) {
+  SAFE_DELETE_ARRAY(vertices_);
+  SAFE_DELETE_ARRAY(indices_);
+  if (num_lod_ > 0) {
+    for (int dir = 0; dir < 4; ++dir) {
+      children_[dir]->FreeMemory();
+    }
+  }
 }
 
 void Tile::Draw(ID3D10Device *pd3dDevice, LODSelector *lod_selector,

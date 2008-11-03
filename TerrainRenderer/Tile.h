@@ -30,22 +30,22 @@ class Tile {
   /** 
    * Gibt die Auflösung des Tiles zurück.
    */
-  int GetResolution() const { return size_ * size_; }
+  int GetResolution(void) const { return size_ * size_; }
 
   /**
    * Gibt die Detailstufe (LOD) des Tiles zurück.
    */
-  int GetLOD() const { return lod_; }
+  int GetLOD(void) const { return lod_; }
 
   /**
    * Ermittelt die minimale Höhe im Tile und gibt sie zurück.
    */
-  float GetMinHeight() const;
+  float GetMinHeight(void) const;
 
   /**
    * Ermittelt die maximale Höhe im Tile und gibt sie zurück.
    */
-  float GetMaxHeight() const;
+  float GetMaxHeight(void) const;
 
   /**
    * Trianguliert streifenweise.
@@ -72,11 +72,6 @@ class Tile {
   HRESULT CreateBuffers(ID3D10Device *pd3dDevice);
 
   /**
-   * Gibt die von CreateBuffers erzeugten Buffer wieder frei.
-   */
-  void ReleaseBuffers(void);
-
-  /**
    * Gibt das Tile auf dem D3D10-Gerät aus.
    * @param pd3dDevice Das D3D10-Gerät.
    * @param lod_selector Ein LODSelector, der bestimmt, ob die LOD-Stufe des
@@ -88,6 +83,18 @@ class Tile {
    */
   void Draw(ID3D10Device *pd3dDevice, LODSelector *lod_selector,
             const D3DXVECTOR3 *cam_pos) const;
+
+  /**
+   * Gibt den für die interne Darstellung reservierten Speicher frei (auch
+   * rekursiv für alle Kind-Tiles).
+   * @warning Die Methoden Tile::GetMinHeight, Tile::GetMaxHeight,
+   *          Tile::TriangulateLines, Tile::TriangulateZOrder,
+   *          Tile::SaveObjs, Tile::CreateBuffers werden danach _nicht_ mehr
+   *          funktionieren. Tile::Draw wird unabhängig vom Aufruf dieser
+   *          Methode weiterarbeiten, sofern vorher Tile::CreateBuffers
+   *          aufgerufen wurde.
+   */
+  void FreeMemory(void);
 
  private:
   /**
@@ -155,6 +162,11 @@ class Tile {
    * Rekursive Implementierung der Z-Order-Triangulierung.
    */
   void TriangulateZOrder0(int x1, int y1, int x2, int y2, int &i);
+
+  /**
+   * Gibt die von CreateBuffers erzeugten Buffer wieder frei (nicht rekursiv).
+   */
+  void ReleaseBuffers(void);
 
   /**
    * LOD-Stufe des Tiles

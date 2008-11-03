@@ -724,6 +724,10 @@
 			>
 		</File>
 		<File
+			RelativePath=".\README.txt"
+			>
+		</File>
+		<File
 			RelativePath=".\TerrainRenderer.cpp"
 			>
 		</File>

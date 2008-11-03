@@ -70,13 +70,11 @@ VS_OUTPUT RenderSceneVS( VS_INPUT In)
     float4(1, 1, 1, 1)
   };
 
-  float v = pos.y;
-  if (v < spots[0]) Output.Color = colors[0];
-  else if (v > spots[7]) Output.Color = colors[7];
-  else for (int i = 0; i < 7; ++i) {
-    if (v < spots[i+1]) {
+  float h = clamp(pos.y, -1, 1);
+  for (int i = 0; i < 7; ++i) {
+    if (h <= spots[i+1]) {
       Output.Color = lerp(colors[i], colors[i+1],
-                          (v - spots[i]) / (spots[i+1] - spots[i]));
+                          (h - spots[i]) / (spots[i+1] - spots[i]));
       break;
     }
   }

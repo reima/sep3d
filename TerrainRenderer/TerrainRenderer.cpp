@@ -239,9 +239,13 @@ HRESULT CreateTerrain(ID3D10Device *pd3dDevice, int terrain_n = TERRAIN_N,
                       int terrain_num_lod = TERRAIN_NUM_LOD) {
   HRESULT hr;
   SAFE_DELETE(g_pTile);
+  // Tile erzeugen
   g_pTile = new Tile(terrain_n, terrain_roughness, terrain_num_lod);
   g_pTile->TriangulateZOrder();
+  // Tile-Daten in D3D10-Buffer speichern
   V_RETURN(g_pTile->CreateBuffers(pd3dDevice));
+  // Lokale Tile-Daten freigeben
+  g_pTile->FreeMemory();
   return S_OK;
 }
 
