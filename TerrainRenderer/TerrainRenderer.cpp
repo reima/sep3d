@@ -183,7 +183,7 @@ void InitApp() {
   g_HUD.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Normal Coloring", "NormalColoring");
 
   WCHAR sz[100];
-  StringCchPrintf(sz, 100, L"LOD: %d", 0);
+  StringCchPrintf(sz, 100, L"LOD (+/-): %d", 0);
   g_HUD.AddStatic(IDC_LODSLIDER_S, sz, 35, iY += 24, 125, 22);
   g_HUD.AddSlider(IDC_LODSLIDER, 35, iY += 24, 125, 22, 0, TERRAIN_NUM_LOD, 0);
   
@@ -550,12 +550,31 @@ LRESULT CALLBACK MsgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
   return 0;
 }
 
+void SetLOD(int lod) {
+  g_HUD.GetSlider(IDC_LODSLIDER)->SetValue(lod);
+  // Wert neu auslesen, da er evtl. auf den gültigen Bereich geclampt wurde
+  lod = g_HUD.GetSlider(IDC_LODSLIDER)->GetValue();
+  SAFE_DELETE(g_pLODSelector);
+  g_pLODSelector = new FixedLODSelector(lod);
+  WCHAR sz[100];
+  StringCchPrintf(sz, 100, L"LOD (+/-): %d", lod);
+  g_HUD.GetStatic(IDC_LODSLIDER_S)->SetText(sz);  
+}
 
 //--------------------------------------------------------------------------------------
 // Handle key presses
 //--------------------------------------------------------------------------------------
 void CALLBACK OnKeyboard(UINT nChar, bool bKeyDown, bool bAltDown,
                          void* pUserContext) {
+  if (!bKeyDown) return;
+  switch (nChar) {
+    case VK_ADD:
+      SetLOD(g_HUD.GetSlider(IDC_LODSLIDER)->GetValue() + 1);
+      break;
+    case VK_SUBTRACT:
+      SetLOD(g_HUD.GetSlider(IDC_LODSLIDER)->GetValue() - 1);
+      break;
+  }
 }
 
 
@@ -580,15 +599,9 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
       g_HUD.GetStatic(IDC_NEWTERRAIN_ROUGHNESS_S)->SetVisible(true);
       g_HUD.GetButton(IDC_NEWTERRAIN_OK)->SetVisible(true);
       break;
-    case IDC_LODSLIDER: {
-      SAFE_DELETE(g_pLODSelector);
-      int value = g_HUD.GetSlider(IDC_LODSLIDER)->GetValue();
-      g_pLODSelector = new FixedLODSelector(value);
-      WCHAR sz[100];
-      StringCchPrintf(sz, 100, L"LOD: %d", value);
-      g_HUD.GetStatic(IDC_LODSLIDER_S)->SetText(sz);
+    case IDC_LODSLIDER:
+      SetLOD(g_HUD.GetSlider(IDC_LODSLIDER)->GetValue());
       break;
-    }
     case IDC_WIREFRAME:
       g_bWireframe = g_HUD.GetCheckBox(IDC_WIREFRAME)->GetChecked();
       break;
