@@ -78,6 +78,7 @@ ID3D10RasterizerState*      g_pRSWireframe = NULL;
 #define IDC_NEWTERRAIN_SIZE_S       12
 #define IDC_NEWTERRAIN_ROUGHNESS_S  13
 #define IDC_NEWTERRAIN_OK           14
+#define IDC_TECHNIQUE               15
 
 //--------------------------------------------------------------------------------------
 // Forward declarations 
@@ -175,6 +176,10 @@ void InitApp() {
                   22, VK_F2);
   g_HUD.AddCheckBox(IDC_WIREFRAME, L"Wireframe (F5)", 35, iY += 24, 125, 22,
                     g_bWireframe, VK_F5);
+  g_HUD.AddStatic(0, L"Technique:", 35, iY += 24, 125, 22);
+  g_HUD.AddComboBox(IDC_TECHNIQUE, 35, iY += 24, 125, 22);
+  g_HUD.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Vertex Coloring", "VertexShaderColoring");
+  g_HUD.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Pixel Coloring", "PixelShaderColoring");
 
   WCHAR sz[100];
   StringCchPrintf(sz, 100, L"LOD: %d", 0);
@@ -286,7 +291,7 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
                                       "fx_4_0", dwShaderFlags, 0, pd3dDevice,
                                       NULL, NULL, &g_pEffect10, NULL, NULL));*/
   g_pEffect10 = LoadEffect(pd3dDevice, L"TerrainRenderer.fx");
-  g_pTechnique = g_pEffect10->GetTechniqueByName("RenderScene");
+  g_pTechnique = g_pEffect10->GetTechniqueByIndex(0);
 
   // Get effects variables
   g_pmWorldViewProj =
@@ -630,6 +635,10 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
       SAFE_DELETE(g_pLODSelector);
       g_pLODSelector = new FixedLODSelector(0);
       break;
+    }
+    case IDC_TECHNIQUE: {
+      char *tech = (char *)g_HUD.GetComboBox(IDC_TECHNIQUE)->GetSelectedData();
+      g_pTechnique = g_pEffect10->GetTechniqueByName(tech);
     }
   }
 }

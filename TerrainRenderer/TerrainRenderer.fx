@@ -39,7 +39,7 @@ const float4 g_Colors[NUM_SPOTS] = {
 };
 
 //--------------------------------------------------------------------------------------
-// Vertex shader input structure
+// Vertex shader input structures
 //--------------------------------------------------------------------------------------
 struct VS_INPUT
 {
@@ -48,12 +48,20 @@ struct VS_INPUT
 };
 
 //--------------------------------------------------------------------------------------
-// Vertex shader output structure
+// Vertex shader output structures
 //--------------------------------------------------------------------------------------
-struct VS_OUTPUT
+// VSC (Vertex Shader Coloring)
+struct VS_VSC_OUTPUT
 {
   float4 Position   : SV_Position;   // vertex position
   float4 Color      : COLOR;
+};
+
+// PSC (Pixel Shader Coloring)
+struct VS_PSC_OUTPUT
+{
+  float4 Position   : SV_Position;   // vertex position
+  float  Height     : HEIGHT;
 };
 
 //--------------------------------------------------------------------------------------
@@ -74,11 +82,11 @@ float4 GetColorFromHeight(float height)
 }
 
 //--------------------------------------------------------------------------------------
-// This shader computes standard transform and lighting
+// Vertex Shaders
 //--------------------------------------------------------------------------------------
-VS_OUTPUT RenderSceneVS( VS_INPUT In )
+VS_VSC_OUTPUT RenderScene_VSC_VS( VS_INPUT In )
 {
-  VS_OUTPUT Output;
+  VS_VSC_OUTPUT Output;
   float4 pos = float4(In.Position, 1.0f);
   Output.Color = GetColorFromHeight(pos.y);
  
@@ -97,24 +105,50 @@ VS_OUTPUT RenderSceneVS( VS_INPUT In )
   return Output;
 }
 
+VS_PSC_OUTPUT RenderScene_PSC_VS( VS_INPUT In )
+{
+  VS_PSC_OUTPUT Output;
+  float4 pos = float4(In.Position, 1.0f);
+  Output.Height = pos.y;
+  // Transform the position from object space to homogeneous projection space
+  Output.Position = mul(pos, g_mWorldViewProjection);
+
+  return Output;
+}
+
 //--------------------------------------------------------------------------------------
-// This shader outputs the pixel's color by modulating the texture's
-// color with diffuse material color
+// Pixel Shaders
 //--------------------------------------------------------------------------------------
-float4 RenderScenePS( VS_OUTPUT In ) : SV_Target
+float4 RenderScene_VSC_PS( VS_VSC_OUTPUT In ) : SV_Target
 { 
   return In.Color;
+}
+
+float4 RenderScene_PSC_PS( VS_PSC_OUTPUT In ) : SV_Target
+{
+  return GetColorFromHeight(In.Height);
 }
 
 //--------------------------------------------------------------------------------------
 // Renders scene 
 //--------------------------------------------------------------------------------------
-technique10 RenderScene
+technique10 VertexShaderColoring
 {
   pass P0
   {
-    SetVertexShader( CompileShader( vs_4_0, RenderSceneVS() ) );
+    SetVertexShader( CompileShader( vs_4_0, RenderScene_VSC_VS() ) );
     SetGeometryShader( NULL );
-    SetPixelShader( CompileShader( ps_4_0, RenderScenePS() ) );
+    SetPixelShader( CompileShader( ps_4_0, RenderScene_VSC_PS() ) );
   }
 }
+
+technique10 PixelShaderColoring
+{
+  pass P0
+  {
+    SetVertexShader( CompileShader( vs_4_0, RenderScene_PSC_VS() ) );
+    SetGeometryShader( NULL );
+    SetPixelShader( CompileShader( ps_4_0, RenderScene_PSC_PS() ) );
+  }
+}
+
