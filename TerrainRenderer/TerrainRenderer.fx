@@ -92,7 +92,7 @@ VS_VSC_OUTPUT RenderScene_VSC_VS( VS_INPUT In )
  
   // Diffuse Phong
   float4 L = normalize(g_vCamPos - pos);
-  Output.Color *= dot(L, In.Normal);
+  Output.Color *= dot(L, normalize(In.Normal));
 
   // Create water plane with waves
 /*  if (pos.y < 0) {
@@ -110,6 +110,17 @@ VS_PSC_OUTPUT RenderScene_PSC_VS( VS_INPUT In )
   VS_PSC_OUTPUT Output;
   float4 pos = float4(In.Position, 1.0f);
   Output.Height = pos.y;
+  // Transform the position from object space to homogeneous projection space
+  Output.Position = mul(pos, g_mWorldViewProjection);
+
+  return Output;
+}
+
+VS_VSC_OUTPUT RenderScene_NC_VS( VS_INPUT In )
+{
+  VS_VSC_OUTPUT Output;
+  Output.Color = float4(normalize(In.Normal), 0);
+  float4 pos = float4(In.Position, 1.0f);
   // Transform the position from object space to homogeneous projection space
   Output.Position = mul(pos, g_mWorldViewProjection);
 
@@ -152,3 +163,12 @@ technique10 PixelShaderColoring
   }
 }
 
+technique10 NormalColoring
+{
+  pass P0
+  {
+    SetVertexShader( CompileShader( vs_4_0, RenderScene_NC_VS() ) );
+    SetGeometryShader( NULL );
+    SetPixelShader( CompileShader( ps_4_0, RenderScene_VSC_PS() ) );
+  }
+}

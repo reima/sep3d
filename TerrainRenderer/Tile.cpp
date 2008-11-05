@@ -482,14 +482,32 @@ void Tile::Draw(ID3D10Device *pd3dDevice, LODSelector *lod_selector,
 
 // TODO: Benachbarte Tiles abgleichen!
 void Tile::CalculateNormals(void) {
+  CalculateNormals0(NULL, NULL);
+}
+
+void Tile::CalculateNormals0(Tile *north, Tile *west) {
   assert(vertices_ != NULL);
   assert(indices_ != NULL);
   SAFE_DELETE_ARRAY(vertex_normals_);
   int num_vertices = GetResolution();
   vertex_normals_ = new D3DXVECTOR3[num_vertices];
+  // Normalen auf 0 initialisieren
   for (int i = 0; i < num_vertices; ++i) {
     vertex_normals_[i] = D3DXVECTOR3(0.f, 0.f, 0.f);
   }
+  // Normalen-Zwischenwerte ggf. von Nachbarn holen
+  if (north) {
+    for (int x = 0; x < size_; ++x) {
+      vertex_normals_[I(x, 0)] = north->vertex_normals_[I(x, size_ - 1)];
+    }
+  }
+  if (west) {
+    for (int y = 0; y < size_; ++y) {
+      vertex_normals_[I(0, y)] = west->vertex_normals_[I(size_ - 1, y)];
+    }
+  }
+  // Face-Normalen berechnen und auf die Normalen der beteiligten Vertices
+  // aufaddieren
   int num_triangles = (size_-1)*(size_-1) * 2;
   face_normals_ = new D3DXVECTOR3[num_triangles];
   for (int i = 0; i < num_triangles; ++i) {
@@ -504,13 +522,47 @@ void Tile::CalculateNormals(void) {
     vertex_normals_[indices_[3*i+1]] += face_normals_[i];
     vertex_normals_[indices_[3*i+2]] += face_normals_[i];
   }
-  for (int i = 0; i < num_vertices; ++i) {
+  // Normalen normalisieren
+  /*for (int i = 0; i < num_vertices; ++i) {
     D3DXVec3Normalize(&vertex_normals_[i], &vertex_normals_[i]);
-  }
-
-  if (num_lod_ > 0) {
-    for (int dir = 0; dir < 4; ++dir) {
-      children_[dir]->CalculateNormals();
+  }*/
+  // Normalen ggf. an Nachbarn zurückgeben
+  if (north) {
+    for (int x = 0; x < size_; ++x) {
+      north->vertex_normals_[I(x, size_ - 1)] = vertex_normals_[I(x, 0)];
     }
   }
+  if (west) {
+    for (int y = 0; y < size_; ++y) {
+      west->vertex_normals_[I(size_ - 1, y)] = vertex_normals_[I(0, y)];
+    }
+  }
+ 
+  if (num_lod_ <= 0) return;
+
+  // Holen benachbarter Kind-Tiles:
+  //     +---+---+
+  //     |NNW|NNE|
+  // +---+---+---+
+  // |NWW|       |
+  // +---+ this  +
+  // |SWW|       |
+  // +---+---+---+
+  Tile *child_NNW, *child_NNE, *child_NWW, *child_SWW;
+  if (north) {
+    child_NNW = north->children_[SW];
+    child_NNE = north->children_[SE];
+  } else {
+    child_NNW = child_NNE = NULL;
+  }
+  if (west) {
+    child_NWW = west->children_[NE];
+    child_SWW = west->children_[SE];
+  } else {
+    child_NWW = child_SWW = NULL;
+  }
+  children_[NW]->CalculateNormals0(child_NNW, child_NWW);
+  children_[NE]->CalculateNormals0(child_NNE, children_[NW]);
+  children_[SW]->CalculateNormals0(children_[NW], child_SWW);
+  children_[SE]->CalculateNormals0(children_[NE], children_[SW]);
 }

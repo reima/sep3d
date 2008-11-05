@@ -154,6 +154,11 @@ class Tile {
   void FixEdges(Tile *north, Tile *west);
 
   /**
+   * Rekursive Implementierung von CalculateNormals
+   */
+  void CalculateNormals0(Tile *north, Tile *west);
+
+  /**
    * Reserviert Speicher für den Index Buffer.
    */
   void InitIndexBuffer(void);

@@ -180,6 +180,7 @@ void InitApp() {
   g_HUD.AddComboBox(IDC_TECHNIQUE, 35, iY += 24, 125, 22);
   g_HUD.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Vertex Coloring", "VertexShaderColoring");
   g_HUD.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Pixel Coloring", "PixelShaderColoring");
+  g_HUD.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Normal Coloring", "NormalColoring");
 
   WCHAR sz[100];
   StringCchPrintf(sz, 100, L"LOD: %d", 0);
