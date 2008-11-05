@@ -7,12 +7,6 @@
 class LODSelector;
 
 /**
- * 3-dimensionaler Vektor, wird für Vertices verwendet.
- * @see Tile::vertices_
- */
-struct Vector { float x, y, z; };
-
-/**
  * Höhenfeld-Tile
  */
 class Tile {
@@ -184,7 +178,7 @@ class Tile {
   /**
    * Feld der Vertices dieses Tiles
    */
-  Vector *vertices_;
+  D3DXVECTOR3 *vertices_;
   /**
    * Indizes für die Triangulierung des Höhenfeldes
    * @see Tile::TriangulateLines

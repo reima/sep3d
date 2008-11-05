@@ -35,8 +35,9 @@ Tile::Tile(int n, float roughness, int num_lod)
       indices_(NULL),
       parent_(NULL),
       vertex_buffer_(NULL),
+      normal_buffer_(NULL),
       index_buffer_(NULL) {
-  vertices_ = new Vector[size_*size_];
+  vertices_ = new D3DXVECTOR3[size_*size_];
   Init(roughness);
   InitChildren(roughness, NULL, NULL);
 }
@@ -50,8 +51,9 @@ Tile::Tile(Tile *parent, Tile::Direction direction, float roughness,
       direction_(direction),
       parent_(parent),
       vertex_buffer_(NULL),
+      normal_buffer_(NULL),
       index_buffer_(NULL) {
-  vertices_ = new Vector[size_*size_];
+  vertices_ = new D3DXVECTOR3[size_*size_];
   InitFromParent();
   Refine(2, roughness);
   FixEdges(north, west);
@@ -115,8 +117,8 @@ void Tile::InitFromParent(void) {
   }
 
   // x- und z-Koordinaten berechnen
-  Vector &v_min = parent_->vertices_[I(x1, y1)];
-  Vector &v_max = parent_->vertices_[I(x1 + size_ / 2, y1 + size_ / 2)];
+  D3DXVECTOR3 &v_min = parent_->vertices_[I(x1, y1)];
+  D3DXVECTOR3 &v_max = parent_->vertices_[I(x1 + size_ / 2, y1 + size_ / 2)];
   int i = 0;
   for (int y = 0; y < size_; ++y) {
     for (int x = 0; x < size_; ++x, ++i) {
@@ -337,7 +339,7 @@ void Tile::SaveObjs0(const std::wstring &basename,
   // Vertices
   for (int y = 0; y < size_; ++y) {
     for (int x = 0; x < size_; ++x) {
-      Vector &v = vertices_[I(x,y)];
+      D3DXVECTOR3 &v = vertices_[I(x,y)];
       ofs << "v ";
       ofs << v.x << " ";
       // Alle Höhenwerte < 0 sind Wasser, das Terrain darunter ist für die
@@ -383,7 +385,7 @@ HRESULT Tile::CreateBuffers(ID3D10Device *pd3dDevice) {
   // Vertex Buffer anlegen
   D3D10_BUFFER_DESC buffer_desc;
   buffer_desc.Usage = D3D10_USAGE_DEFAULT;
-  buffer_desc.ByteWidth = sizeof(Vector) * GetResolution();
+  buffer_desc.ByteWidth = sizeof(D3DXVECTOR3) * GetResolution();
   buffer_desc.BindFlags = D3D10_BIND_VERTEX_BUFFER;
   buffer_desc.CPUAccessFlags = 0;
   buffer_desc.MiscFlags = 0;
@@ -439,7 +441,7 @@ void Tile::Draw(ID3D10Device *pd3dDevice, LODSelector *lod_selector,
                 const D3DXVECTOR3 *cam_pos) const {
   if (lod_selector->IsLODSufficient(this, cam_pos) || num_lod_ == 0) {
     // Vertex Buffer setzen
-    UINT stride = sizeof(Vector);
+    UINT stride = sizeof(D3DXVECTOR3);
     UINT offset = 0;
     pd3dDevice->IASetVertexBuffers(0, 1, &vertex_buffer_, &stride, &offset);
 
