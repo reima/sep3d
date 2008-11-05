@@ -84,15 +84,17 @@ float4 GetColorFromHeight(float height)
 //--------------------------------------------------------------------------------------
 // Vertex Shaders
 //--------------------------------------------------------------------------------------
-VS_VSC_OUTPUT RenderScene_VSC_VS( VS_INPUT In )
+VS_VSC_OUTPUT RenderScene_VSC_VS( VS_INPUT In, uniform bool phong )
 {
   VS_VSC_OUTPUT Output;
   float4 pos = float4(In.Position, 1.0f);
   Output.Color = GetColorFromHeight(pos.y);
  
   // Diffuse Phong
-  float4 L = normalize(g_vCamPos - pos);
-  Output.Color *= dot(L, normalize(In.Normal));
+  if (phong) {
+	float4 L = normalize(g_vCamPos - pos);
+	Output.Color *= dot(L, normalize(In.Normal));
+  }
 
   // Create water plane with waves
 /*  if (pos.y < 0) {
@@ -147,7 +149,17 @@ technique10 VertexShaderColoring
 {
   pass P0
   {
-    SetVertexShader( CompileShader( vs_4_0, RenderScene_VSC_VS() ) );
+    SetVertexShader( CompileShader( vs_4_0, RenderScene_VSC_VS(false) ) );
+    SetGeometryShader( NULL );
+    SetPixelShader( CompileShader( ps_4_0, RenderScene_VSC_PS() ) );
+  }
+}
+
+technique10 VertexShaderColoringPhong
+{
+  pass P0
+  {
+    SetVertexShader( CompileShader( vs_4_0, RenderScene_VSC_VS(true) ) );
     SetGeometryShader( NULL );
     SetPixelShader( CompileShader( ps_4_0, RenderScene_VSC_PS() ) );
   }

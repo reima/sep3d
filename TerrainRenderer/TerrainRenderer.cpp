@@ -179,6 +179,7 @@ void InitApp() {
   g_HUD.AddStatic(0, L"Technique:", 35, iY += 24, 125, 22);
   g_HUD.AddComboBox(IDC_TECHNIQUE, 35, iY += 24, 125, 22);
   g_HUD.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Vertex Coloring", "VertexShaderColoring");
+  g_HUD.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Vertex Col. + Phong", "VertexShaderColoringPhong");
   g_HUD.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Pixel Coloring", "PixelShaderColoring");
   g_HUD.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Normal Coloring", "NormalColoring");
 
