@@ -9,6 +9,7 @@
 cbuffer cb0
 {
   float    g_fTime;                   // App's time in seconds
+  float4   g_vCamPos;                 // Camera position
   float4x4 g_mWorld;                  // World matrix for object
   float4x4 g_mWorldViewProjection;    // World * View * Projection matrix
 }
@@ -19,6 +20,7 @@ cbuffer cb0
 struct VS_INPUT
 {
   float3 Position   : POSITION;   // vertex position
+  float3 Normal     : NORMAL;     // vertex normal
 };
 
 //--------------------------------------------------------------------------------------
@@ -34,7 +36,7 @@ struct VS_OUTPUT
 //--------------------------------------------------------------------------------------
 // This shader computes standard transform and lighting
 //--------------------------------------------------------------------------------------
-VS_OUTPUT RenderSceneVS( VS_INPUT In)
+VS_OUTPUT RenderSceneVS( VS_INPUT In )
 {
   VS_OUTPUT Output;
 
@@ -75,10 +77,14 @@ VS_OUTPUT RenderSceneVS( VS_INPUT In)
     }
   }
   
+  // Diffuse Phong
+  float4 L = normalize(g_vCamPos - pos);
+  Output.Color *= dot(L, In.Normal);
+  
   // Create water plane with waves
-  if (pos.y < 0) {
+/*  if (pos.y < 0) {
     pos.y = 0.05 * sin(3 * pos.x + g_fTime * 2) * cos(3 * pos.z + g_fTime * 3);
-  }
+  }*/
 
   // Transform the position from object space to homogeneous projection space
   Output.Position = mul(pos, g_mWorldViewProjection);

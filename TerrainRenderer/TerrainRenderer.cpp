@@ -53,6 +53,7 @@ ID3D10InputLayout*          g_pVertexLayout = NULL;
 ID3D10EffectMatrixVariable* g_pmWorldViewProj = NULL;
 ID3D10EffectMatrixVariable* g_pmWorld = NULL;
 ID3D10EffectScalarVariable* g_pfTime = NULL;
+ID3D10EffectVectorVariable* g_pvCamPos = NULL;
 
 Tile*                       g_pTile = NULL;
 LODSelector*                g_pLODSelector = NULL;
@@ -77,8 +78,6 @@ ID3D10RasterizerState*      g_pRSWireframe = NULL;
 #define IDC_NEWTERRAIN_SIZE_S       12
 #define IDC_NEWTERRAIN_ROUGHNESS_S  13
 #define IDC_NEWTERRAIN_OK           14
-
-
 
 //--------------------------------------------------------------------------------------
 // Forward declarations 
@@ -113,6 +112,11 @@ void CALLBACK OnD3D10DestroyDevice(void* pUserContext);
 
 void InitApp();
 void RenderText();
+
+ID3D10Effect* LoadEffect(ID3D10Device* pd3dDevice,
+                         const std::wstring& filename,
+                         const D3D10_SHADER_MACRO *Shader_Macros = NULL,
+                         const bool bDebugCompile = false);
 
 
 //--------------------------------------------------------------------------------------
@@ -242,6 +246,7 @@ HRESULT CreateTerrain(ID3D10Device *pd3dDevice, int terrain_n = TERRAIN_N,
   // Tile erzeugen
   g_pTile = new Tile(terrain_n, terrain_roughness, terrain_num_lod);
   g_pTile->TriangulateZOrder();
+  g_pTile->CalculateNormals();
   // Tile-Daten in D3D10-Buffer speichern
   V_RETURN(g_pTile->CreateBuffers(pd3dDevice));
   // Lokale Tile-Daten freigeben
@@ -277,9 +282,10 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   // the release configuration of this program.
   dwShaderFlags |= D3D10_SHADER_DEBUG;
 #endif
-  V_RETURN(D3DX10CreateEffectFromFile(L"TerrainRenderer.fx", NULL, NULL,
+/*  V_RETURN(D3DX10CreateEffectFromFile(L"TerrainRenderer.fx", NULL, NULL,
                                       "fx_4_0", dwShaderFlags, 0, pd3dDevice,
-                                      NULL, NULL, &g_pEffect10, NULL, NULL));
+                                      NULL, NULL, &g_pEffect10, NULL, NULL));*/
+  g_pEffect10 = LoadEffect(pd3dDevice, L"TerrainRenderer.fx");
   g_pTechnique = g_pEffect10->GetTechniqueByName("RenderScene");
 
   // Get effects variables
@@ -287,6 +293,7 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
       g_pEffect10->GetVariableByName("g_mWorldViewProjection")->AsMatrix();
   g_pmWorld = g_pEffect10->GetVariableByName("g_mWorld")->AsMatrix();
   g_pfTime = g_pEffect10->GetVariableByName("g_fTime")->AsScalar();
+  g_pvCamPos = g_pEffect10->GetVariableByName("g_vCamPos")->AsVector();
 
   // Setup the camera's view parameters
   D3DXVECTOR3 vecEye(0.0f, 5.0f, -5.0f);
@@ -296,6 +303,8 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   // Vertex Layout festlegen
   D3D10_INPUT_ELEMENT_DESC layout[] = {
     { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
+      D3D10_INPUT_PER_VERTEX_DATA, 0 },
+    { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 1, 0,
       D3D10_INPUT_PER_VERTEX_DATA, 0 },
   };
   UINT num_elements = sizeof(layout) / sizeof(layout[0]);
@@ -392,6 +401,8 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   g_pmWorldViewProj->SetMatrix((float*)&mWorldViewProjection);
   g_pmWorld->SetMatrix((float*)&mWorld);
   g_pfTime->SetFloat((float)fTime);
+  D3DXVECTOR3 *cam_pos = const_cast<D3DXVECTOR3 *>(g_Camera.GetEyePt());
+  g_pvCamPos->SetFloatVector((float*)*cam_pos);
 
   // Set vertex Layout
   pd3dDevice->IASetInputLayout(g_pVertexLayout);

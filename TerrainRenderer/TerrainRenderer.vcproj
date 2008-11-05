@@ -720,6 +720,10 @@
 			>
 		</File>
 		<File
+			RelativePath=".\LoadEffect.cpp"
+			>
+		</File>
+		<File
 			RelativePath=".\LODSelector.h"
 			>
 		</File>

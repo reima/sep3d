@@ -8,6 +8,8 @@
 #include "Tile.h"
 #include "LODSelector.h"
 
+#include <D3DX10Math.h>
+
 // Die Makros min und max aus windef.h vertragen sich nicht mit std::min,
 // std::max, std::numeric_limits<*>::min, std::numeric_limits<*>::max.
 #undef min
@@ -33,6 +35,8 @@ Tile::Tile(int n, float roughness, int num_lod)
       size_((1 << n) + 1),
       num_lod_(num_lod),
       indices_(NULL),
+      face_normals_(NULL),
+      vertex_normals_(NULL),
       parent_(NULL),
       vertex_buffer_(NULL),
       normal_buffer_(NULL),
@@ -48,6 +52,8 @@ Tile::Tile(Tile *parent, Tile::Direction direction, float roughness,
       size_(parent->size_),
       num_lod_(parent->num_lod_ - 1),
       indices_(NULL),
+      face_normals_(NULL),
+      vertex_normals_(NULL),
       direction_(direction),
       parent_(parent),
       vertex_buffer_(NULL),
@@ -61,13 +67,15 @@ Tile::Tile(Tile *parent, Tile::Direction direction, float roughness,
 }
 
 Tile::~Tile(void) {
+  SAFE_DELETE_ARRAY(vertices_);
+  SAFE_DELETE_ARRAY(indices_);
+  SAFE_DELETE_ARRAY(face_normals_);
+  SAFE_DELETE_ARRAY(vertex_normals_);
   if (num_lod_ > 0) {
     for (int dir = 0; dir < 4; ++dir) {
       delete children_[dir];
     }
   }
-  SAFE_DELETE_ARRAY(indices_);
-  SAFE_DELETE_ARRAY(vertices_);
   ReleaseBuffers();
 }
 
@@ -377,6 +385,9 @@ void Tile::SaveObjs0(const std::wstring &basename,
 }
 
 HRESULT Tile::CreateBuffers(ID3D10Device *pd3dDevice) {
+  assert(vertices_ != NULL);
+  assert(indices_ != NULL);
+
   HRESULT hr;
 
   // Evtl. bereits vorhandene Buffer freigeben
@@ -399,12 +410,17 @@ HRESULT Tile::CreateBuffers(ID3D10Device *pd3dDevice) {
                                     &init_data,
                                     &vertex_buffer_));
 
+  // Normal Buffer anlegen
+  if (vertex_normals_) {
+    init_data.pSysMem = vertex_normals_;
+    V_RETURN(pd3dDevice->CreateBuffer(&buffer_desc,
+                                      &init_data,
+                                      &normal_buffer_));
+  }
+
   // Index Buffer anlegen
-  buffer_desc.Usage = D3D10_USAGE_DEFAULT;
   buffer_desc.ByteWidth = sizeof(unsigned int) * (size_ - 1)*(size_ - 1)*2*3;
   buffer_desc.BindFlags = D3D10_BIND_INDEX_BUFFER;
-  buffer_desc.CPUAccessFlags = 0;
-  buffer_desc.MiscFlags = 0;
 
   init_data.pSysMem = indices_;
 
@@ -425,11 +441,14 @@ HRESULT Tile::CreateBuffers(ID3D10Device *pd3dDevice) {
 void Tile::ReleaseBuffers(void) {
   SAFE_RELEASE(vertex_buffer_);
   SAFE_RELEASE(index_buffer_);
+  SAFE_RELEASE(normal_buffer_);
 }
 
 void Tile::FreeMemory(void) {
   SAFE_DELETE_ARRAY(vertices_);
   SAFE_DELETE_ARRAY(indices_);
+  SAFE_DELETE_ARRAY(face_normals_);
+  SAFE_DELETE_ARRAY(vertex_normals_);
   if (num_lod_ > 0) {
     for (int dir = 0; dir < 4; ++dir) {
       children_[dir]->FreeMemory();
@@ -440,10 +459,13 @@ void Tile::FreeMemory(void) {
 void Tile::Draw(ID3D10Device *pd3dDevice, LODSelector *lod_selector,
                 const D3DXVECTOR3 *cam_pos) const {
   if (lod_selector->IsLODSufficient(this, cam_pos) || num_lod_ == 0) {
-    // Vertex Buffer setzen
+    // Vertex & Normal Buffer setzen
     UINT stride = sizeof(D3DXVECTOR3);
     UINT offset = 0;
     pd3dDevice->IASetVertexBuffers(0, 1, &vertex_buffer_, &stride, &offset);
+    if (normal_buffer_) {
+      pd3dDevice->IASetVertexBuffers(1, 1, &normal_buffer_, &stride, &offset);
+    }
 
     // Index Buffer setzen
     pd3dDevice->IASetIndexBuffer(index_buffer_, DXGI_FORMAT_R32_UINT, 0);
@@ -454,6 +476,41 @@ void Tile::Draw(ID3D10Device *pd3dDevice, LODSelector *lod_selector,
   } else {
     for (int dir = 0; dir < 4; ++dir) {
       children_[dir]->Draw(pd3dDevice, lod_selector, cam_pos);
+    }
+  }
+}
+
+// TODO: Benachbarte Tiles abgleichen!
+void Tile::CalculateNormals(void) {
+  assert(vertices_ != NULL);
+  assert(indices_ != NULL);
+  SAFE_DELETE_ARRAY(vertex_normals_);
+  int num_vertices = GetResolution();
+  vertex_normals_ = new D3DXVECTOR3[num_vertices];
+  for (int i = 0; i < num_vertices; ++i) {
+    vertex_normals_[i] = D3DXVECTOR3(0.f, 0.f, 0.f);
+  }
+  int num_triangles = (size_-1)*(size_-1) * 2;
+  face_normals_ = new D3DXVECTOR3[num_triangles];
+  for (int i = 0; i < num_triangles; ++i) {
+    D3DXVECTOR3 &v1 = vertices_[indices_[3*i]];
+    D3DXVECTOR3 &v2 = vertices_[indices_[3*i+1]];
+    D3DXVECTOR3 &v3 = vertices_[indices_[3*i+2]];
+    D3DXVECTOR3 e1 = v2 - v1;
+    D3DXVECTOR3 e2 = v3 - v2;
+    D3DXVec3Cross(&face_normals_[i], &e1, &e2);
+    D3DXVec3Normalize(&face_normals_[i], &face_normals_[i]);
+    vertex_normals_[indices_[3*i]] += face_normals_[i];
+    vertex_normals_[indices_[3*i+1]] += face_normals_[i];
+    vertex_normals_[indices_[3*i+2]] += face_normals_[i];
+  }
+  for (int i = 0; i < num_vertices; ++i) {
+    D3DXVec3Normalize(&vertex_normals_[i], &vertex_normals_[i]);
+  }
+
+  if (num_lod_ > 0) {
+    for (int dir = 0; dir < 4; ++dir) {
+      children_[dir]->CalculateNormals();
     }
   }
 }

@@ -57,8 +57,9 @@ class Tile {
   void SaveObjs(const std::wstring &filename) const;
 
   /**
-   * Erzeugt Vertex- und Index-Buffer lädt das Dreieckgitter des Tiles in diese
-   * hoch. Wird ggf. rekursiv für alle Kinder des Tiles aufgerufen.
+   * Erzeugt Vertex-, Normalen- und Index-Buffer lädt das Dreieckgitter des
+   * Tiles in diese hoch. Wird ggf. rekursiv für alle Kinder des Tiles
+   * aufgerufen.
    * @warning Das Tile muss zuvor trianguliert worden sein (durch Aufruf von
    *          Tile::TriangulateLines oder Tile::TriangulateZOrder).
    * @see Tile::ReleaseBuffers
@@ -89,6 +90,11 @@ class Tile {
    *          aufgerufen wurde.
    */
   void FreeMemory(void);
+
+  /**
+   * Berechnet die Normalen des Terrains.
+   */
+  void CalculateNormals(void);
 
  private:
   /**
@@ -186,6 +192,14 @@ class Tile {
    */
   unsigned int *indices_;
   /**
+   * Feld der Face-Normalen dieses Tiles
+   */
+  D3DXVECTOR3 *face_normals_;
+  /**
+   * Feld der Per-Vertex-Normalen dieses Tiles
+   */
+  D3DXVECTOR3 *vertex_normals_;
+  /**
    * Übergeordnetes Eltern-Tile
    */
   Tile *parent_;
@@ -202,6 +216,10 @@ class Tile {
    * Zeiger auf den D3D10-Vertex-Buffer.
    */
   ID3D10Buffer *vertex_buffer_;
+  /**
+   * Zeiger auf den D3D10-Normalen-Buffer.
+   */
+  ID3D10Buffer *normal_buffer_;
   /**
    * Zeiger auf den D3D10-Index-Buffer.
    */
