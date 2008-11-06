@@ -402,14 +402,12 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   mView = *g_Camera.GetViewMatrix();
   mWorldViewProjection = mView * mProj;
 
-  // Update the effect's variables.  Instead of using strings, it would 
-  // be more efficient to cache a handle to the parameter by calling 
-  // ID3DXEffect::GetParameterByName
+  // Update the effect's variables
   g_pmWorldViewProj->SetMatrix((float*)&mWorldViewProjection);
   g_pmWorld->SetMatrix((float*)&mWorld);
   g_pfTime->SetFloat((float)fTime);
-  D3DXVECTOR3 *cam_pos = const_cast<D3DXVECTOR3 *>(g_Camera.GetEyePt());
-  g_pvCamPos->SetFloatVector((float*)*cam_pos);
+  D3DXVECTOR3 cam_pos(*g_Camera.GetEyePt());
+  g_pvCamPos->SetFloatVector(cam_pos);
 
   // Set vertex Layout
   pd3dDevice->IASetInputLayout(g_pVertexLayout);
