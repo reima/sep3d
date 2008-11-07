@@ -21,17 +21,16 @@
 #include "FixedLODSelector.h"
 
 
-#define TERRAIN_N         8
-#define TERRAIN_ROUGHNESS 1.0f
-#define TERRAIN_NUM_LOD   3
-
 //#define DEBUG_VS   // Uncomment this line to debug D3D9 vertex shaders 
 //#define DEBUG_PS   // Uncomment this line to debug D3D9 pixel shaders 
-
 
 //--------------------------------------------------------------------------------------
 // Global variables
 //--------------------------------------------------------------------------------------
+int g_nTerrainN = 5;
+float g_fTerrainR = 1.0f;
+int g_nTerrainLOD = 3;
+
 CFirstPersonCamera          g_Camera;               // A first person camera
 CDXUTDialogResourceManager  g_DialogResourceManager; // manager for shared resources of dialogs
 CD3DSettingsDlg             g_SettingsDlg;          // Device settings dialog
@@ -54,6 +53,10 @@ ID3D10EffectMatrixVariable* g_pmWorldViewProj = NULL;
 ID3D10EffectMatrixVariable* g_pmWorld = NULL;
 ID3D10EffectScalarVariable* g_pfTime = NULL;
 ID3D10EffectVectorVariable* g_pvCamPos = NULL;
+ID3D10EffectVectorVariable* g_pvLightPos = NULL;
+ID3D10EffectScalarVariable* g_pfWaveHeight = NULL;
+ID3D10EffectVectorVariable* g_pvWaveScale = NULL;
+ID3D10EffectVectorVariable* g_pvWaveSpeed = NULL;
 ID3D10EffectShaderResourceVariable* g_ptWaves = NULL;
 ID3D10ShaderResourceView*   g_pWavesRV = NULL;
 
@@ -73,6 +76,8 @@ ID3D10RasterizerState*      g_pRSWireframe = NULL;
 #define IDC_LODSLIDER               5
 #define IDC_LODSLIDER_S             6
 #define IDC_WIREFRAME               7
+
+#define IDC_NT_OPTS_MIN             8
 #define IDC_NEWTERRAIN_LOD          8
 #define IDC_NEWTERRAIN_SIZE         9
 #define IDC_NEWTERRAIN_ROUGHNESS    10
@@ -80,7 +85,25 @@ ID3D10RasterizerState*      g_pRSWireframe = NULL;
 #define IDC_NEWTERRAIN_SIZE_S       12
 #define IDC_NEWTERRAIN_ROUGHNESS_S  13
 #define IDC_NEWTERRAIN_OK           14
+#define IDC_NT_OPTS_MAX             14
+
 #define IDC_TECHNIQUE               15
+
+#define IDC_SFX_OPTS_MIN            16
+#define IDC_LIGHT_S                 16
+#define IDC_LIGHTX                  17
+#define IDC_LIGHTY                  18
+#define IDC_LIGHTZ                  19
+#define IDC_WAVEHEIGHT_S            20
+#define IDC_WAVEHEIGHT              21
+#define IDC_WAVESCALE_S             22
+#define IDC_WAVESCALEX              23
+#define IDC_WAVESCALEY              24
+#define IDC_WAVESPEED_S             25
+#define IDC_WAVESPEEDX              26
+#define IDC_WAVESPEEDY              27
+#define IDC_SFX_OPTS_MAX            27
+
 
 //--------------------------------------------------------------------------------------
 // Forward declarations 
@@ -151,7 +174,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
                               // no extra command line params
   DXUTSetCursorSettings(true, true);
   DXUTCreateWindow(L"Terrain Renderer");
-  DXUTCreateDevice(true, 640, 480);
+  DXUTCreateDevice(true, 800, 600);
   DXUTMainLoop(); // Enter into the DXUT render loop
 
   return DXUTGetExitCode();
@@ -181,40 +204,60 @@ void InitApp() {
   g_HUD.AddStatic(0, L"Technique:", 35, iY += 24, 125, 22);
   g_HUD.AddComboBox(IDC_TECHNIQUE, 35, iY += 24, 125, 22);
   g_HUD.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Vertex Coloring", "VertexShaderColoring");
-  g_HUD.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Vertex Col. + Phong", "VertexShaderColoringPhong");
+  g_HUD.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Vertex Col. + Diffuse", "VertexShaderColoringPhong");
   g_HUD.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Pixel Coloring", "PixelShaderColoring");
   g_HUD.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Normal Coloring", "NormalColoring");
-  g_HUD.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Phong", "Phong");
+  g_HUD.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Special FX", "SpecialFX");
 
   WCHAR sz[100];
   StringCchPrintf(sz, 100, L"LOD (+/-): %d", 0);
   g_HUD.AddStatic(IDC_LODSLIDER_S, sz, 35, iY += 24, 125, 22);
-  g_HUD.AddSlider(IDC_LODSLIDER, 35, iY += 24, 125, 22, 0, TERRAIN_NUM_LOD, 0);
-  
+  g_HUD.AddSlider(IDC_LODSLIDER, 35, iY += 24, 125, 22, 0, g_nTerrainLOD, 0);
+
+  StringCchPrintf(sz, 100, L"Light: (%.1f, %.1f, %.1f)", 2.5f, 3.f, 2.5f);
+  g_HUD.AddStatic(IDC_LIGHT_S, sz, 35, iY += 24, 125, 22);
+  g_HUD.AddSlider(IDC_LIGHTX, 35, iY += 24, 125, 22, -100, 100, 25);
+  g_HUD.AddSlider(IDC_LIGHTY, 35, iY += 24, 125, 22, -100, 100, 30);
+  g_HUD.AddSlider(IDC_LIGHTZ, 35, iY += 24, 125, 22, -100, 100, 25);
+
+  StringCchPrintf(sz, 100, L"Wave Height: %.2f", 0.05f);
+  g_HUD.AddStatic(IDC_WAVEHEIGHT_S, sz, 35, iY += 24, 125, 22);
+  g_HUD.AddSlider(IDC_WAVEHEIGHT, 35, iY += 24, 125, 22, 0, 100, 5);
+
+  StringCchPrintf(sz, 100, L"Wave Scale: (%.1f, %.1f)", 3.f, 5.f);
+  g_HUD.AddStatic(IDC_WAVESCALE_S, sz, 35, iY += 24, 125, 22);
+  g_HUD.AddSlider(IDC_WAVESCALEX, 35, iY += 24, 125, 22, 0, 100, 30);
+  g_HUD.AddSlider(IDC_WAVESCALEY, 35, iY += 24, 125, 22, 0, 100, 50);
+
+  StringCchPrintf(sz, 100, L"Wave Speed: (%.1f, %.1f)", 2.f, 3.f);
+  g_HUD.AddStatic(IDC_WAVESPEED_S, sz, 35, iY += 24, 125, 22);
+  g_HUD.AddSlider(IDC_WAVESPEEDX, 35, iY += 24, 125, 22, -100, 100, 20);
+  g_HUD.AddSlider(IDC_WAVESPEEDY, 35, iY += 24, 125, 22, -100, 100, 30);
+
   iY = 10;
-  StringCchPrintf(sz, 100, L"Size: %dx%d", (1<<TERRAIN_N)+1, (1<<TERRAIN_N)+1);
+  StringCchPrintf(sz, 100, L"Size: %dx%d", (1<<g_nTerrainN)+1, (1<<g_nTerrainN)+1);
   g_HUD.AddStatic(IDC_NEWTERRAIN_SIZE_S, sz, -150, iY, 125, 22);
   g_HUD.AddSlider(IDC_NEWTERRAIN_SIZE, -150, iY += 24, 125, 22, 1, 10,
-                  TERRAIN_N);
-  g_HUD.GetStatic(IDC_NEWTERRAIN_SIZE_S)->SetVisible(false);
-  g_HUD.GetSlider(IDC_NEWTERRAIN_SIZE)->SetVisible(false);
+                  g_nTerrainN);
 
-  StringCchPrintf(sz, 100, L"Roughness: %.2f", TERRAIN_ROUGHNESS);
+  StringCchPrintf(sz, 100, L"Roughness: %.2f", g_fTerrainR);
   g_HUD.AddStatic(IDC_NEWTERRAIN_ROUGHNESS_S, sz, -150, iY += 24, 125, 22);
   g_HUD.AddSlider(IDC_NEWTERRAIN_ROUGHNESS, -150, iY += 24, 125, 22, 0, 1000,
-                  (int)(TERRAIN_ROUGHNESS*100));
-  g_HUD.GetStatic(IDC_NEWTERRAIN_ROUGHNESS_S)->SetVisible(false);
-  g_HUD.GetSlider(IDC_NEWTERRAIN_ROUGHNESS)->SetVisible(false);
+                  (int)(g_fTerrainR*100));
 
-  StringCchPrintf(sz, 100, L"LOD Levels: %d", TERRAIN_NUM_LOD);
+  StringCchPrintf(sz, 100, L"LOD Levels: %d", g_nTerrainLOD);
   g_HUD.AddStatic(IDC_NEWTERRAIN_LOD_S, sz, -150, iY += 24, 125, 22);
   g_HUD.AddSlider(IDC_NEWTERRAIN_LOD, -150, iY += 24, 125, 22, 0, 5,
-                  TERRAIN_NUM_LOD);
-  g_HUD.GetStatic(IDC_NEWTERRAIN_LOD_S)->SetVisible(false);
-  g_HUD.GetSlider(IDC_NEWTERRAIN_LOD)->SetVisible(false);
+                  g_nTerrainLOD);
 
   g_HUD.AddButton(IDC_NEWTERRAIN_OK, L"Generate", -150, iY += 24, 125, 22);
-  g_HUD.GetButton(IDC_NEWTERRAIN_OK)->SetVisible(false);
+
+  for (int i = IDC_SFX_OPTS_MIN; i <= IDC_SFX_OPTS_MAX; ++i) {
+    g_HUD.GetControl(i)->SetVisible(false);
+  }
+  for (int i = IDC_NT_OPTS_MIN; i <= IDC_NT_OPTS_MAX; ++i) {
+    g_HUD.GetControl(i)->SetVisible(false);
+  }
 
   g_SampleUI.SetCallback(OnGUIEvent);
 }
@@ -248,13 +291,11 @@ bool CALLBACK IsD3D10DeviceAcceptable(UINT Adapter, UINT Output,
  * Erzeugt ein neues Terrain mit den übergebenen Parametern und bereitet es auf
  * das Rendering vor.
  */
-HRESULT CreateTerrain(ID3D10Device *pd3dDevice, int terrain_n = TERRAIN_N,
-                      float terrain_roughness = TERRAIN_ROUGHNESS,
-                      int terrain_num_lod = TERRAIN_NUM_LOD) {
+HRESULT CreateTerrain(ID3D10Device *pd3dDevice) {
   HRESULT hr;
   SAFE_DELETE(g_pTile);
   // Tile erzeugen
-  g_pTile = new Tile(terrain_n, terrain_roughness, terrain_num_lod);
+  g_pTile = new Tile(g_nTerrainN, g_fTerrainR, g_nTerrainLOD);
   g_pTile->TriangulateZOrder();
   g_pTile->CalculateNormals();
   // Tile-Daten in D3D10-Buffer speichern
@@ -307,6 +348,10 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   g_pmWorld = g_pEffect10->GetVariableByName("g_mWorld")->AsMatrix();
   g_pfTime = g_pEffect10->GetVariableByName("g_fTime")->AsScalar();
   g_pvCamPos = g_pEffect10->GetVariableByName("g_vCamPos")->AsVector();
+  g_pvLightPos = g_pEffect10->GetVariableByName("g_vLightPos")->AsVector();
+  g_pfWaveHeight = g_pEffect10->GetVariableByName("g_fWaveHeight")->AsScalar();
+  g_pvWaveScale = g_pEffect10->GetVariableByName("g_vWaveScale")->AsVector();
+  g_pvWaveSpeed = g_pEffect10->GetVariableByName("g_vWaveSpeed")->AsVector();
   g_ptWaves = g_pEffect10->GetVariableByName("g_tWaves")->AsShaderResource();
   V_RETURN(g_ptWaves->SetResource(g_pWavesRV));
 
@@ -599,13 +644,9 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
     case IDC_CHANGEDEVICE:
       g_SettingsDlg.SetActive(!g_SettingsDlg.IsActive()); break;
     case IDC_NEWTERRAIN:
-      g_HUD.GetSlider(IDC_NEWTERRAIN_LOD)->SetVisible(true);
-      g_HUD.GetSlider(IDC_NEWTERRAIN_SIZE)->SetVisible(true);
-      g_HUD.GetSlider(IDC_NEWTERRAIN_ROUGHNESS)->SetVisible(true);
-      g_HUD.GetStatic(IDC_NEWTERRAIN_LOD_S)->SetVisible(true);
-      g_HUD.GetStatic(IDC_NEWTERRAIN_SIZE_S)->SetVisible(true);
-      g_HUD.GetStatic(IDC_NEWTERRAIN_ROUGHNESS_S)->SetVisible(true);
-      g_HUD.GetButton(IDC_NEWTERRAIN_OK)->SetVisible(true);
+      for (int i = IDC_NT_OPTS_MIN; i <= IDC_NT_OPTS_MAX; ++i) {
+        g_HUD.GetControl(i)->SetVisible(true);
+      }
       break;
     case IDC_LODSLIDER:
       SetLOD(g_HUD.GetSlider(IDC_LODSLIDER)->GetValue());
@@ -636,24 +677,20 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
       break;
     }
     case IDC_NEWTERRAIN_OK: {
-      g_HUD.GetSlider(IDC_NEWTERRAIN_LOD)->SetVisible(false);
-      g_HUD.GetSlider(IDC_NEWTERRAIN_SIZE)->SetVisible(false);
-      g_HUD.GetSlider(IDC_NEWTERRAIN_ROUGHNESS)->SetVisible(false);
-      g_HUD.GetStatic(IDC_NEWTERRAIN_LOD_S)->SetVisible(false);
-      g_HUD.GetStatic(IDC_NEWTERRAIN_SIZE_S)->SetVisible(false);
-      g_HUD.GetStatic(IDC_NEWTERRAIN_ROUGHNESS_S)->SetVisible(false);
-      g_HUD.GetButton(IDC_NEWTERRAIN_OK)->SetVisible(false);
+      for (int i = IDC_NT_OPTS_MIN; i <= IDC_NT_OPTS_MAX; ++i) {
+        g_HUD.GetControl(i)->SetVisible(false);
+      }
 
-      int n = g_HUD.GetSlider(IDC_NEWTERRAIN_SIZE)->GetValue();
-      float roughness =
+      g_nTerrainN = g_HUD.GetSlider(IDC_NEWTERRAIN_SIZE)->GetValue();
+      g_fTerrainR =
           g_HUD.GetSlider(IDC_NEWTERRAIN_ROUGHNESS)->GetValue()/100.0f;
-      int num_lod = g_HUD.GetSlider(IDC_NEWTERRAIN_LOD)->GetValue();
+      g_nTerrainLOD = g_HUD.GetSlider(IDC_NEWTERRAIN_LOD)->GetValue();
     
-      CreateTerrain(DXUTGetD3D10Device(), n, roughness, num_lod);
+      CreateTerrain(DXUTGetD3D10Device());
 
       g_HUD.GetSlider(IDC_LODSLIDER)->SetValue(0);
-      g_HUD.GetSlider(IDC_LODSLIDER)->SetRange(0, num_lod);
-      g_HUD.GetStatic(IDC_LODSLIDER_S)->SetText(L"LOD: 0");
+      g_HUD.GetSlider(IDC_LODSLIDER)->SetRange(0, g_nTerrainLOD);
+      g_HUD.GetStatic(IDC_LODSLIDER_S)->SetText(L"LOD (+/-): 0");
       SAFE_DELETE(g_pLODSelector);
       g_pLODSelector = new FixedLODSelector(0);
       break;
@@ -661,6 +698,59 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
     case IDC_TECHNIQUE: {
       char *tech = (char *)g_HUD.GetComboBox(IDC_TECHNIQUE)->GetSelectedData();
       g_pTechnique = g_pEffect10->GetTechniqueByName(tech);
+      bool show_sfx_opts = strcmp(tech, "SpecialFX") == 0;
+      for (int i = IDC_SFX_OPTS_MIN; i <= IDC_SFX_OPTS_MAX; ++i) {
+        g_HUD.GetControl(i)->SetVisible(show_sfx_opts);
+      }
+    }
+
+    case IDC_LIGHTX:
+    case IDC_LIGHTY:
+    case IDC_LIGHTZ: {
+      D3DXVECTOR3 light_pos = D3DXVECTOR3(
+        g_HUD.GetSlider(IDC_LIGHTX)->GetValue() / 10.f,
+        g_HUD.GetSlider(IDC_LIGHTY)->GetValue() / 10.f,
+        g_HUD.GetSlider(IDC_LIGHTZ)->GetValue() / 10.f
+      );
+      WCHAR sz[100];
+      StringCchPrintf(sz, 100, L"Light: (%.1f, %.1f, %.1f)",
+                      light_pos.x, light_pos.y, light_pos.z);
+      g_HUD.GetStatic(IDC_LIGHT_S)->SetText(sz);
+      g_pvLightPos->SetFloatVector(light_pos);
+    }
+
+    case IDC_WAVEHEIGHT: {
+      float value = g_HUD.GetSlider(IDC_WAVEHEIGHT)->GetValue() / 100.0f;
+      WCHAR sz[100];
+      StringCchPrintf(sz, 100, L"Wave Height: %.2f", value);
+      g_HUD.GetStatic(IDC_WAVEHEIGHT_S)->SetText(sz);
+      g_pfWaveHeight->SetFloat(value);
+    }
+
+    case IDC_WAVESCALEX:
+    case IDC_WAVESCALEY: {
+      D3DXVECTOR2 wave_scale = D3DXVECTOR2(
+        g_HUD.GetSlider(IDC_WAVESCALEX)->GetValue() / 10.f,
+        g_HUD.GetSlider(IDC_WAVESCALEY)->GetValue() / 10.f
+      );
+      WCHAR sz[100];
+      StringCchPrintf(sz, 100, L"Wave Scale: (%.1f, %.1f)",
+                      wave_scale.x, wave_scale.y);
+      g_HUD.GetStatic(IDC_WAVESCALE_S)->SetText(sz);
+      g_pvWaveScale->SetFloatVector(wave_scale);
+    }
+
+    case IDC_WAVESPEEDX:
+    case IDC_WAVESPEEDY: {
+      D3DXVECTOR2 wave_speed = D3DXVECTOR2(
+        g_HUD.GetSlider(IDC_WAVESPEEDX)->GetValue() / 10.f,
+        g_HUD.GetSlider(IDC_WAVESPEEDY)->GetValue() / 10.f
+      );
+      WCHAR sz[100];
+      StringCchPrintf(sz, 100, L"Wave Speed: (%.1f, %.1f)",
+                      wave_speed.x, wave_speed.y);
+      g_HUD.GetStatic(IDC_WAVESPEED_S)->SetText(sz);
+      g_pvWaveSpeed->SetFloatVector(wave_speed);
     }
   }
 }

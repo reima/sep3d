@@ -15,14 +15,17 @@ cbuffer cb0
 
 cbuffer cb1
 {
-  float4   g_vCamPos;                 // Camera position
-  float4   g_vLightPos;               // Light position
+  float3   g_vCamPos;                 // Camera position
+  float3   g_vLightPos;               // Light position
+  float    g_fWaveHeight;
+  float2   g_vWaveScale;
+  float2   g_vWaveSpeed;
 }
 
 Texture2D g_tWaves;
 SamplerState g_ssWaves
 {
-	Filter = MIN_MAG_MIP_LINEAR;
+	Filter = MIN_MAG_MIP_POINT;
 };
 
 #define NUM_SPOTS 8
@@ -39,8 +42,8 @@ const float g_Spots[NUM_SPOTS] = {
 };
 
 const float4 g_Colors[NUM_SPOTS] = {
-  float4(0.125, 0.125, 0.025, 1),
-  float4(0.25, 0.25, 0.05, 1),
+  float4(0.0, 0.0, 0.0, 1),
+  float4(0.125, 0.125, 0.05, 1),
   float4(0.5, 0.5, 0.1, 1),
   float4(0.9375, 0.9375, 0.25, 1),
   float4(0.125, 0.625, 0, 1),
@@ -75,14 +78,14 @@ struct VS_PSC_OUTPUT
   float  Height     : HEIGHT;
 };
 
-struct VS_PHONG_OUTPUT
+struct VS_SFX_OUTPUT
 {
   float4 Position   : SV_Position;
-  float2 WaveCoords : TEXCOORD0;
-  float4 Normal     : NORMAL;
-  float  Height     : HEIGHT;
-  float4 LightDir   : LIGHTDIR;
-  float4 ViewDir    : VIEWDIR;
+  float4 Normal     : TEXCOORD0;
+  float  Height     : TEXCOORD1;
+  float4 ViewDir    : TEXCOORD2;
+  float4 LightDir   : TEXCOORD3;
+  float2 WaveCoords : TEXCOORD4;
 };
 
 //--------------------------------------------------------------------------------------
@@ -110,17 +113,12 @@ VS_VSC_OUTPUT VertexColoring_VS( VS_INPUT In, uniform bool phong )
   VS_VSC_OUTPUT Output;
   float4 pos = float4(In.Position, 1.0f);
   Output.Color = GetColorFromHeight(pos.y);
- 
+
   // Diffuse Phong
   if (phong) {
-    float4 L = normalize(g_vCamPos - pos);
-    Output.Color *= dot(L, normalize(In.Normal));
+    float4 L = normalize(float4(g_vCamPos, 1) - pos);
+    Output.Color *= saturate(dot(L, normalize(In.Normal)));
   }
-
-  // Create water plane with waves
-/*  if (pos.y < 0) {
-    pos.y = 0.05 * sin(3 * pos.x + g_fTime * 2) * cos(3 * pos.z + g_fTime * 3);
-  }*/
 
   // Transform the position from object space to homogeneous projection space
   Output.Position = mul(pos, g_mWorldViewProjection);
@@ -150,29 +148,28 @@ VS_VSC_OUTPUT NormalColoring_VS( VS_INPUT In )
   return Output;
 }
 
-VS_PHONG_OUTPUT Phong_VS( VS_INPUT In, uniform bool waves )
+VS_SFX_OUTPUT SFX_VS( VS_INPUT In, uniform bool waves )
 {
-  VS_PHONG_OUTPUT Output;
-  float4 pos = float4(In.Position, 1.0f);
-  Output.Height = pos.y;
-  Output.ViewDir = g_vCamPos - pos;
-  Output.LightDir = float4(5*sin(0.5*g_fTime), 5, 5*cos(0.5*g_fTime), 1.0f) - pos;
-//  Output.LightDir = float4(5, 5, 5, 1) - pos;
-//  Output.LightDir = g_vLightPos - pos;
-  Output.Normal = float4(In.Normal, 0.0f);
-  if (waves && pos.y < 0) {
-    float a = 0.05;
-    float sx = 3;
-    float sz = 5;
-    float x_ = sx*pos.x+2*g_fTime;
-    float z_ = sz*pos.z+3*g_fTime;
-    pos.y = a * sin(x_) * cos(z_);
-    Output.Normal = float4(cross(float3(0,-sz*a*sin(x_)*sin(z_), 1),
-                                 float3(1, sx*a*cos(x_)*cos(z_), 0)), 0);    
+  VS_SFX_OUTPUT Output;
+  float4 pos = float4(In.Position, 1);
+  if (waves) {
+    float2 foo = g_vWaveScale * pos.xz + g_vWaveSpeed * g_fTime;
+    // Wellen erzeugen
+    pos.y = g_fWaveHeight * sin(foo.x) * cos(foo.y);
+    // Normale der Tangentialebene am Punkt pos
+    Output.Normal = float4(
+      cross(
+        float3(0, -g_vWaveScale.y*g_fWaveHeight*sin(foo.x)*sin(foo.y), 1),
+        float3(1,  g_vWaveScale.x*g_fWaveHeight*cos(foo.x)*cos(foo.y), 0)),
+      0);
+  } else {
+    Output.Normal = float4(In.Normal, 0);
   }
   Output.Position = mul(pos, g_mWorldViewProjection);
-  Output.WaveCoords = pos.xz + 0.1*float2(g_fTime, g_fTime);
-
+  Output.Height = In.Position.y;
+  Output.ViewDir = float4(g_vCamPos, 1) - pos;
+  Output.LightDir = float4(g_vLightPos, 1) - pos;
+  Output.WaveCoords = pos.xz;// + 0.1 * g_fTime;
   return Output;
 }
 
@@ -180,7 +177,7 @@ VS_PHONG_OUTPUT Phong_VS( VS_INPUT In, uniform bool waves )
 // Pixel Shaders
 //--------------------------------------------------------------------------------------
 float4 VertexColoring_PS( VS_VSC_OUTPUT In ) : SV_Target
-{ 
+{
   return In.Color;
 }
 
@@ -189,34 +186,34 @@ float4 PixelColoring_PS( VS_PSC_OUTPUT In ) : SV_Target
   return GetColorFromHeight(In.Height);
 }
 
-float4 Phong_PS( VS_PHONG_OUTPUT In, uniform bool waves ) : SV_Target
+float4 SFX_PS( VS_SFX_OUTPUT In, uniform bool waves ) : SV_Target
 {
-  if (waves && In.Height >= 0) discard;
-  float4 color = GetColorFromHeight(In.Height);
   float4 L = normalize(In.LightDir);
-  float4 normal_offset = float4(0, 0, 0, 0);
-  if (In.Height < 0 && waves) {
-    normal_offset += g_tWaves.Sample(g_ssWaves, In.WaveCoords).xzyw;
-    color = float4(0, 0.5, 1, 1);
-  }  
-  float4 N = normalize(normalize(In.Normal) + normal_offset);
-  float4 V = normalize(In.ViewDir);
-  float4 H = normalize(L + V);
-  float4 diffuse = saturate(dot(N, L)) * color;
-  float4 specular = float4(0, 0, 0, 0);
-  if (In.Height < 0 && waves) {
-    specular = pow(saturate(dot(N, H)), 20) * float4(1,1,1,1);
+  if (waves) {
+    if (In.Height > 0) discard;
+    float3 base_color = float3(0, 0.5, 1);
+    float4 normal_offset = float4(
+        g_tWaves.Sample(g_ssWaves, In.WaveCoords).rgb, 0);
+    float4 N = normalize(In.Normal + normal_offset);
+    float NdotL = saturate(dot(N, L));
+    float4 V = normalize(In.ViewDir);
+    float4 R = normalize(reflect(-L, N));
+    float RdotV = saturate(dot(R, V));
+    float fresnel = 0.5*saturate(1-pow(dot(N, V), 3))+0.1;
+    return float4(NdotL * base_color + pow(RdotV, 100), fresnel);
+  } else {
+    float4 N = normalize(In.Normal);
+    float NdotL = saturate(dot(N, L));
+    return NdotL * GetColorFromHeight(In.Height);
   }
-
-  return float4((diffuse + specular).rgb, 1);
 }
 
 BlendState SrcColorBlendingAdd
 {
   BlendEnable[0] = TRUE;
   BlendEnable[1] = TRUE;
-  SrcBlend = SRC_COLOR;
-  DestBlend = DEST_COLOR;
+  SrcBlend = SRC_ALPHA;
+  DestBlend = INV_SRC_ALPHA;
   BlendOp = ADD;
   SrcBlendAlpha = ZERO;
   DestBlendAlpha = ZERO;
@@ -225,7 +222,7 @@ BlendState SrcColorBlendingAdd
 };
 
 //--------------------------------------------------------------------------------------
-// Renders scene 
+// Renders scene
 //--------------------------------------------------------------------------------------
 technique10 VertexShaderColoring
 {
@@ -267,19 +264,19 @@ technique10 NormalColoring
   }
 }
 
-technique10 Phong
+technique10 SpecialFX
 {
   pass P0
   {
-    SetVertexShader( CompileShader( vs_4_0, Phong_VS(false) ) );
+    SetVertexShader( CompileShader( vs_4_0, SFX_VS(false) ) );
     SetGeometryShader( NULL );
-    SetPixelShader( CompileShader( ps_4_0, Phong_PS(false) ) );
+    SetPixelShader( CompileShader( ps_4_0, SFX_PS(false) ) );
   }
   pass P1
   {
-    SetVertexShader( CompileShader( vs_4_0, Phong_VS(true) ) );
+    SetVertexShader( CompileShader( vs_4_0, SFX_VS(true) ) );
     SetGeometryShader( NULL );
-    SetPixelShader( CompileShader( ps_4_0, Phong_PS(true) ) );
-    SetBlendState( SrcColorBlendingAdd, float4(0,0,0,0), 0xffffffff );    
+    SetPixelShader( CompileShader( ps_4_0, SFX_PS(true) ) );
+    SetBlendState( SrcColorBlendingAdd, float4(0,0,0,0), 0xffffffff );
   }
 }
