@@ -9,10 +9,21 @@
 cbuffer cb0
 {
   float    g_fTime;                   // App's time in seconds
-  float4   g_vCamPos;                 // Camera position
   float4x4 g_mWorld;                  // World matrix for object
   float4x4 g_mWorldViewProjection;    // World * View * Projection matrix
 }
+
+cbuffer cb1
+{
+  float4   g_vCamPos;                 // Camera position
+  float4   g_vLightPos;               // Light position
+}
+
+Texture2D g_tWaves;
+SamplerState g_ssWaves
+{
+	Filter = MIN_MAG_MIP_LINEAR;
+};
 
 #define NUM_SPOTS 8
 const int g_nSpots = NUM_SPOTS;
@@ -28,9 +39,9 @@ const float g_Spots[NUM_SPOTS] = {
 };
 
 const float4 g_Colors[NUM_SPOTS] = {
-  float4(0, 0, 0.625, 1),
-  float4(0, 0.25, 1, 1),
-  float4(0, 0.5, 1, 1),
+  float4(0.125, 0.125, 0.025, 1),
+  float4(0.25, 0.25, 0.05, 1),
+  float4(0.5, 0.5, 0.1, 1),
   float4(0.9375, 0.9375, 0.25, 1),
   float4(0.125, 0.625, 0, 1),
   float4(0, 0.375, 0, 1),
@@ -62,6 +73,16 @@ struct VS_PSC_OUTPUT
 {
   float4 Position   : SV_Position;   // vertex position
   float  Height     : HEIGHT;
+};
+
+struct VS_PHONG_OUTPUT
+{
+  float4 Position   : SV_Position;
+  float2 WaveCoords : TEXCOORD0;
+  float4 Normal     : NORMAL;
+  float  Height     : HEIGHT;
+  float4 LightDir   : LIGHTDIR;
+  float4 ViewDir    : VIEWDIR;
 };
 
 //--------------------------------------------------------------------------------------
@@ -129,6 +150,32 @@ VS_VSC_OUTPUT NormalColoring_VS( VS_INPUT In )
   return Output;
 }
 
+VS_PHONG_OUTPUT Phong_VS( VS_INPUT In, uniform bool waves )
+{
+  VS_PHONG_OUTPUT Output;
+  float4 pos = float4(In.Position, 1.0f);
+  Output.Height = pos.y;
+  Output.ViewDir = g_vCamPos - pos;
+  Output.LightDir = float4(5*sin(0.5*g_fTime), 5, 5*cos(0.5*g_fTime), 1.0f) - pos;
+//  Output.LightDir = float4(5, 5, 5, 1) - pos;
+//  Output.LightDir = g_vLightPos - pos;
+  Output.Normal = float4(In.Normal, 0.0f);
+  if (waves && pos.y < 0) {
+    float a = 0.05;
+    float sx = 3;
+    float sz = 5;
+    float x_ = sx*pos.x+2*g_fTime;
+    float z_ = sz*pos.z+3*g_fTime;
+    pos.y = a * sin(x_) * cos(z_);
+    Output.Normal = float4(cross(float3(0,-sz*a*sin(x_)*sin(z_), 1),
+                                 float3(1, sx*a*cos(x_)*cos(z_), 0)), 0);    
+  }
+  Output.Position = mul(pos, g_mWorldViewProjection);
+  Output.WaveCoords = pos.xz + 0.1*float2(g_fTime, g_fTime);
+
+  return Output;
+}
+
 //--------------------------------------------------------------------------------------
 // Pixel Shaders
 //--------------------------------------------------------------------------------------
@@ -141,6 +188,41 @@ float4 PixelColoring_PS( VS_PSC_OUTPUT In ) : SV_Target
 {
   return GetColorFromHeight(In.Height);
 }
+
+float4 Phong_PS( VS_PHONG_OUTPUT In, uniform bool waves ) : SV_Target
+{
+  if (waves && In.Height >= 0) discard;
+  float4 color = GetColorFromHeight(In.Height);
+  float4 L = normalize(In.LightDir);
+  float4 normal_offset = float4(0, 0, 0, 0);
+  if (In.Height < 0 && waves) {
+    normal_offset += g_tWaves.Sample(g_ssWaves, In.WaveCoords).xzyw;
+    color = float4(0, 0.5, 1, 1);
+  }  
+  float4 N = normalize(normalize(In.Normal) + normal_offset);
+  float4 V = normalize(In.ViewDir);
+  float4 H = normalize(L + V);
+  float4 diffuse = saturate(dot(N, L)) * color;
+  float4 specular = float4(0, 0, 0, 0);
+  if (In.Height < 0 && waves) {
+    specular = pow(saturate(dot(N, H)), 20) * float4(1,1,1,1);
+  }
+
+  return float4((diffuse + specular).rgb, 1);
+}
+
+BlendState SrcColorBlendingAdd
+{
+  BlendEnable[0] = TRUE;
+  BlendEnable[1] = TRUE;
+  SrcBlend = SRC_COLOR;
+  DestBlend = DEST_COLOR;
+  BlendOp = ADD;
+  SrcBlendAlpha = ZERO;
+  DestBlendAlpha = ZERO;
+  BlendOpAlpha = ADD;
+  RenderTargetWriteMask[0] = 0x0F;
+};
 
 //--------------------------------------------------------------------------------------
 // Renders scene 
@@ -182,5 +264,22 @@ technique10 NormalColoring
     SetVertexShader( CompileShader( vs_4_0, NormalColoring_VS() ) );
     SetGeometryShader( NULL );
     SetPixelShader( CompileShader( ps_4_0, VertexColoring_PS() ) );
+  }
+}
+
+technique10 Phong
+{
+  pass P0
+  {
+    SetVertexShader( CompileShader( vs_4_0, Phong_VS(false) ) );
+    SetGeometryShader( NULL );
+    SetPixelShader( CompileShader( ps_4_0, Phong_PS(false) ) );
+  }
+  pass P1
+  {
+    SetVertexShader( CompileShader( vs_4_0, Phong_VS(true) ) );
+    SetGeometryShader( NULL );
+    SetPixelShader( CompileShader( ps_4_0, Phong_PS(true) ) );
+    SetBlendState( SrcColorBlendingAdd, float4(0,0,0,0), 0xffffffff );    
   }
 }

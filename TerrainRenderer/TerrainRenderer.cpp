@@ -54,6 +54,8 @@ ID3D10EffectMatrixVariable* g_pmWorldViewProj = NULL;
 ID3D10EffectMatrixVariable* g_pmWorld = NULL;
 ID3D10EffectScalarVariable* g_pfTime = NULL;
 ID3D10EffectVectorVariable* g_pvCamPos = NULL;
+ID3D10EffectShaderResourceVariable* g_ptWaves = NULL;
+ID3D10ShaderResourceView*   g_pWavesRV = NULL;
 
 Tile*                       g_pTile = NULL;
 LODSelector*                g_pLODSelector = NULL;
@@ -182,6 +184,7 @@ void InitApp() {
   g_HUD.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Vertex Col. + Phong", "VertexShaderColoringPhong");
   g_HUD.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Pixel Coloring", "PixelShaderColoring");
   g_HUD.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Normal Coloring", "NormalColoring");
+  g_HUD.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Phong", "Phong");
 
   WCHAR sz[100];
   StringCchPrintf(sz, 100, L"LOD (+/-): %d", 0);
@@ -295,12 +298,17 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   g_pEffect10 = LoadEffect(pd3dDevice, L"TerrainRenderer.fx");
   g_pTechnique = g_pEffect10->GetTechniqueByIndex(0);
 
+  // Load wave normal map
+  V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"waves.dds", NULL, NULL, &g_pWavesRV, NULL));
+
   // Get effects variables
   g_pmWorldViewProj =
       g_pEffect10->GetVariableByName("g_mWorldViewProjection")->AsMatrix();
   g_pmWorld = g_pEffect10->GetVariableByName("g_mWorld")->AsMatrix();
   g_pfTime = g_pEffect10->GetVariableByName("g_fTime")->AsScalar();
   g_pvCamPos = g_pEffect10->GetVariableByName("g_vCamPos")->AsVector();
+  g_ptWaves = g_pEffect10->GetVariableByName("g_tWaves")->AsShaderResource();
+  V_RETURN(g_ptWaves->SetResource(g_pWavesRV));
 
   // Setup the camera's view parameters
   D3DXVECTOR3 vecEye(0.0f, 5.0f, -5.0f);
@@ -450,6 +458,7 @@ void CALLBACK OnD3D10DestroyDevice(void* pUserContext) {
   SAFE_RELEASE(g_pVertexLayout);
   SAFE_RELEASE(g_pSprite10);
   SAFE_RELEASE(g_pRSWireframe);
+  SAFE_RELEASE(g_pWavesRV);
   SAFE_DELETE(g_pTxtHelper);
   SAFE_DELETE(g_pTile);
   SAFE_DELETE(g_pLODSelector);
