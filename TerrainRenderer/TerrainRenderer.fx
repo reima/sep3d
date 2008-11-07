@@ -84,7 +84,7 @@ float4 GetColorFromHeight(float height)
 //--------------------------------------------------------------------------------------
 // Vertex Shaders
 //--------------------------------------------------------------------------------------
-VS_VSC_OUTPUT RenderScene_VSC_VS( VS_INPUT In, uniform bool phong )
+VS_VSC_OUTPUT VertexColoring_VS( VS_INPUT In, uniform bool phong )
 {
   VS_VSC_OUTPUT Output;
   float4 pos = float4(In.Position, 1.0f);
@@ -92,8 +92,8 @@ VS_VSC_OUTPUT RenderScene_VSC_VS( VS_INPUT In, uniform bool phong )
  
   // Diffuse Phong
   if (phong) {
-	float4 L = normalize(g_vCamPos - pos);
-	Output.Color *= dot(L, normalize(In.Normal));
+    float4 L = normalize(g_vCamPos - pos);
+    Output.Color *= dot(L, normalize(In.Normal));
   }
 
   // Create water plane with waves
@@ -107,7 +107,7 @@ VS_VSC_OUTPUT RenderScene_VSC_VS( VS_INPUT In, uniform bool phong )
   return Output;
 }
 
-VS_PSC_OUTPUT RenderScene_PSC_VS( VS_INPUT In )
+VS_PSC_OUTPUT PixelColoring_VS( VS_INPUT In )
 {
   VS_PSC_OUTPUT Output;
   float4 pos = float4(In.Position, 1.0f);
@@ -118,7 +118,7 @@ VS_PSC_OUTPUT RenderScene_PSC_VS( VS_INPUT In )
   return Output;
 }
 
-VS_VSC_OUTPUT RenderScene_NC_VS( VS_INPUT In )
+VS_VSC_OUTPUT NormalColoring_VS( VS_INPUT In )
 {
   VS_VSC_OUTPUT Output;
   Output.Color = float4(normalize(In.Normal), 0);
@@ -132,12 +132,12 @@ VS_VSC_OUTPUT RenderScene_NC_VS( VS_INPUT In )
 //--------------------------------------------------------------------------------------
 // Pixel Shaders
 //--------------------------------------------------------------------------------------
-float4 RenderScene_VSC_PS( VS_VSC_OUTPUT In ) : SV_Target
+float4 VertexColoring_PS( VS_VSC_OUTPUT In ) : SV_Target
 { 
   return In.Color;
 }
 
-float4 RenderScene_PSC_PS( VS_PSC_OUTPUT In ) : SV_Target
+float4 PixelColoring_PS( VS_PSC_OUTPUT In ) : SV_Target
 {
   return GetColorFromHeight(In.Height);
 }
@@ -149,9 +149,9 @@ technique10 VertexShaderColoring
 {
   pass P0
   {
-    SetVertexShader( CompileShader( vs_4_0, RenderScene_VSC_VS(false) ) );
+    SetVertexShader( CompileShader( vs_4_0, VertexColoring_VS(false) ) );
     SetGeometryShader( NULL );
-    SetPixelShader( CompileShader( ps_4_0, RenderScene_VSC_PS() ) );
+    SetPixelShader( CompileShader( ps_4_0, VertexColoring_PS() ) );
   }
 }
 
@@ -159,9 +159,9 @@ technique10 VertexShaderColoringPhong
 {
   pass P0
   {
-    SetVertexShader( CompileShader( vs_4_0, RenderScene_VSC_VS(true) ) );
+    SetVertexShader( CompileShader( vs_4_0, VertexColoring_VS(true) ) );
     SetGeometryShader( NULL );
-    SetPixelShader( CompileShader( ps_4_0, RenderScene_VSC_PS() ) );
+    SetPixelShader( CompileShader( ps_4_0, VertexColoring_PS() ) );
   }
 }
 
@@ -169,9 +169,9 @@ technique10 PixelShaderColoring
 {
   pass P0
   {
-    SetVertexShader( CompileShader( vs_4_0, RenderScene_PSC_VS() ) );
+    SetVertexShader( CompileShader( vs_4_0, PixelColoring_VS() ) );
     SetGeometryShader( NULL );
-    SetPixelShader( CompileShader( ps_4_0, RenderScene_PSC_PS() ) );
+    SetPixelShader( CompileShader( ps_4_0, PixelColoring_PS() ) );
   }
 }
 
@@ -179,8 +179,8 @@ technique10 NormalColoring
 {
   pass P0
   {
-    SetVertexShader( CompileShader( vs_4_0, RenderScene_NC_VS() ) );
+    SetVertexShader( CompileShader( vs_4_0, NormalColoring_VS() ) );
     SetGeometryShader( NULL );
-    SetPixelShader( CompileShader( ps_4_0, RenderScene_VSC_PS() ) );
+    SetPixelShader( CompileShader( ps_4_0, VertexColoring_PS() ) );
   }
 }
