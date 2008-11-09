@@ -66,6 +66,7 @@ ID3D10ShaderResourceView*   g_pWavesRV = NULL;
 Tile*                       g_pTile = NULL;
 LODSelector*                g_pLODSelector = NULL;
 
+bool                        g_bShowSettings = false;
 bool                        g_bWireframe = false;
 ID3D10RasterizerState*      g_pRSWireframe = NULL;
 
@@ -280,6 +281,18 @@ void RenderText() {
   g_pTxtHelper->SetForegroundColor(D3DXCOLOR(1.0f, 1.0f, 0.0f, 1.0f));
   g_pTxtHelper->DrawTextLine(DXUTGetFrameStats(DXUTIsVsyncEnabled()));
   g_pTxtHelper->DrawTextLine(DXUTGetDeviceStats());
+
+  if (g_bShowSettings) {
+    g_pTxtHelper->DrawTextLine(L"Terrain Settings:");
+    WCHAR sz[100];
+    StringCchPrintf(sz, 100, L"Size: %dx%d", (1<<g_nTerrainN)+1, (1<<g_nTerrainN)+1);
+    g_pTxtHelper->DrawTextLine(sz);
+    StringCchPrintf(sz, 100, L"Roughness: %.2f", g_fTerrainR);
+    g_pTxtHelper->DrawTextLine(sz);
+    StringCchPrintf(sz, 100, L"LOD Levels: %d", g_nTerrainLOD);
+    g_pTxtHelper->DrawTextLine(sz);
+  }
+
   g_pTxtHelper->End();
 }
 
@@ -639,6 +652,10 @@ void CALLBACK OnKeyboard(UINT nChar, bool bKeyDown, bool bAltDown,
       break;
     case VK_SUBTRACT:
       SetLOD(g_HUD.GetSlider(IDC_LODSLIDER)->GetValue() - 1);
+      break;
+    case 'H':
+    case 'h':
+      g_bShowSettings = !g_bShowSettings;
       break;
   }
 }
