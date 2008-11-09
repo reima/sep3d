@@ -32,7 +32,7 @@ cbuffer cb2
 Texture2D g_tWaves;
 SamplerState g_ssWaves
 {
-	Filter = MIN_MAG_MIP_POINT;
+	Filter = MIN_MAG_MIP_LINEAR;
 };
 
 #define NUM_SPOTS 8
@@ -85,14 +85,23 @@ struct VS_PSC_OUTPUT
   float  Height     : HEIGHT;
 };
 
-struct VS_SFX_OUTPUT
+struct VS_SFX_P0_OUTPUT
 {
   float4 Position   : SV_Position;
-  float4 Normal     : TEXCOORD0;
-  float  Height     : TEXCOORD1;
-  float4 ViewDir    : TEXCOORD2;
-  float4 LightDir   : TEXCOORD3;
-  float2 WaveCoords : TEXCOORD4;
+  float3 Normal     : NORMAL0;
+  float  Height     : TEXCOORD0;
+  float3 LightDir   : TEXCOORD1;
+};
+
+struct VS_SFX_P1_OUTPUT
+{
+  float4 Position   : SV_Position;
+  float3 ViewDir    : TEXCOORD0; // In tangent space
+  float3 LightDir   : TEXCOORD1; // In tangent space
+  float2 Wave0      : TEXCOORD2;
+  float2 Wave1      : TEXCOORD3;
+  float2 Wave2      : TEXCOORD4;
+  float2 Wave3      : TEXCOORD5;
 };
 
 //--------------------------------------------------------------------------------------
@@ -160,28 +169,47 @@ VS_VSC_OUTPUT NormalColoring_VS( VS_INPUT In )
   return Output;
 }
 
-VS_SFX_OUTPUT SFX_VS( VS_INPUT In, uniform bool waves )
+VS_SFX_P0_OUTPUT SFX_P0_VS( VS_INPUT In )
 {
-  VS_SFX_OUTPUT Output;
-  float4 pos = float4(In.Position, 1);
-  if (waves) {
-    float2 foo = g_vWaveScale * pos.xz + g_vWaveSpeed * g_fTime;
-    // Wellen erzeugen
-    pos.y = g_fWaveHeight * sin(foo.x) * cos(foo.y);
-    // Normale der Tangentialebene am Punkt pos
-    Output.Normal = float4(
-      cross(
-        float3(0, -g_vWaveScale.y*g_fWaveHeight*sin(foo.x)*sin(foo.y), 1),
-        float3(1,  g_vWaveScale.x*g_fWaveHeight*cos(foo.x)*cos(foo.y), 0)),
-      0);
-  } else {
-    Output.Normal = float4(In.Normal, 0);
-  }
-  Output.Position = mul(pos, g_mWorldViewProjection);
+  VS_SFX_P0_OUTPUT Output;
+  Output.Position = mul(float4(In.Position, 1), g_mWorldViewProjection);
   Output.Height = In.Position.y;
-  Output.ViewDir = float4(g_vCamPos, 1) - pos;
-  Output.LightDir = float4(g_vLightPos, 1) - pos;
-  Output.WaveCoords = pos.xz;// + 0.1 * g_fTime;
+  Output.Normal = In.Normal;
+  Output.LightDir = g_vLightPos - In.Position;
+  return Output;
+}
+
+VS_SFX_P1_OUTPUT SFX_P1_VS( VS_INPUT In )
+{
+  VS_SFX_P1_OUTPUT Output;
+  float3 vPos = In.Position;
+  vPos.xz *= 5;
+  float2 vArg = g_vWaveScale * vPos.xz + g_vWaveSpeed * g_fTime;
+  // Wave function
+  vPos.y = g_fWaveHeight * sin(vArg.x) * cos(vArg.y);
+  // Tangent and binormal are the partial derivated of the wave function
+  float3 vTangent  = float3(1,  g_fWaveHeight*cos(vArg.x)*cos(vArg.y), 0);
+  float3 vBinormal = float3(0, -g_fWaveHeight*sin(vArg.x)*sin(vArg.y), 1);
+  float3 vNormal = cross(vBinormal, vTangent);
+
+  // Build matrix for transformation in tangent space
+  float3x3 mWorldToTangent;
+  mWorldToTangent[0] = normalize(vTangent);
+  mWorldToTangent[1] = normalize(vBinormal);
+  mWorldToTangent[2] = normalize(vNormal);
+
+  Output.ViewDir = mul(mWorldToTangent, g_vCamPos - vPos);
+  Output.LightDir = mul(mWorldToTangent, g_vLightPos - vPos);
+  Output.Position = mul(float4(vPos, 1), g_mWorldViewProjection);
+
+  // Calculate wave texture coordinates
+  float2 vTexCoord = vPos.xz * 0.5;
+  float2 vTrans = g_fTime * 0.01;
+  Output.Wave0 = vTexCoord * 1 + vTrans * 2;
+  Output.Wave1 = vTexCoord * 2 - vTrans * 4;
+  Output.Wave2 = vTexCoord * 4 + vTrans * 2;
+  Output.Wave3 = vTexCoord * 8 - vTrans * 1;
+
   return Output;
 }
 
@@ -198,39 +226,48 @@ float4 PixelColoring_PS( VS_PSC_OUTPUT In ) : SV_Target
   return GetColorFromHeight(In.Height);
 }
 
-float4 SFX_PS( VS_SFX_OUTPUT In, uniform bool waves ) : SV_Target
+float4 SFX_P0_PS( VS_SFX_P0_OUTPUT In ) : SV_Target
 {
-  float4 L = normalize(In.LightDir);
-  if (waves) {
-    if (In.Height > 0) discard;
-    float3 base_color = float3(0, 0.5, 1);
-    float4 normal_offset = float4(
-        g_tWaves.Sample(g_ssWaves, In.WaveCoords).rgb, 0);
-    float4 N = normalize(In.Normal + normal_offset);
-    float NdotL = saturate(dot(N, L));
-    float4 V = normalize(In.ViewDir);
-    float4 R = normalize(reflect(-L, N));
-    float RdotV = saturate(dot(R, V));
-    float fresnel = 0.5*saturate(1-pow(dot(N, V), 3))+0.1;
-    return float4(NdotL * base_color + pow(RdotV, 100), fresnel);
-  } else {
-    float4 N = normalize(In.Normal);
-    float NdotL = saturate(dot(N, L));
-    return NdotL * GetColorFromHeight(In.Height);
-  }
+  float4 vBaseColor = GetColorFromHeight(In.Height);
+  float3 N = normalize(In.Normal);
+  float3 L = normalize(In.LightDir);
+  float NdotL = saturate(dot(N, L));
+  return (0.1 + 0.9 * NdotL) * vBaseColor;// * g_vLightColor;
+}
+
+float4 SFX_P1_PS( VS_SFX_P1_OUTPUT In ) : SV_Target
+{
+  // Waves bump map lookups
+  float3 vWave0 = g_tWaves.Sample(g_ssWaves, In.Wave0);
+  float3 vWave1 = g_tWaves.Sample(g_ssWaves, In.Wave1);
+  float3 vWave2 = g_tWaves.Sample(g_ssWaves, In.Wave2);
+  float3 vWave3 = g_tWaves.Sample(g_ssWaves, In.Wave3);
+  // Combine waves to get normal pertubation vector
+  float3 vNormalPertubation = normalize(vWave0 + vWave1 +
+                                        vWave2 + vWave3 - 2);
+  // Unpertubed normal is always (0,0,1)^T as we are in tangent space
+  float3 N = normalize(float3(0, 0, 1) + vNormalPertubation);
+  float3 L = normalize(In.LightDir);
+  float NdotL = saturate(dot(N, L));
+  float3 R = normalize(reflect(-L, N));
+  float3 V = normalize(In.ViewDir);
+  float RdotV = saturate(dot(R, V));
+
+  float3 vBaseColor = float3(0.5, 0.75, 1);
+  float3 vTotalColor = NdotL * vBaseColor + pow(RdotV, 500);// * g_vLightColor.rgb;
+
+  float fFresnelBias = 0.4;
+  float fFresnel = fFresnelBias + (1-fFresnelBias)*pow(1 - dot(N, V), 5);
+
+  return float4(vTotalColor, fFresnel);
 }
 
 BlendState SrcColorBlendingAdd
 {
   BlendEnable[0] = TRUE;
-  BlendEnable[1] = TRUE;
+  BlendOp = ADD;
   SrcBlend = SRC_ALPHA;
   DestBlend = INV_SRC_ALPHA;
-  BlendOp = ADD;
-  SrcBlendAlpha = ZERO;
-  DestBlendAlpha = ZERO;
-  BlendOpAlpha = ADD;
-  RenderTargetWriteMask[0] = 0x0F;
 };
 
 //--------------------------------------------------------------------------------------
@@ -280,15 +317,15 @@ technique10 SpecialFX
 {
   pass P0
   {
-    SetVertexShader( CompileShader( vs_4_0, SFX_VS(false) ) );
+    SetVertexShader( CompileShader( vs_4_0, SFX_P0_VS() ) );
     SetGeometryShader( NULL );
-    SetPixelShader( CompileShader( ps_4_0, SFX_PS(false) ) );
+    SetPixelShader( CompileShader( ps_4_0, SFX_P0_PS() ) );
   }
   pass P1
   {
-    SetVertexShader( CompileShader( vs_4_0, SFX_VS(true) ) );
+    SetVertexShader( CompileShader( vs_4_0, SFX_P1_VS() ) );
     SetGeometryShader( NULL );
-    SetPixelShader( CompileShader( ps_4_0, SFX_PS(true) ) );
+    SetPixelShader( CompileShader( ps_4_0, SFX_P1_PS() ) );
     SetBlendState( SrcColorBlendingAdd, float4(0,0,0,0), 0xffffffff );
   }
 }

@@ -222,24 +222,24 @@ void InitApp() {
   g_HUD.AddStatic(IDC_LODSLIDER_S, sz, 35, iY += 24, 125, 22);
   g_HUD.AddSlider(IDC_LODSLIDER, 35, iY += 24, 125, 22, 0, g_nTerrainLOD, 0);
 
-  StringCchPrintf(sz, 100, L"Light: (%.1f, %.1f, %.1f)", 2.5f, 3.f, 2.5f);
+  StringCchPrintf(sz, 100, L"Light: (%.1f, %.1f, %.1f)", 1.4f, 3.f, 2.8f);
   g_HUD.AddStatic(IDC_LIGHT_S, sz, 35, iY += 24, 125, 22);
-  g_HUD.AddSlider(IDC_LIGHTX, 35, iY += 24, 125, 22, -100, 100, 25);
+  g_HUD.AddSlider(IDC_LIGHTX, 35, iY += 24, 125, 22, -100, 100, 14);
   g_HUD.AddSlider(IDC_LIGHTY, 35, iY += 24, 125, 22, -100, 100, 30);
-  g_HUD.AddSlider(IDC_LIGHTZ, 35, iY += 24, 125, 22, -100, 100, 25);
+  g_HUD.AddSlider(IDC_LIGHTZ, 35, iY += 24, 125, 22, -100, 100, 28);
 
-  StringCchPrintf(sz, 100, L"Wave Height: %.2f", 0.05f);
+  StringCchPrintf(sz, 100, L"Wave Height: %.2f", 0.03f);
   g_HUD.AddStatic(IDC_WAVEHEIGHT_S, sz, 35, iY += 24, 125, 22);
-  g_HUD.AddSlider(IDC_WAVEHEIGHT, 35, iY += 24, 125, 22, 0, 100, 5);
+  g_HUD.AddSlider(IDC_WAVEHEIGHT, 35, iY += 24, 125, 22, 0, 100, 3);
 
-  StringCchPrintf(sz, 100, L"Wave Scale: (%.1f, %.1f)", 3.f, 5.f);
+  StringCchPrintf(sz, 100, L"Wave Scale: (%.1f, %.1f)", 3.f, 2.5f);
   g_HUD.AddStatic(IDC_WAVESCALE_S, sz, 35, iY += 24, 125, 22);
   g_HUD.AddSlider(IDC_WAVESCALEX, 35, iY += 24, 125, 22, 0, 100, 30);
-  g_HUD.AddSlider(IDC_WAVESCALEY, 35, iY += 24, 125, 22, 0, 100, 50);
+  g_HUD.AddSlider(IDC_WAVESCALEY, 35, iY += 24, 125, 22, 0, 100, 25);
 
-  StringCchPrintf(sz, 100, L"Wave Speed: (%.1f, %.1f)", 2.f, 3.f);
+  StringCchPrintf(sz, 100, L"Wave Speed: (%.1f, %.1f)", -2.f, 3.f);
   g_HUD.AddStatic(IDC_WAVESPEED_S, sz, 35, iY += 24, 125, 22);
-  g_HUD.AddSlider(IDC_WAVESPEEDX, 35, iY += 24, 125, 22, -100, 100, 20);
+  g_HUD.AddSlider(IDC_WAVESPEEDX, 35, iY += 24, 125, 22, -100, 100, -20);
   g_HUD.AddSlider(IDC_WAVESPEEDY, 35, iY += 24, 125, 22, -100, 100, 30);
 
   iY = 10;

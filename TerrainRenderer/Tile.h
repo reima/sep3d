@@ -83,7 +83,6 @@ class Tile {
    * Gibt den für die interne Darstellung reservierten Speicher frei (auch
    * rekursiv für alle Kind-Tiles).
    * @warning Die Methoden Tile::GetMinHeight, Tile::GetMaxHeight,
-   *          Tile::TriangulateLines, Tile::TriangulateZOrder,
    *          Tile::SaveObjs, Tile::CreateBuffers werden danach _nicht_ mehr
    *          funktionieren. Tile::Draw wird unabhängig vom Aufruf dieser
    *          Methode weiterarbeiten, sofern vorher Tile::CreateBuffers
