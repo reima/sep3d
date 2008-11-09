@@ -241,16 +241,15 @@ void Tile::FixEdges(Tile *north, Tile *west) {
 
 float Tile::GetMinHeight(void) const {
   assert(vertices_ != NULL);
-  static float min = std::numeric_limits<float>::max();
-  if (min == std::numeric_limits<float>::max()) {
+  float min = std::numeric_limits<float>::max();
+  if (num_lod_ > 0) {
+    for (int dir = 0; dir < 4; ++dir) {
+      min = std::min(min, children_[dir]->GetMinHeight());
+    }
+  } else {
     const int res = GetResolution();
     for (int i = 0; i < res; ++i) {
       min = std::min(min, vertices_[i].y);
-    }
-    if (num_lod_ > 0) {
-      for (int dir = 0; dir < 4; ++dir) {
-        min = std::min(min, children_[dir]->GetMinHeight());
-      }
     }
   }
   return min;
@@ -258,16 +257,15 @@ float Tile::GetMinHeight(void) const {
 
 float Tile::GetMaxHeight(void) const {
   assert(vertices_ != NULL);
-  static float max = std::numeric_limits<float>::min();
-  if (max == std::numeric_limits<float>::min()) {
+  float max = std::numeric_limits<float>::min();
+  if (num_lod_ > 0) {
+    for (int dir = 0; dir < 4; ++dir) {
+      max = std::max(max, children_[dir]->GetMaxHeight());
+    }
+  } else {
     const int res = GetResolution();
     for (int i = 1; i < res; ++i) {
       max = std::max(max, vertices_[i].y);
-    }
-    if (num_lod_ > 0) {
-      for (int dir = 0; dir < 4; ++dir) {
-        max = std::max(max, children_[dir]->GetMaxHeight());
-      }
     }
   }
   return max;
