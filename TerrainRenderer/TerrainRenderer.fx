@@ -49,7 +49,7 @@ const float g_Spots[NUM_SPOTS] = {
 };
 
 const float4 g_Colors[NUM_SPOTS] = {
-  float4(0.0, 0.0, 0.0, 1),
+  float4(0.0625, 0.0625, 0.025, 1),
   float4(0.125, 0.125, 0.05, 1),
   float4(0.5, 0.5, 0.1, 1),
   float4(0.9375, 0.9375, 0.25, 1),
@@ -101,7 +101,8 @@ struct VS_SFX_OUTPUT
 float4 GetColorFromHeight(float height)
 {
   if (g_bDynamicMinMax) {
-    height = (height - g_fMinHeight) / (g_fMaxHeight - g_fMinHeight) * 2 - 1;
+    height = (height - g_fMinHeight) / (g_fMaxHeight - g_fMinHeight) *
+      (g_Spots[g_nSpots - 1] - g_Spots[0]) + g_Spots[0];
   } else {
     height = clamp(height, g_Spots[0], g_Spots[g_nSpots - 1]);
   }
