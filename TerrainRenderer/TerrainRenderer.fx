@@ -11,16 +11,21 @@ cbuffer cb0
   float    g_fTime;                   // App's time in seconds
   float4x4 g_mWorld;                  // World matrix for object
   float4x4 g_mWorldViewProjection;    // World * View * Projection matrix
+  float3   g_vCamPos;                 // Camera position
 }
 
 cbuffer cb1
 {
-  float3   g_vCamPos;                 // Camera position
+  bool     g_bDynamicMinMax;
   float3   g_vLightPos;               // Light position
+  float3   g_vLightColor;             // Light color
   float    g_fWaveHeight;
   float2   g_vWaveScale;
   float2   g_vWaveSpeed;
-  bool     g_bDynamicMinMax;
+  float3   g_vWaterColor;
+  int      g_iPhongExp;
+  float    g_fFresnelBias;
+  int      g_iFresnelExp;
 }
 
 cbuffer cb2
@@ -232,7 +237,7 @@ float4 SFX_P0_PS( VS_SFX_P0_OUTPUT In ) : SV_Target
   float3 N = normalize(In.Normal);
   float3 L = normalize(In.LightDir);
   float NdotL = saturate(dot(N, L));
-  return (0.1 + 0.9 * NdotL) * vBaseColor;// * g_vLightColor;
+  return (0.1 + 0.9 * NdotL) * vBaseColor * float4(g_vLightColor, 1);
 }
 
 float4 SFX_P1_PS( VS_SFX_P1_OUTPUT In ) : SV_Target
@@ -253,11 +258,10 @@ float4 SFX_P1_PS( VS_SFX_P1_OUTPUT In ) : SV_Target
   float3 V = normalize(In.ViewDir);
   float RdotV = saturate(dot(R, V));
 
-  float3 vBaseColor = float3(0.5, 0.75, 1);
-  float3 vTotalColor = NdotL * vBaseColor + pow(RdotV, 500);// * g_vLightColor.rgb;
+  float3 vTotalColor = NdotL * g_vWaterColor +
+      pow(RdotV, g_iPhongExp) * g_vLightColor;
 
-  float fFresnelBias = 0.4;
-  float fFresnel = fFresnelBias + (1-fFresnelBias)*pow(1 - dot(N, V), 5);
+  float fFresnel = g_fFresnelBias + (1-g_fFresnelBias)*pow(1 - dot(N, V), g_iFresnelExp);
 
   return float4(vTotalColor, fFresnel);
 }
