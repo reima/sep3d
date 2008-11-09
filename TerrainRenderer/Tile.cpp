@@ -240,6 +240,7 @@ void Tile::FixEdges(Tile *north, Tile *west) {
 }
 
 float Tile::GetMinHeight(void) const {
+  assert(vertices_ != NULL);
   static float min = std::numeric_limits<float>::max();
   if (min == std::numeric_limits<float>::max()) {
     const int res = GetResolution();
@@ -256,6 +257,7 @@ float Tile::GetMinHeight(void) const {
 }
 
 float Tile::GetMaxHeight(void) const {
+  assert(vertices_ != NULL);
   static float max = std::numeric_limits<float>::min();
   if (max == std::numeric_limits<float>::min()) {
     const int res = GetResolution();
@@ -278,7 +280,7 @@ void Tile::InitIndexBuffer(void) {
   }    
 }
 
-void Tile::TriangulateLines(void)  {
+void Tile::TriangulateLines(void) {
   InitIndexBuffer();
   // Dreieck 1 links oben, Dreieck 2 rechts unten
   int i = 0;
@@ -339,6 +341,7 @@ void Tile::SaveObjs(const std::wstring &filename) const {
 
 void Tile::SaveObjs0(const std::wstring &basename,
                      const std::wstring &extension) const {
+  assert(vertices_ != NULL);
   std::wstring filename(basename);
   filename.append(extension);
 
@@ -458,6 +461,8 @@ void Tile::FreeMemory(void) {
 
 void Tile::Draw(ID3D10Device *pd3dDevice, LODSelector *lod_selector,
                 const D3DXVECTOR3 *cam_pos) const {
+  assert(vertex_buffer_ != NULL);
+  assert(index_buffer_ != NULL);
   if (lod_selector->IsLODSufficient(this, cam_pos) || num_lod_ == 0) {
     // Vertex & Normal Buffer setzen
     UINT stride = sizeof(D3DXVECTOR3);
@@ -480,7 +485,6 @@ void Tile::Draw(ID3D10Device *pd3dDevice, LODSelector *lod_selector,
   }
 }
 
-// TODO: Benachbarte Tiles abgleichen!
 void Tile::CalculateNormals(void) {
   CalculateNormals0(NULL, NULL);
 }
