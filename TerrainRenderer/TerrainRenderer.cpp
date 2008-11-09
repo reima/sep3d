@@ -57,6 +57,9 @@ ID3D10EffectVectorVariable* g_pvLightPos = NULL;
 ID3D10EffectScalarVariable* g_pfWaveHeight = NULL;
 ID3D10EffectVectorVariable* g_pvWaveScale = NULL;
 ID3D10EffectVectorVariable* g_pvWaveSpeed = NULL;
+ID3D10EffectScalarVariable* g_pfMinHeight = NULL;
+ID3D10EffectScalarVariable* g_pfMaxHeight = NULL;
+ID3D10EffectScalarVariable* g_pbDynamicMinMax = NULL;
 ID3D10EffectShaderResourceVariable* g_ptWaves = NULL;
 ID3D10ShaderResourceView*   g_pWavesRV = NULL;
 
@@ -103,6 +106,8 @@ ID3D10RasterizerState*      g_pRSWireframe = NULL;
 #define IDC_WAVESPEEDX              26
 #define IDC_WAVESPEEDY              27
 #define IDC_SFX_OPTS_MAX            27
+
+#define IDC_DYNAMICMINMAX           28
 
 
 //--------------------------------------------------------------------------------------
@@ -201,6 +206,8 @@ void InitApp() {
                   22, VK_F2);
   g_HUD.AddCheckBox(IDC_WIREFRAME, L"Wireframe (F5)", 35, iY += 24, 125, 22,
                     g_bWireframe, VK_F5);
+  g_HUD.AddCheckBox(IDC_DYNAMICMINMAX, L"Dynamic Min/Max", 35, iY += 24, 125,
+                    22, false);
   g_HUD.AddStatic(0, L"Technique:", 35, iY += 24, 125, 22);
   g_HUD.AddComboBox(IDC_TECHNIQUE, 35, iY += 24, 125, 22);
   g_HUD.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Vertex Coloring", "VertexShaderColoring");
@@ -300,6 +307,9 @@ HRESULT CreateTerrain(ID3D10Device *pd3dDevice) {
   g_pTile->CalculateNormals();
   // Tile-Daten in D3D10-Buffer speichern
   V_RETURN(g_pTile->CreateBuffers(pd3dDevice));
+  // Minimum und Maximum an Effekt übergeben
+  g_pfMinHeight->SetFloat(g_pTile->GetMinHeight());
+  g_pfMaxHeight->SetFloat(g_pTile->GetMaxHeight());
   // Lokale Tile-Daten freigeben
   g_pTile->FreeMemory();
   return S_OK;
@@ -354,6 +364,9 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   g_pvWaveSpeed = g_pEffect10->GetVariableByName("g_vWaveSpeed")->AsVector();
   g_ptWaves = g_pEffect10->GetVariableByName("g_tWaves")->AsShaderResource();
   V_RETURN(g_ptWaves->SetResource(g_pWavesRV));
+  g_pfMinHeight = g_pEffect10->GetVariableByName("g_fMinHeight")->AsScalar();
+  g_pfMaxHeight = g_pEffect10->GetVariableByName("g_fMaxHeight")->AsScalar();
+  g_pbDynamicMinMax = g_pEffect10->GetVariableByName("g_bDynamicMinMax")->AsScalar();
 
   // Setup the camera's view parameters
   D3DXVECTOR3 vecEye(0.0f, 5.0f, -5.0f);
@@ -653,6 +666,9 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
       break;
     case IDC_WIREFRAME:
       g_bWireframe = g_HUD.GetCheckBox(IDC_WIREFRAME)->GetChecked();
+      break;
+    case IDC_DYNAMICMINMAX:
+      g_pbDynamicMinMax->SetBool(g_HUD.GetCheckBox(IDC_DYNAMICMINMAX)->GetChecked());
       break;
     case IDC_NEWTERRAIN_SIZE: {
       int value = (1 << g_HUD.GetSlider(IDC_NEWTERRAIN_SIZE)->GetValue()) + 1;

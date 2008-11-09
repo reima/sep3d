@@ -20,6 +20,13 @@ cbuffer cb1
   float    g_fWaveHeight;
   float2   g_vWaveScale;
   float2   g_vWaveSpeed;
+  bool     g_bDynamicMinMax;
+}
+
+cbuffer cb2
+{
+  float   g_fMinHeight;
+  float   g_fMaxHeight;
 }
 
 Texture2D g_tWaves;
@@ -93,7 +100,11 @@ struct VS_SFX_OUTPUT
 //--------------------------------------------------------------------------------------
 float4 GetColorFromHeight(float height)
 {
-  height = clamp(height, g_Spots[0], g_Spots[g_nSpots - 1]);
+  if (g_bDynamicMinMax) {
+    height = (height - g_fMinHeight) / (g_fMaxHeight - g_fMinHeight) * 2 - 1;
+  } else {
+    height = clamp(height, g_Spots[0], g_Spots[g_nSpots - 1]);
+  }
   float4 color = float4(0, 0, 0, 1);
   for (int i = 0; i < g_nSpots - 1; ++i) {
     if (height <= g_Spots[i+1]) {
@@ -140,7 +151,7 @@ VS_PSC_OUTPUT PixelColoring_VS( VS_INPUT In )
 VS_VSC_OUTPUT NormalColoring_VS( VS_INPUT In )
 {
   VS_VSC_OUTPUT Output;
-  Output.Color = float4(normalize(In.Normal), 0);
+  Output.Color = float4(normalize(In.Normal) * 0.5 + 0.5, 0);
   float4 pos = float4(In.Position, 1.0f);
   // Transform the position from object space to homogeneous projection space
   Output.Position = mul(pos, g_mWorldViewProjection);
