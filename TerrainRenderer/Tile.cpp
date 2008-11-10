@@ -35,7 +35,6 @@ Tile::Tile(int n, float roughness, int num_lod)
       size_((1 << n) + 1),
       num_lod_(num_lod),
       indices_(NULL),
-      face_normals_(NULL),
       vertex_normals_(NULL),
       parent_(NULL),
       vertex_buffer_(NULL),
@@ -52,7 +51,6 @@ Tile::Tile(Tile *parent, Tile::Direction direction, float roughness,
       size_(parent->size_),
       num_lod_(parent->num_lod_ - 1),
       indices_(NULL),
-      face_normals_(NULL),
       vertex_normals_(NULL),
       direction_(direction),
       parent_(parent),
@@ -69,7 +67,6 @@ Tile::Tile(Tile *parent, Tile::Direction direction, float roughness,
 Tile::~Tile(void) {
   SAFE_DELETE_ARRAY(vertices_);
   SAFE_DELETE_ARRAY(indices_);
-  SAFE_DELETE_ARRAY(face_normals_);
   SAFE_DELETE_ARRAY(vertex_normals_);
   if (num_lod_ > 0) {
     for (int dir = 0; dir < 4; ++dir) {
@@ -448,7 +445,6 @@ void Tile::ReleaseBuffers(void) {
 void Tile::FreeMemory(void) {
   SAFE_DELETE_ARRAY(vertices_);
   SAFE_DELETE_ARRAY(indices_);
-  SAFE_DELETE_ARRAY(face_normals_);
   SAFE_DELETE_ARRAY(vertex_normals_);
   if (num_lod_ > 0) {
     for (int dir = 0; dir < 4; ++dir) {
@@ -485,13 +481,14 @@ void Tile::Draw(ID3D10Device *pd3dDevice, LODSelector *lod_selector,
 
 void Tile::CalculateNormals(void) {
   CalculateNormals0(NULL, NULL);
+  NormalizeNormals();
 }
 
 void Tile::CalculateNormals0(Tile *north, Tile *west) {
   assert(vertices_ != NULL);
   assert(indices_ != NULL);
   SAFE_DELETE_ARRAY(vertex_normals_);
-  int num_vertices = GetResolution();
+  const int num_vertices = GetResolution();
   vertex_normals_ = new D3DXVECTOR3[num_vertices];
   // Normalen auf 0 initialisieren
   for (int i = 0; i < num_vertices; ++i) {
@@ -511,23 +508,19 @@ void Tile::CalculateNormals0(Tile *north, Tile *west) {
   // Face-Normalen berechnen und auf die Normalen der beteiligten Vertices
   // aufaddieren
   int num_triangles = (size_-1)*(size_-1) * 2;
-  face_normals_ = new D3DXVECTOR3[num_triangles];
   for (int i = 0; i < num_triangles; ++i) {
     D3DXVECTOR3 &v1 = vertices_[indices_[3*i]];
     D3DXVECTOR3 &v2 = vertices_[indices_[3*i+1]];
     D3DXVECTOR3 &v3 = vertices_[indices_[3*i+2]];
     D3DXVECTOR3 e1 = v2 - v1;
     D3DXVECTOR3 e2 = v3 - v2;
-    D3DXVec3Cross(&face_normals_[i], &e1, &e2);
-    D3DXVec3Normalize(&face_normals_[i], &face_normals_[i]);
-    vertex_normals_[indices_[3*i]] += face_normals_[i];
-    vertex_normals_[indices_[3*i+1]] += face_normals_[i];
-    vertex_normals_[indices_[3*i+2]] += face_normals_[i];
+    D3DXVECTOR3 face_normal;
+    D3DXVec3Cross(&face_normal, &e1, &e2);
+    D3DXVec3Normalize(&face_normal, &face_normal);
+    vertex_normals_[indices_[3*i]] += face_normal;
+    vertex_normals_[indices_[3*i+1]] += face_normal;
+    vertex_normals_[indices_[3*i+2]] += face_normal;
   }
-  // Normalen normalisieren
-  /*for (int i = 0; i < num_vertices; ++i) {
-    D3DXVec3Normalize(&vertex_normals_[i], &vertex_normals_[i]);
-  }*/
   // Normalen ggf. an Nachbarn zurückgeben
   if (north) {
     for (int x = 0; x < size_; ++x) {
@@ -567,4 +560,17 @@ void Tile::CalculateNormals0(Tile *north, Tile *west) {
   children_[NE]->CalculateNormals0(child_NNE, children_[NW]);
   children_[SW]->CalculateNormals0(children_[NW], child_SWW);
   children_[SE]->CalculateNormals0(children_[NE], children_[SW]);
+}
+
+void Tile::NormalizeNormals(void) {
+  assert(vertex_normals_ != NULL);
+  const int num_vertices = GetResolution();
+  for (int i = 0; i < num_vertices; ++i) {
+    D3DXVec3Normalize(&vertex_normals_[i], &vertex_normals_[i]);
+  }
+  if (num_lod_ > 0) {
+    for (int dir = 0; dir < 4; ++dir) {
+      children_[dir]->NormalizeNormals();
+    }
+  }
 }

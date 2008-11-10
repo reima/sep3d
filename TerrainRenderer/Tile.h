@@ -158,6 +158,11 @@ class Tile {
   void CalculateNormals0(Tile *north, Tile *west);
 
   /**
+   * Normalisiert alle Vertex-Normalen.
+   */
+  void NormalizeNormals(void);
+
+  /**
    * Reserviert Speicher für den Index Buffer.
    */
   void InitIndexBuffer(void);
@@ -195,10 +200,6 @@ class Tile {
    * @see Tile::TriangulateZOrder
    */
   unsigned int *indices_;
-  /**
-   * Feld der Face-Normalen dieses Tiles
-   */
-  D3DXVECTOR3 *face_normals_;
   /**
    * Feld der Per-Vertex-Normalen dieses Tiles
    */
