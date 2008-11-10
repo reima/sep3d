@@ -21,7 +21,7 @@ class Tile {
   Tile(int n, float roughness, int num_lod);
   ~Tile(void);
 
-  /** 
+  /**
    * Gibt die Auflösung des Tiles zurück.
    */
   int GetResolution(void) const { return size_ * size_; }

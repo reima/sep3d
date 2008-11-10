@@ -17,6 +17,7 @@ cbuffer cb0
 cbuffer cb1
 {
   bool     g_bDynamicMinMax;
+  bool     g_bDirectionalLight;
   float3   g_vLightPos;               // Light position
   float3   g_vLightColor;             // Light color
   float    g_fWaveHeight;
@@ -137,13 +138,13 @@ float4 GetColorFromHeight(float height)
 VS_VSC_OUTPUT VertexColoring_VS( VS_INPUT In, uniform bool phong )
 {
   VS_VSC_OUTPUT Output;
-  float4 pos = float4(In.Position, 1.0f);
+  float4 pos = float4(In.Position, 1);
   Output.Color = GetColorFromHeight(pos.y);
 
   // Diffuse Phong
   if (phong) {
     float4 L = normalize(float4(g_vCamPos, 1) - pos);
-    Output.Color *= saturate(dot(L, normalize(In.Normal)));
+    Output.Color *= saturate(dot(L, In.Normal));
   }
 
   // Transform the position from object space to homogeneous projection space
@@ -155,7 +156,7 @@ VS_VSC_OUTPUT VertexColoring_VS( VS_INPUT In, uniform bool phong )
 VS_PSC_OUTPUT PixelColoring_VS( VS_INPUT In )
 {
   VS_PSC_OUTPUT Output;
-  float4 pos = float4(In.Position, 1.0f);
+  float4 pos = float4(In.Position, 1);
   Output.Height = pos.y;
   // Transform the position from object space to homogeneous projection space
   Output.Position = mul(pos, g_mWorldViewProjection);
@@ -166,8 +167,8 @@ VS_PSC_OUTPUT PixelColoring_VS( VS_INPUT In )
 VS_VSC_OUTPUT NormalColoring_VS( VS_INPUT In )
 {
   VS_VSC_OUTPUT Output;
-  Output.Color = float4(normalize(In.Normal) * 0.5 + 0.5, 0);
-  float4 pos = float4(In.Position, 1.0f);
+  Output.Color = float4(In.Normal * 0.5 + 0.5, 0);
+  float4 pos = float4(In.Position, 1);
   // Transform the position from object space to homogeneous projection space
   Output.Position = mul(pos, g_mWorldViewProjection);
 
@@ -180,7 +181,11 @@ VS_SFX_P0_OUTPUT SFX_P0_VS( VS_INPUT In )
   Output.Position = mul(float4(In.Position, 1), g_mWorldViewProjection);
   Output.Height = In.Position.y;
   Output.Normal = In.Normal;
-  Output.LightDir = g_vLightPos - In.Position;
+  if (g_bDirectionalLight) {
+    Output.LightDir = g_vLightPos;
+  } else {
+    Output.LightDir = g_vLightPos - In.Position;
+  }
   return Output;
 }
 
@@ -204,7 +209,11 @@ VS_SFX_P1_OUTPUT SFX_P1_VS( VS_INPUT In )
   mWorldToTangent[2] = normalize(vNormal);
 
   Output.ViewDir = mul(mWorldToTangent, g_vCamPos - vPos);
-  Output.LightDir = mul(mWorldToTangent, g_vLightPos - vPos);
+  if (g_bDirectionalLight) {
+    Output.LightDir = mul(mWorldToTangent, g_vLightPos);
+  } else {
+    Output.LightDir = mul(mWorldToTangent, g_vLightPos - vPos);
+  }
   Output.Position = mul(float4(vPos, 1), g_mWorldViewProjection);
 
   // Calculate wave texture coordinates
@@ -261,7 +270,8 @@ float4 SFX_P1_PS( VS_SFX_P1_OUTPUT In ) : SV_Target
   float3 vTotalColor = NdotL * g_vWaterColor +
       pow(RdotV, g_iPhongExp) * g_vLightColor;
 
-  float fFresnel = g_fFresnelBias + (1-g_fFresnelBias)*pow(1 - dot(N, V), g_iFresnelExp);
+  float fFresnel = g_fFresnelBias +
+      (1 - g_fFresnelBias) * pow(1 - dot(N, V), g_iFresnelExp);
 
   return float4(vTotalColor, fFresnel);
 }
@@ -330,6 +340,6 @@ technique10 SpecialFX
     SetVertexShader( CompileShader( vs_4_0, SFX_P1_VS() ) );
     SetGeometryShader( NULL );
     SetPixelShader( CompileShader( ps_4_0, SFX_P1_PS() ) );
-    SetBlendState( SrcColorBlendingAdd, float4(0,0,0,0), 0xffffffff );
+    SetBlendState( SrcColorBlendingAdd, float4(1, 1, 1, 1), 0xffffffff );
   }
 }

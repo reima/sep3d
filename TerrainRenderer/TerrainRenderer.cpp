@@ -1,7 +1,7 @@
 //--------------------------------------------------------------------------------------
 // File: TerrainRenderer.cpp
 //
-// Starting point for new Direct3D 10 samples.  For a more basic starting point, 
+// Starting point for new Direct3D 10 samples.  For a more basic starting point,
 // use the EmptyProject10 sample instead.
 //
 // Copyright (c) Microsoft Corporation. All rights reserved.
@@ -21,8 +21,8 @@
 #include "FixedLODSelector.h"
 
 
-//#define DEBUG_VS   // Uncomment this line to debug D3D9 vertex shaders 
-//#define DEBUG_PS   // Uncomment this line to debug D3D9 pixel shaders 
+//#define DEBUG_VS   // Uncomment this line to debug D3D9 vertex shaders
+//#define DEBUG_PS   // Uncomment this line to debug D3D9 pixel shaders
 
 //--------------------------------------------------------------------------------------
 // Global variables
@@ -62,6 +62,7 @@ ID3D10EffectScalarVariable* g_piFresnelExp = NULL;
 ID3D10EffectScalarVariable* g_pfMinHeight = NULL;
 ID3D10EffectScalarVariable* g_pfMaxHeight = NULL;
 ID3D10EffectScalarVariable* g_pbDynamicMinMax = NULL;
+ID3D10EffectScalarVariable* g_pbDirectionalLight = NULL;
 ID3D10EffectShaderResourceVariable* g_ptWaves = NULL;
 ID3D10ShaderResourceView*   g_pWavesRV = NULL;
 
@@ -102,6 +103,7 @@ ID3D10RasterizerState*      g_pRSWireframe = NULL;
 #define IDC_LIGHTCOLOR_R            205
 #define IDC_LIGHTCOLOR_G            206
 #define IDC_LIGHTCOLOR_B            207
+#define IDC_LIGHTDIRECTIONAL        208
 
 #define IDC_WAVEHEIGHT_S            300
 #define IDC_WAVEHEIGHT              301
@@ -125,7 +127,7 @@ ID3D10RasterizerState*      g_pRSWireframe = NULL;
 
 
 //--------------------------------------------------------------------------------------
-// Forward declarations 
+// Forward declarations
 //--------------------------------------------------------------------------------------
 LRESULT CALLBACK MsgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
                          bool* pbNoFurtherProcessing, void* pUserContext);
@@ -165,7 +167,7 @@ ID3D10Effect* LoadEffect(ID3D10Device* pd3dDevice,
 
 
 //--------------------------------------------------------------------------------------
-// Entry point to the program. Initializes everything and goes into a message processing 
+// Entry point to the program. Initializes everything and goes into a message processing
 // loop. Idle time is used to render the scene.
 //--------------------------------------------------------------------------------------
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
@@ -174,7 +176,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 #if defined(DEBUG) | defined(_DEBUG)
   _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
-    
+
   // Set DXUT callbacks
   DXUTSetCallbackMsgProc(MsgProc);
   DXUTSetCallbackKeyboard(OnKeyboard);
@@ -201,7 +203,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 
 //--------------------------------------------------------------------------------------
-// Initialize the app 
+// Initialize the app
 //--------------------------------------------------------------------------------------
 void InitApp() {
   g_SettingsDlg.Init(&g_DialogResourceManager);
@@ -231,7 +233,7 @@ void InitApp() {
                     g_bWireframe, VK_F5);
   g_SampleUI.AddCheckBox(IDC_DYNAMICMINMAX, L"Dynamic Min/Max", 35, iY += 24, 125,
                     22, false);
-  
+
   WCHAR sz[100];
   StringCchPrintf(sz, 100, L"LOD (+/-): %d", 0);
   g_SampleUI.AddStatic(IDC_LODSLIDER_S, sz, 35, iY += 24, 125, 22);
@@ -245,7 +247,7 @@ void InitApp() {
   g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Normal Coloring", "NormalColoring");
   g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Special FX", "SpecialFX");
 
-  g_SampleUI.AddStatic(0, L"SFX Pane:", 35, iY += 24, 125, 22);
+  g_SampleUI.AddStatic(0, L"SFX Settings:", 35, iY += 24, 125, 22);
   g_SampleUI.AddComboBox(IDC_SFX_OPTS, 35, iY += 24, 125, 22);
   g_SampleUI.GetComboBox(IDC_SFX_OPTS)->AddItem(L"Light", NULL);
   g_SampleUI.GetComboBox(IDC_SFX_OPTS)->AddItem(L"Waves", NULL);
@@ -255,8 +257,11 @@ void InitApp() {
    * Sfx UI 0
    */
   g_SfxUI[0].SetCallback(OnGUIEvent);
-  iY = 10;  
-  g_SfxUI[0].AddStatic(IDC_LIGHT_S, L"", 35, iY, 125, 22);
+  iY = 10;
+  g_SfxUI[0].AddCheckBox(IDC_LIGHTDIRECTIONAL, L"Directional?", 35, iY, 125,
+      22, true);
+
+  g_SfxUI[0].AddStatic(IDC_LIGHT_S, L"", 35, iY += 24, 125, 22);
   g_SfxUI[0].AddSlider(IDC_LIGHTX, 35, iY += 24, 125, 22, -100, 100, 14);
   g_SfxUI[0].AddSlider(IDC_LIGHTY, 35, iY += 24, 125, 22, -100, 100, 30);
   g_SfxUI[0].AddSlider(IDC_LIGHTZ, 35, iY += 24, 125, 22, -100, 100, 28);
@@ -336,7 +341,7 @@ void InitApp() {
 
 
 //--------------------------------------------------------------------------------------
-// Render the help and statistics text. This function uses the ID3DXFont interface for 
+// Render the help and statistics text. This function uses the ID3DXFont interface for
 // efficient text rendering.
 //--------------------------------------------------------------------------------------
 void RenderText() {
@@ -415,19 +420,17 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   DWORD dwShaderFlags = D3D10_SHADER_ENABLE_STRICTNESS;
 #if defined( DEBUG ) || defined( _DEBUG )
   // Set the D3D10_SHADER_DEBUG flag to embed debug information in the shaders.
-  // Setting this flag improves the shader debugging experience, but still allows 
-  // the shaders to be optimized and to run exactly the way they will run in 
+  // Setting this flag improves the shader debugging experience, but still allows
+  // the shaders to be optimized and to run exactly the way they will run in
   // the release configuration of this program.
   dwShaderFlags |= D3D10_SHADER_DEBUG;
 #endif
-/*  V_RETURN(D3DX10CreateEffectFromFile(L"TerrainRenderer.fx", NULL, NULL,
-                                      "fx_4_0", dwShaderFlags, 0, pd3dDevice,
-                                      NULL, NULL, &g_pEffect10, NULL, NULL));*/
   g_pEffect10 = LoadEffect(pd3dDevice, L"TerrainRenderer.fx");
   g_pTechnique = g_pEffect10->GetTechniqueByIndex(0);
 
   // Load wave normal map
-  V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"waves.dds", NULL, NULL, &g_pWavesRV, NULL));
+  V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"waves.dds",
+      NULL, NULL, &g_pWavesRV, NULL));
 
   // Get effects variables
   g_pmWorldViewProj =
@@ -443,15 +446,20 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   g_pvWaterColor = g_pEffect10->GetVariableByName("g_vWaterColor")->AsVector();
   g_piPhongExp = g_pEffect10->GetVariableByName("g_iPhongExp")->AsScalar();
   g_piFresnelExp = g_pEffect10->GetVariableByName("g_iFresnelExp")->AsScalar();
-  g_pfFresnelBias = g_pEffect10->GetVariableByName("g_fFresnelBias")->AsScalar();
+  g_pfFresnelBias =
+      g_pEffect10->GetVariableByName("g_fFresnelBias")->AsScalar();
   g_ptWaves = g_pEffect10->GetVariableByName("g_tWaves")->AsShaderResource();
   V_RETURN(g_ptWaves->SetResource(g_pWavesRV));
   g_pfMinHeight = g_pEffect10->GetVariableByName("g_fMinHeight")->AsScalar();
   g_pfMaxHeight = g_pEffect10->GetVariableByName("g_fMaxHeight")->AsScalar();
-  g_pbDynamicMinMax = g_pEffect10->GetVariableByName("g_bDynamicMinMax")->AsScalar();
+  g_pbDynamicMinMax =
+      g_pEffect10->GetVariableByName("g_bDynamicMinMax")->AsScalar();
+  g_pbDirectionalLight =
+      g_pEffect10->GetVariableByName("g_bDirectionalLight")->AsScalar();
 
   // Flush effect vars/init GUI text
   OnGUIEvent(0, IDC_DYNAMICMINMAX, NULL, NULL);
+  OnGUIEvent(0, IDC_LIGHTDIRECTIONAL, NULL, NULL);
   OnGUIEvent(0, IDC_LIGHTX, NULL, NULL);
   OnGUIEvent(0, IDC_LIGHTCOLOR_R, NULL, NULL);
   OnGUIEvent(0, IDC_WAVEHEIGHT, NULL, NULL);
@@ -460,7 +468,7 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   OnGUIEvent(0, IDC_WATERCOLOR_R, NULL, NULL);
   OnGUIEvent(0, IDC_WATER_PHONG_EXP, NULL, NULL);
   OnGUIEvent(0, IDC_WATER_FRESNEL_BIAS, NULL, NULL);
-  OnGUIEvent(0, IDC_WATER_FRESNEL_EXP, NULL, NULL);  
+  OnGUIEvent(0, IDC_WATER_FRESNEL_EXP, NULL, NULL);
 
   // Setup the camera's view parameters
   D3DXVECTOR3 vecEye(0.0f, 5.0f, -5.0f);
@@ -597,13 +605,13 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   g_SfxUI[1].OnRender(fElapsedTime);
   g_SfxUI[2].OnRender(fElapsedTime);
   g_SampleUI.OnRender(fElapsedTime);
-  g_TerrainUI.OnRender(fElapsedTime);  
+  g_TerrainUI.OnRender(fElapsedTime);
   DXUT_EndPerfEvent();
 }
 
 
 //--------------------------------------------------------------------------------------
-// Release D3D10 resources created in OnD3D10ResizedSwapChain 
+// Release D3D10 resources created in OnD3D10ResizedSwapChain
 //--------------------------------------------------------------------------------------
 void CALLBACK OnD3D10ReleasingSwapChain(void* pUserContext) {
   g_DialogResourceManager.OnD3D10ReleasingSwapChain();
@@ -611,7 +619,7 @@ void CALLBACK OnD3D10ReleasingSwapChain(void* pUserContext) {
 
 
 //--------------------------------------------------------------------------------------
-// Release D3D10 resources created in OnD3D10CreateDevice 
+// Release D3D10 resources created in OnD3D10CreateDevice
 //--------------------------------------------------------------------------------------
 void CALLBACK OnD3D10DestroyDevice(void* pUserContext) {
   g_DialogResourceManager.OnD3D10DestroyDevice();
@@ -639,15 +647,15 @@ bool CALLBACK ModifyDeviceSettings(DXUTDeviceSettings* pDeviceSettings,
     pD3D->GetDeviceCaps(pDeviceSettings->d3d9.AdapterOrdinal,
                         pDeviceSettings->d3d9.DeviceType, &Caps);
 
-    // If device doesn't support HW T&L or doesn't support 1.1 vertex shaders in HW 
+    // If device doesn't support HW T&L or doesn't support 1.1 vertex shaders in HW
     // then switch to SWVP.
     if ((Caps.DevCaps & D3DDEVCAPS_HWTRANSFORMANDLIGHT) == 0 ||
         Caps.VertexShaderVersion < D3DVS_VERSION(1, 1)) {
       pDeviceSettings->d3d9.BehaviorFlags = D3DCREATE_SOFTWARE_VERTEXPROCESSING;
     }
 
-    // Debugging vertex shaders requires either REF or software vertex processing 
-    // and debugging pixel shaders requires REF.  
+    // Debugging vertex shaders requires either REF or software vertex processing
+    // and debugging pixel shaders requires REF.
 #ifdef DEBUG_VS
     if (pDeviceSettings->d3d9.DeviceType != D3DDEVTYPE_REF) {
       pDeviceSettings->d3d9.BehaviorFlags &=
@@ -683,7 +691,7 @@ bool CALLBACK ModifyDeviceSettings(DXUTDeviceSettings* pDeviceSettings,
 //--------------------------------------------------------------------------------------
 void CALLBACK OnFrameMove(double fTime, float fElapsedTime,
                           void* pUserContext) {
-  // Update the camera's position based on user input 
+  // Update the camera's position based on user input
   g_Camera.FrameMove(fElapsedTime);
 }
 
@@ -741,7 +749,7 @@ void SetLOD(int lod) {
   g_pLODSelector = new FixedLODSelector(lod);
   WCHAR sz[100];
   StringCchPrintf(sz, 100, L"LOD (+/-): %d", lod);
-  g_SampleUI.GetStatic(IDC_LODSLIDER_S)->SetText(sz);  
+  g_SampleUI.GetStatic(IDC_LODSLIDER_S)->SetText(sz);
 }
 
 //--------------------------------------------------------------------------------------
@@ -788,13 +796,15 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
       g_bWireframe = g_SampleUI.GetCheckBox(IDC_WIREFRAME)->GetChecked();
       break;
     case IDC_DYNAMICMINMAX:
-      g_pbDynamicMinMax->SetBool(g_SampleUI.GetCheckBox(IDC_DYNAMICMINMAX)->GetChecked());
+      g_pbDynamicMinMax->SetBool(
+          g_SampleUI.GetCheckBox(IDC_DYNAMICMINMAX)->GetChecked());
       break;
     case IDC_NEWTERRAIN:
       g_TerrainUI.SetVisible(true);
       break;
     case IDC_TECHNIQUE: {
-      char *tech = (char *)g_SampleUI.GetComboBox(IDC_TECHNIQUE)->GetSelectedData();
+      char *tech =
+          (char *)g_SampleUI.GetComboBox(IDC_TECHNIQUE)->GetSelectedData();
       g_pTechnique = g_pEffect10->GetTechniqueByName(tech);
       break;
     }
@@ -809,7 +819,8 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
      * Terrain UI
      */
     case IDC_NEWTERRAIN_SIZE: {
-      int value = (1 << g_TerrainUI.GetSlider(IDC_NEWTERRAIN_SIZE)->GetValue()) + 1;
+      int value =
+          (1 << g_TerrainUI.GetSlider(IDC_NEWTERRAIN_SIZE)->GetValue()) + 1;
       WCHAR sz[100];
       StringCchPrintf(sz, 100, L"Size: %dx%d", value, value);
       g_TerrainUI.GetStatic(IDC_NEWTERRAIN_SIZE_S)->SetText(sz);
@@ -837,7 +848,7 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
       g_fTerrainR =
           g_TerrainUI.GetSlider(IDC_NEWTERRAIN_ROUGHNESS)->GetValue()/100.0f;
       g_nTerrainLOD = g_TerrainUI.GetSlider(IDC_NEWTERRAIN_LOD)->GetValue();
-    
+
       CreateTerrain(DXUTGetD3D10Device());
 
       g_SampleUI.GetSlider(IDC_LODSLIDER)->SetValue(0);
@@ -851,6 +862,10 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
     /**
      * Sfx UI 0
      */
+    case IDC_LIGHTDIRECTIONAL:
+      g_pbDirectionalLight->SetBool(
+          g_SfxUI[0].GetCheckBox(IDC_LIGHTDIRECTIONAL)->GetChecked());
+      // Lazy fallthrough for updating IDC_LIGHT_S
     case IDC_LIGHTX:
     case IDC_LIGHTY:
     case IDC_LIGHTZ: {
@@ -860,8 +875,14 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
         g_SfxUI[0].GetSlider(IDC_LIGHTZ)->GetValue() / 10.f
       );
       WCHAR sz[100];
-      StringCchPrintf(sz, 100, L"Position: (%.1f, %.1f, %.1f)",
+      bool dir = g_SfxUI[0].GetCheckBox(IDC_LIGHTDIRECTIONAL)->GetChecked();
+      if (dir) {
+        StringCchPrintf(sz, 100, L"Direction: (%.1f, %.1f, %.1f)",
                       light_pos.x, light_pos.y, light_pos.z);
+      } else {
+        StringCchPrintf(sz, 100, L"Position: (%.1f, %.1f, %.1f)",
+                      light_pos.x, light_pos.y, light_pos.z);
+      }
       g_SfxUI[0].GetStatic(IDC_LIGHT_S)->SetText(sz);
       g_pvLightPos->SetFloatVector(light_pos);
       break;
@@ -952,7 +973,8 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
     }
 
     case IDC_WATER_FRESNEL_BIAS: {
-      float value = g_SfxUI[2].GetSlider(IDC_WATER_FRESNEL_BIAS)->GetValue() / 100.f;
+      float value =
+          g_SfxUI[2].GetSlider(IDC_WATER_FRESNEL_BIAS)->GetValue() / 100.f;
       WCHAR sz[100];
       StringCchPrintf(sz, 100, L"Fresnel Bias: %.2f", value);
       g_SfxUI[2].GetStatic(IDC_WATER_FRESNEL_BIAS_S)->SetText(sz);

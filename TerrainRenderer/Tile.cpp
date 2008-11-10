@@ -147,14 +147,14 @@ void Tile::Refine(int block_size, float roughness) {
       float ne = vertices_[I(x + block_size_h, y - block_size_h)].y;
       float sw = vertices_[I(x - block_size_h, y + block_size_h)].y;
       float se = vertices_[I(x + block_size_h, y + block_size_h)].y;
-      
+
       // Berechnung der neuen Höhenwerte (+)
       // - + -
       // + +
       // -   -
       float center = (nw + ne + sw + se) / 4 + offset_factor * randf();
       vertices_[I(x, y)].y = center;
-      
+
       float n = nw + ne + center;
       if (y > block_size_h) {
         n += vertices_[I(x, y - block_size)].y;
@@ -176,7 +176,7 @@ void Tile::Refine(int block_size, float roughness) {
       // Edge cases: Berechnung neuer Höhenwerte am rechten bzw. unteren Rand
       // -   -
       //     +
-      // - + - 
+      // - + -
       if (x == size_ - 1 - block_size_h) {
         vertices_[I(x + block_size_h, y)].y =
             (ne + se + center) / 3 + offset_factor * randf();
@@ -186,7 +186,7 @@ void Tile::Refine(int block_size, float roughness) {
             (sw + se + center) / 3 + offset_factor * randf();
       }
     }
-  } 
+  }
 }
 
 void Tile::InitChildren(float roughness, Tile *north, Tile *west) {
@@ -272,7 +272,7 @@ void Tile::InitIndexBuffer(void) {
   if (indices_ == NULL) {
     // (size_-1)^2 Blöcke, pro Block 2 Dreiecke, pro Dreieck 3 Indizes
     indices_ = new unsigned int[(size_-1)*(size_-1)*2*3];
-  }    
+  }
 }
 
 void Tile::TriangulateLines(void) {
@@ -319,7 +319,7 @@ void Tile::TriangulateZOrder0(int x1, int y1, int x2, int y2, int &i){
   } else {
     int x12 = (x1+x2)/2;
     int y12 = (y1+y2)/2;
- 
+
     TriangulateZOrder0(x1, y1, x12, y12, i);
     TriangulateZOrder0(x12, y1, x2, y12, i);
     TriangulateZOrder0(x1, y12, x12, y2, i);
@@ -532,7 +532,7 @@ void Tile::CalculateNormals0(Tile *north, Tile *west) {
       west->vertex_normals_[I(size_ - 1, y)] = vertex_normals_[I(0, y)];
     }
   }
- 
+
   if (num_lod_ <= 0) return;
 
   // Holen benachbarter Kind-Tiles:
