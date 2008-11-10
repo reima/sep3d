@@ -27,7 +27,7 @@
 //--------------------------------------------------------------------------------------
 // Global variables
 //--------------------------------------------------------------------------------------
-int g_nTerrainN = 5;
+int g_nTerrainN = 7;
 float g_fTerrainR = 1.0f;
 int g_nTerrainLOD = 3;
 
@@ -417,14 +417,6 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   g_pTxtHelper = new CDXUTTextHelper(NULL, NULL, g_pFont10, g_pSprite10, 15);
 
   // Read the D3DX effect file
-  DWORD dwShaderFlags = D3D10_SHADER_ENABLE_STRICTNESS;
-#if defined( DEBUG ) || defined( _DEBUG )
-  // Set the D3D10_SHADER_DEBUG flag to embed debug information in the shaders.
-  // Setting this flag improves the shader debugging experience, but still allows
-  // the shaders to be optimized and to run exactly the way they will run in
-  // the release configuration of this program.
-  dwShaderFlags |= D3D10_SHADER_DEBUG;
-#endif
   g_pEffect10 = LoadEffect(pd3dDevice, L"TerrainRenderer.fx");
   g_pTechnique = g_pEffect10->GetTechniqueByIndex(0);
 
