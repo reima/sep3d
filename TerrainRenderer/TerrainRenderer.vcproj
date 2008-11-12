@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="Windows-1252"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="9,00"
+	Version="8,00"
 	Name="TerrainRenderer"
 	ProjectGUID="{D3D10110-96D0-4629-88B8-122C0256058C}"
 	RootNamespace="TerrainRenderer"
 	Keyword="Win32Proj"
-	TargetFrameworkVersion="0"
 	>
 	<Platforms>
 		<Platform
@@ -97,6 +96,9 @@
 				Name="VCAppVerifierTool"
 			/>
 			<Tool
+				Name="VCWebDeploymentTool"
+			/>
+			<Tool
 				Name="VCPostBuildEventTool"
 			/>
 		</Configuration>
@@ -177,6 +179,9 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
+			/>
+			<Tool
+				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -263,6 +268,9 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
+			/>
+			<Tool
+				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -352,6 +360,9 @@
 				Name="VCAppVerifierTool"
 			/>
 			<Tool
+				Name="VCWebDeploymentTool"
+			/>
+			<Tool
 				Name="VCPostBuildEventTool"
 			/>
 		</Configuration>
@@ -436,6 +447,9 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
+			/>
+			<Tool
+				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -523,6 +537,9 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
+			/>
+			<Tool
+				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -712,11 +729,27 @@
 			</File>
 		</Filter>
 		<File
+			RelativePath=".\Directionallight.cpp"
+			>
+		</File>
+		<File
+			RelativePath=".\Directionallight.h"
+			>
+		</File>
+		<File
 			RelativePath=".\FixedLODSelector.cpp"
 			>
 		</File>
 		<File
 			RelativePath=".\FixedLODSelector.h"
+			>
+		</File>
+		<File
+			RelativePath=".\Lightsource.cpp"
+			>
+		</File>
+		<File
+			RelativePath=".\Lightsource.h"
 			>
 		</File>
 		<File
@@ -728,7 +761,23 @@
 			>
 		</File>
 		<File
+			RelativePath=".\Pointlight.cpp"
+			>
+		</File>
+		<File
+			RelativePath=".\Pointlight.h"
+			>
+		</File>
+		<File
 			RelativePath=".\README.txt"
+			>
+		</File>
+		<File
+			RelativePath=".\Scene.cpp"
+			>
+		</File>
+		<File
+			RelativePath=".\Scene.h"
 			>
 		</File>
 		<File

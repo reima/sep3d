@@ -35,6 +35,17 @@ cbuffer cb2
   float   g_fMaxHeight;
 }
 
+cbuffer cbStaticLightParams
+{
+  uint g_iNumOfPL;
+  float4 g_vPointlight_Color[16]; //Lightcolor
+}
+
+cbuffer cbLightsOnFrameMove
+{
+  float3 g_vPointlight_Position[16];//
+}
+
 Texture2D g_tWaves;
 SamplerState g_ssWaves
 {
@@ -64,6 +75,17 @@ const float4 g_Colors[NUM_SPOTS] = {
   float4(0.5, 0.5, 0.5, 1),
   float4(1, 1, 1, 1)
 };
+
+
+const float k_a = 0.1;
+const float k_d = 0.5;
+const float k_s = 0.4;
+const float k_n = 2;
+
+const float PointLightA = 1;
+const float PointLightB = 0;
+const float PointLightC = 0;
+
 
 //--------------------------------------------------------------------------------------
 // Vertex shader input structures
@@ -110,6 +132,12 @@ struct VS_SFX_P1_OUTPUT
   float2 Wave3      : TEXCOORD5;
 };
 
+struct VS_GOURAUD_SHADING_OUTPUT
+{
+  float4 Position   : SV_Position;
+  float  Height     : height;
+  float4 LightColor : LIGHT;
+};
 //--------------------------------------------------------------------------------------
 // Global functions
 //--------------------------------------------------------------------------------------
@@ -227,6 +255,48 @@ VS_SFX_P1_OUTPUT SFX_P1_VS( VS_INPUT In )
   return Output;
 }
 
+float4 GouraudShaderHilfsFunktion(float3 vPos, float3 lPos, float3 normal, float4 Color)
+{
+
+  //Diffuse
+  float4 L = normalize(float4(lPos, 1) - float4(vPos, 1));
+  float4 outcolor = saturate(dot(L, normal)) * k_d * Color;
+
+  //ambiente
+  outcolor += k_a * Color;
+
+  float3 N = normalize(normal.xyz);
+  
+  float NdotL = saturate(dot(N, L.xyz));
+  float3 R = normalize(reflect(-L, N));
+  float3 V = normalize(g_vCamPos - vPos.xyz);
+  float RdotV = saturate(dot(R, V));
+
+  outcolor += pow(RdotV, k_n) * Color * k_s;
+  return outcolor;
+}
+
+VS_GOURAUD_SHADING_OUTPUT VS_GOURAUD_SHADING( VS_INPUT In )
+{
+  VS_GOURAUD_SHADING_OUTPUT Output;
+  float4 pos = float4(In.Position, 1);
+  Output.Height = pos.y;
+  // Transform the position from object space to homogeneous projection space
+  Output.Position = mul(pos, g_mWorldViewProjection);
+ 
+  //pointlights
+  for (int i = 0; i<g_iNumOfPL; i++)
+  {
+    float d = length(Output.Position - g_vPointlight_Position[i]);
+    float4 Color = g_vPointlight_Color[i] / (PointLightA + PointLightB*d + PointLightC*d*d);
+   
+    Output.LightColor = GouraudShaderHilfsFunktion(In.Position, g_vPointlight_Position[i], In.Normal, Color);
+
+  }
+
+  return Output;
+}
+
 //--------------------------------------------------------------------------------------
 // Pixel Shaders
 //--------------------------------------------------------------------------------------
@@ -275,6 +345,13 @@ float4 SFX_P1_PS( VS_SFX_P1_OUTPUT In ) : SV_Target
 
   return float4(vTotalColor, fFresnel);
 }
+
+
+float4 PS_GOURAUD_SHADING( VS_GOURAUD_SHADING_OUTPUT In ) : SV_Target
+{
+  return GetColorFromHeight(In.Height) + In.LightColor;
+}
+
 
 BlendState SrcColorBlendingAdd
 {
@@ -341,5 +418,15 @@ technique10 SpecialFX
     SetGeometryShader( NULL );
     SetPixelShader( CompileShader( ps_4_0, SFX_P1_PS() ) );
     SetBlendState( SrcColorBlendingAdd, float4(1, 1, 1, 1), 0xffffffff );
+  }
+}
+
+technique10 GouraudShading
+{
+  pass P0
+  {
+    SetVertexShader( CompileShader( vs_4_0, VS_GOURAUD_SHADING() ) );
+    SetGeometryShader( NULL );
+    SetPixelShader( CompileShader( ps_4_0, PS_GOURAUD_SHADING() ) );
   }
 }

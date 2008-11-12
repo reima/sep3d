@@ -19,6 +19,7 @@
 #include "Tile.h"
 #include "LODSelector.h"
 #include "FixedLODSelector.h"
+#include "Scene.h"
 
 
 //#define DEBUG_VS   // Uncomment this line to debug D3D9 vertex shaders
@@ -39,6 +40,9 @@ CDXUTDialog                 g_HUD;                  // dialog for standard contr
 CDXUTDialog                 g_SampleUI;             // dialog for sample specific controls
 CDXUTDialog                 g_TerrainUI;
 CDXUTDialog                 g_SfxUI[3];
+Scene                       g_Scene;
+
+
 
 // Direct3D 10 resources
 ID3DX10Font*                g_pFont10 = NULL;
@@ -246,6 +250,8 @@ void InitApp() {
   g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Pixel Coloring", "PixelShaderColoring");
   g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Normal Coloring", "NormalColoring");
   g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Special FX", "SpecialFX");
+  g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"GouraudShading", "GouraudShading");
+  
 
   g_SampleUI.AddStatic(0, L"SFX Settings:", 35, iY += 24, 125, 22);
   g_SampleUI.AddComboBox(IDC_SFX_OPTS, 35, iY += 24, 125, 22);
@@ -337,6 +343,8 @@ void InitApp() {
   g_TerrainUI.AddButton(IDC_NEWTERRAIN_OK, L"Generate", 0, iY += 24, 125, 22);
 
   g_TerrainUI.SetVisible(false);
+
+ 
 }
 
 
@@ -497,6 +505,12 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   };
   V_RETURN(pd3dDevice->CreateRasterizerState(&rast_desc, &g_pRSWireframe));
 
+  //lighthandles 
+  g_Scene.GetShaderHandles(g_pEffect10);
+
+  // lights
+  g_Scene.AddPointLight(D3DXVECTOR3(20.0f,1.0f,1.0f), D3DXVECTOR4(1.0f, 0, 0, 0.10f));
+ // g_Scene.AddPointLight(D3DXVECTOR3(-5.0f,1.0f,1.0f), D3DXVECTOR4(1, 1, 1, 0.10f));
   return S_OK;
 }
 
@@ -684,6 +698,7 @@ bool CALLBACK ModifyDeviceSettings(DXUTDeviceSettings* pDeviceSettings,
 void CALLBACK OnFrameMove(double fTime, float fElapsedTime,
                           void* pUserContext) {
   // Update the camera's position based on user input
+  g_Scene.OnFrameMove(fElapsedTime);
   g_Camera.FrameMove(fElapsedTime);
 }
 
