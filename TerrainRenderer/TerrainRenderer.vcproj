@@ -729,11 +729,11 @@
 			</File>
 		</Filter>
 		<File
-			RelativePath=".\Directionallight.cpp"
+			RelativePath=".\DirectionalLight.cpp"
 			>
 		</File>
 		<File
-			RelativePath=".\Directionallight.h"
+			RelativePath=".\DirectionalLight.h"
 			>
 		</File>
 		<File
@@ -745,11 +745,7 @@
 			>
 		</File>
 		<File
-			RelativePath=".\Lightsource.cpp"
-			>
-		</File>
-		<File
-			RelativePath=".\Lightsource.h"
+			RelativePath=".\LightSource.h"
 			>
 		</File>
 		<File
@@ -761,11 +757,11 @@
 			>
 		</File>
 		<File
-			RelativePath=".\Pointlight.cpp"
+			RelativePath=".\PointLight.cpp"
 			>
 		</File>
 		<File
-			RelativePath=".\Pointlight.h"
+			RelativePath=".\PointLight.h"
 			>
 		</File>
 		<File
@@ -778,6 +774,14 @@
 		</File>
 		<File
 			RelativePath=".\Scene.h"
+			>
+		</File>
+		<File
+			RelativePath=".\SpotLight.cpp"
+			>
+		</File>
+		<File
+			RelativePath=".\SpotLight.h"
 			>
 		</File>
 		<File

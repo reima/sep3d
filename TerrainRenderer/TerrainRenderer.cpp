@@ -509,8 +509,10 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   g_Scene.GetShaderHandles(g_pEffect10);
 
   // lights
-  g_Scene.AddPointLight(D3DXVECTOR3(20.0f,1.0f,1.0f), D3DXVECTOR4(1.0f, 0, 0, 0.10f));
- // g_Scene.AddPointLight(D3DXVECTOR3(-5.0f,1.0f,1.0f), D3DXVECTOR4(1, 1, 1, 0.10f));
+  /*g_Scene.AddPointLight(D3DXVECTOR3(1.0f,1.0f,1.0f), D3DXVECTOR3(1, 0, 1));
+  g_Scene.AddPointLight(D3DXVECTOR3(-1.0f,1.0f,-1.0f), D3DXVECTOR3(0, 1, 1));
+  g_Scene.AddDirectionalLight(D3DXVECTOR3(1.0f, 0.0f, 0.0f), D3DXVECTOR3(1, 1, 0));*/
+  g_Scene.AddSpotLight(D3DXVECTOR3(-1.0f,5.0f,0.0f), D3DXVECTOR3(0, -1, 0), D3DXVECTOR3(1, 1, 1), 2, 1);
   return S_OK;
 }
 
@@ -698,8 +700,8 @@ bool CALLBACK ModifyDeviceSettings(DXUTDeviceSettings* pDeviceSettings,
 void CALLBACK OnFrameMove(double fTime, float fElapsedTime,
                           void* pUserContext) {
   // Update the camera's position based on user input
-  g_Scene.OnFrameMove(fElapsedTime);
   g_Camera.FrameMove(fElapsedTime);
+  g_Scene.OnFrameMove(fElapsedTime);
 }
 
 

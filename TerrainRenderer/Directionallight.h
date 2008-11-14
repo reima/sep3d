@@ -1,18 +1,19 @@
 #pragma once
-#include "lightsource.h"
+#include "LightSource.h"
 
-class Directionallight :
-  public Lightsource
-{
-public:
-  static unsigned int InstanceCount;
-  D3DXVECTOR3 Direction;
-  ID3D10EffectVectorVariable* pDir;
-  static ID3D10EffectScalarVariable* pNumDL;
+class DirectionalLight : public LightSource {
+ public:
+  DirectionalLight(D3DXVECTOR3 &direction, D3DXVECTOR3 &color);
+  ~DirectionalLight(void);
+  virtual void OnFrameMove(float elapsed_time);
 
-  virtual void OnFrameMove(float fElapsedTime)=0;
-  static void GetHandles(ID3D10Effect *pFx);
+  static void GetHandles(ID3D10Effect *effect);  
 
-  Directionallight(void);
-  ~Directionallight(void);
+ private:
+  D3DXVECTOR3 direction_;
+
+  static unsigned int instance_count;  
+  static ID3D10EffectVectorVariable *pDir;
+  static ID3D10EffectVectorVariable *pColor;
+  static ID3D10EffectScalarVariable *pNumDL;
 };

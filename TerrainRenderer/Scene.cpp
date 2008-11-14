@@ -1,25 +1,40 @@
 #include "Scene.h"
+#include "PointLight.h"
+#include "DirectionalLight.h"
+#include "SpotLight.h"
 
-void Scene::AddPointLight(D3DXVECTOR3 pos, D3DXVECTOR4 color){
-
-  Pointlights[Pointlight::InstanceCount-1] = new Pointlight(pos, color);
+void Scene::AddPointLight(D3DXVECTOR3 &position, D3DXVECTOR3 &color) {
+  light_sources_.push_back(new PointLight(position, color));
 }
 
-void Scene::OnFrameMove(float fTime){
-  
-  for (int i = 0; i< Pointlight::InstanceCount; i++) Pointlights[i]->OnFrameMove(fTime);
-
+void Scene::AddDirectionalLight(D3DXVECTOR3 &direction, D3DXVECTOR3 &color) {
+  light_sources_.push_back(new DirectionalLight(direction, color));
 }
 
-void Scene::GetShaderHandles(ID3D10Effect* pFx){
-  Pointlight::GetHandles(pFx);
+void Scene::AddSpotLight(D3DXVECTOR3 &position, D3DXVECTOR3 &direction,
+                         D3DXVECTOR3 &color, float cutoff_angle, float exponent) {
+  light_sources_.push_back(new SpotLight(position, direction, color, cutoff_angle, exponent));
 }
 
-Scene::Scene(void)
-{
+void Scene::OnFrameMove(float fTime) {
+  std::vector<LightSource *>::iterator it;
+  for (it = light_sources_.begin(); it != light_sources_.end(); ++it) {
+    (*it)->OnFrameMove(fTime);
+  }
 }
 
-Scene::~Scene(void)
-{
- 
+void Scene::GetShaderHandles(ID3D10Effect* pFx) {
+  PointLight::GetHandles(pFx);
+  DirectionalLight::GetHandles(pFx);
+  SpotLight::GetHandles(pFx);
+}
+
+Scene::Scene(void) {
+}
+
+Scene::~Scene(void) {
+  std::vector<LightSource *>::iterator it;
+  for (it = light_sources_.begin(); it != light_sources_.end(); ++it) {
+    delete (*it);
+  }
 }

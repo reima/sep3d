@@ -1,15 +1,10 @@
 #pragma once
-
 #include "DXUT.h"
 
-
-
-class Lightsource
-{
-public:
-  D3DXVECTOR3 Color;
-  D3DXVECTOR3 Rotation;
-  unsigned int ID;
-
-  virtual void OnFrameMove(float fElapsedTime)=0;
+class LightSource {
+ public:
+  virtual void OnFrameMove(float elapsed_time) = 0;
+  D3DXVECTOR3 color_;
+  D3DXVECTOR3 rotation_;
+  unsigned int instance_id_;
 };

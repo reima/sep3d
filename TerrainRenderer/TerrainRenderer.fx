@@ -37,13 +37,22 @@ cbuffer cb2
 
 cbuffer cbStaticLightParams
 {
-  uint g_iNumOfPL;
-  float4 g_vPointlight_Color[16]; //Lightcolor
+  uint g_nPointLights;
+  float3 g_vPointLight_Color[16];
+  uint g_nDirectionalLights;
+  float3 g_vDirectionalLight_Color[16];
+  uint g_nSpotLights;
+  float3 g_vSpotLight_Color[16];
+  float g_vSpotLight_CutoffAngle[16];
+  float g_vSpotLight_Exponent[16];
 }
 
 cbuffer cbLightsOnFrameMove
 {
-  float3 g_vPointlight_Position[16];//
+  float3 g_vPointLight_Position[16];
+  float3 g_vDirectionalLight_Direction[16];
+  float3 g_vSpotLight_Position[16];
+  float3 g_vSpotLight_Direction[16];
 }
 
 Texture2D g_tWaves;
@@ -77,10 +86,10 @@ const float4 g_Colors[NUM_SPOTS] = {
 };
 
 
-const float k_a = 0.1;
-const float k_d = 0.5;
-const float k_s = 0.4;
-const float k_n = 2;
+const float k_a = 0.0;
+const float k_d = 1.0;
+const float k_s = 0.0;
+const float k_n = 50;
 
 const float PointLightA = 1;
 const float PointLightB = 0;
@@ -134,10 +143,11 @@ struct VS_SFX_P1_OUTPUT
 
 struct VS_GOURAUD_SHADING_OUTPUT
 {
-  float4 Position   : SV_Position;
-  float  Height     : height;
-  float4 LightColor : LIGHT;
+  float4 Position       : SV_Position;
+  float  Height         : HEIGHT;
+  float3 LightColor     : LIGHTCOLOR;
 };
+
 //--------------------------------------------------------------------------------------
 // Global functions
 //--------------------------------------------------------------------------------------
@@ -158,6 +168,23 @@ float4 GetColorFromHeight(float height)
     }
   }
   return color;
+}
+
+float3 Phong(float3 vPos, float3 vLightDir, float3 vNormal, float3 vColor,
+             float attenuation) {
+  // Diffuse
+  float3 L = normalize(vLightDir);
+  float3 N = normalize(vNormal);
+  float NdotL = saturate(dot(N, L));
+  float3 vOutColor = NdotL * k_d * vColor * attenuation;
+
+  // Specular
+  float3 R = normalize(reflect(-L, N));
+  float3 V = normalize(g_vCamPos - vPos);
+  float RdotV = saturate(dot(R, V));
+  vOutColor += pow(RdotV, k_n) * k_s * vColor * attenuation;
+
+  return vOutColor;
 }
 
 //--------------------------------------------------------------------------------------
@@ -255,44 +282,45 @@ VS_SFX_P1_OUTPUT SFX_P1_VS( VS_INPUT In )
   return Output;
 }
 
-float4 GouraudShaderHilfsFunktion(float3 vPos, float3 lPos, float3 normal, float4 Color)
-{
-
-  //Diffuse
-  float4 L = normalize(float4(lPos, 1) - float4(vPos, 1));
-  float4 outcolor = saturate(dot(L, normal)) * k_d * Color;
-
-  //ambiente
-  outcolor += k_a * Color;
-
-  float3 N = normalize(normal.xyz);
-  
-  float NdotL = saturate(dot(N, L.xyz));
-  float3 R = normalize(reflect(-L, N));
-  float3 V = normalize(g_vCamPos - vPos.xyz);
-  float RdotV = saturate(dot(R, V));
-
-  outcolor += pow(RdotV, k_n) * Color * k_s;
-  return outcolor;
-}
-
-VS_GOURAUD_SHADING_OUTPUT VS_GOURAUD_SHADING( VS_INPUT In )
+VS_GOURAUD_SHADING_OUTPUT GouraudShading_VS( VS_INPUT In )
 {
   VS_GOURAUD_SHADING_OUTPUT Output;
-  float4 pos = float4(In.Position, 1);
-  Output.Height = pos.y;
+  float4 vPos = float4(In.Position, 1);
+  Output.Height = vPos.y;
   // Transform the position from object space to homogeneous projection space
-  Output.Position = mul(pos, g_mWorldViewProjection);
- 
-  //pointlights
-  for (int i = 0; i<g_iNumOfPL; i++)
-  {
-    float d = length(Output.Position - g_vPointlight_Position[i]);
-    float4 Color = g_vPointlight_Color[i] / (PointLightA + PointLightB*d + PointLightC*d*d);
-   
-    Output.LightColor = GouraudShaderHilfsFunktion(In.Position, g_vPointlight_Position[i], In.Normal, Color);
+  Output.Position = mul(vPos, g_mWorldViewProjection);
 
+  float3 vLightColor = float3(0, 0, 0); 
+  // Point lights
+  for (int i = 0; i < g_nPointLights; i++) {
+    // Attenuation
+    float d = length(vPos - g_vPointLight_Position[i]);
+    float attenuation = 1 / (PointLightA + PointLightB*d + PointLightC*d*d);
+    vLightColor += Phong(In.Position, g_vPointLight_Position[i] - vPos,
+                         In.Normal, g_vPointLight_Color[i], attenuation);
   }
+
+  // Directional lights
+  for (int i = 0; i < g_nDirectionalLights; i++) {
+    vLightColor += Phong(In.Position, g_vDirectionalLight_Direction[i], In.Normal,
+                         g_vDirectionalLight_Color[i], 1);
+  }
+
+  // Spot lights
+  for (int i = 0; i < g_nSpotLights; i++) {
+    float d = length(vPos - g_vSpotLight_Position[i]);
+    float attenuation = 1 / (PointLightA + PointLightB*d + PointLightC*d*d);
+    float3 I = normalize(g_vSpotLight_Position[i] - vPos);
+    float IdotL = dot(I, g_vSpotLight_Direction[i]);
+    float theta = g_vSpotLight_CutoffAngle[i];
+    if (acos(IdotL) < theta) {
+      attenuation *= pow(-IdotL/cos(theta), g_vSpotLight_Exponent[i]);
+      vLightColor += Phong(In.Position, g_vSpotLight_Position[i] - vPos,
+                           In.Normal, g_vSpotLight_Color[i], attenuation);
+    }
+  }
+
+  Output.LightColor = vLightColor + k_a;
 
   return Output;
 }
@@ -347,9 +375,9 @@ float4 SFX_P1_PS( VS_SFX_P1_OUTPUT In ) : SV_Target
 }
 
 
-float4 PS_GOURAUD_SHADING( VS_GOURAUD_SHADING_OUTPUT In ) : SV_Target
+float4 GouraudShading_PS( VS_GOURAUD_SHADING_OUTPUT In ) : SV_Target
 {
-  return GetColorFromHeight(In.Height) + In.LightColor;
+  return GetColorFromHeight(In.Height) * float4(In.LightColor, 1);
 }
 
 
@@ -364,6 +392,16 @@ BlendState SrcColorBlendingAdd
 //--------------------------------------------------------------------------------------
 // Renders scene
 //--------------------------------------------------------------------------------------
+technique10 GouraudShading
+{
+  pass P0
+  {
+    SetVertexShader( CompileShader( vs_4_0, GouraudShading_VS() ) );
+    SetGeometryShader( NULL );
+    SetPixelShader( CompileShader( ps_4_0, GouraudShading_PS() ) );
+  }
+}
+
 technique10 VertexShaderColoring
 {
   pass P0
@@ -421,12 +459,3 @@ technique10 SpecialFX
   }
 }
 
-technique10 GouraudShading
-{
-  pass P0
-  {
-    SetVertexShader( CompileShader( vs_4_0, VS_GOURAUD_SHADING() ) );
-    SetGeometryShader( NULL );
-    SetPixelShader( CompileShader( ps_4_0, PS_GOURAUD_SHADING() ) );
-  }
-}
