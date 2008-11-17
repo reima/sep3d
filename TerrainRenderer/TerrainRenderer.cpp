@@ -251,6 +251,7 @@ void InitApp() {
   g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Normal Coloring", "NormalColoring");
   g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Special FX", "SpecialFX");
   g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"GouraudShading", "GouraudShading");
+  g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"PhongShading", "PhongShading");
   
 
   g_SampleUI.AddStatic(0, L"SFX Settings:", 35, iY += 24, 125, 22);
@@ -512,10 +513,10 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   //g_Scene.AddPointLight(D3DXVECTOR3(-2.5f,1.0f,2.5f), D3DXVECTOR3(1, 0, 1));
   //g_Scene.AddPointLight(D3DXVECTOR3(2.5f,1.0f,-2.5f), D3DXVECTOR3(0, 1, 1));
   //g_Scene.AddDirectionalLight(D3DXVECTOR3(1.0f, 0.0f, 0.0f), D3DXVECTOR3(1, 1, 0));
-  g_Scene.AddSpotLight(D3DXVECTOR3(2.5f,3.0f,0.0f), D3DXVECTOR3(0, -1, 0), D3DXVECTOR3(1, 1, 0), .2f, 10);
-  g_Scene.AddSpotLight(D3DXVECTOR3(-2.5f,3.0f,0.0f), D3DXVECTOR3(0, -1, 0), D3DXVECTOR3(0, 1, 1), .2f, 10);
-  g_Scene.AddSpotLight(D3DXVECTOR3(0.0f,3.0f,2.5f), D3DXVECTOR3(0, -1, 0), D3DXVECTOR3(1, 0, 1), .2f, 10);
-  g_Scene.AddSpotLight(D3DXVECTOR3(0.0f,3.0f,-2.5f), D3DXVECTOR3(0, -1, 0), D3DXVECTOR3(1, 1, 1), .2f, 10);
+  g_Scene.AddSpotLight(D3DXVECTOR3(2.5f,3.0f,0.0f), D3DXVECTOR3(0, -1, 0), D3DXVECTOR3(1, 1, 0), .5f, 5);
+  g_Scene.AddSpotLight(D3DXVECTOR3(-2.5f,3.0f,0.0f), D3DXVECTOR3(0, -1, 0), D3DXVECTOR3(0, 1, 1), .5f, 5);
+  g_Scene.AddSpotLight(D3DXVECTOR3(0.0f,3.0f,2.5f), D3DXVECTOR3(0, -1, 0), D3DXVECTOR3(1, 0, 1), .5f, 5);
+  g_Scene.AddSpotLight(D3DXVECTOR3(0.0f,3.0f,-2.5f), D3DXVECTOR3(0, -1, 0), D3DXVECTOR3(1, 1, 1), .5f, 5);
   return S_OK;
 }
 

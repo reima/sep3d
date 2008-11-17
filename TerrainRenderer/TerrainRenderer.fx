@@ -90,8 +90,8 @@ const float k_d = 0.4;
 const float k_s = 0.5;
 const float k_n = 50;
 
-const float PointLightA = 0;
-const float PointLightB = 1;
+const float PointLightA = 1;
+const float PointLightB = 0;
 const float PointLightC = 0;
 
 
@@ -147,6 +147,14 @@ struct VS_GOURAUD_SHADING_OUTPUT
   float3 LightColor     : LIGHTCOLOR;
 };
 
+struct VS_PHONG_SHADING_OUTPUT
+{
+  float4 Position       : SV_Position;
+  float3 WorldPosition  : POSITION;
+  float  Height         : HEIGHT;
+  float3 Normal         : NORMAL0;
+};
+
 //--------------------------------------------------------------------------------------
 // Global functions
 //--------------------------------------------------------------------------------------
@@ -170,7 +178,8 @@ float4 GetColorFromHeight(float height)
 }
 
 float3 Phong(float3 vPos, float3 vLightDir, float3 vNormal, float3 vColor,
-             float attenuation) {
+             float attenuation)
+{
   // Diffuse
   float3 L = normalize(vLightDir);
   float3 N = normalize(vNormal);
@@ -186,7 +195,8 @@ float3 Phong(float3 vPos, float3 vLightDir, float3 vNormal, float3 vColor,
   return vOutColor;
 }
 
-float3 PhongLighting(float3 vPos, float3 vNormal) {
+float3 PhongLighting(float3 vPos, float3 vNormal)
+{
   float3 vLightColor = float3(0, 0, 0);
   // Point lights
   uint i;
@@ -329,6 +339,19 @@ VS_GOURAUD_SHADING_OUTPUT GouraudShading_VS( VS_INPUT In )
   return Output;
 }
 
+VS_PHONG_SHADING_OUTPUT PhongShading_VS( VS_INPUT In )
+{
+  VS_PHONG_SHADING_OUTPUT Output;
+  float4 vPos = float4(In.Position, 1);
+  Output.Height = vPos.y;
+  // Transform the position from object space to homogeneous projection space
+  Output.Position = mul(vPos, g_mWorldViewProjection);
+  Output.Normal = normalize(In.Normal);
+  Output.WorldPosition = In.Position;
+
+  return Output;
+}
+
 //--------------------------------------------------------------------------------------
 // Pixel Shaders
 //--------------------------------------------------------------------------------------
@@ -384,6 +407,12 @@ float4 GouraudShading_PS( VS_GOURAUD_SHADING_OUTPUT In ) : SV_Target
   return GetColorFromHeight(In.Height) * float4(In.LightColor, 1);
 }
 
+float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In ) : SV_Target
+{
+  return GetColorFromHeight(In.Height) *
+      float4(PhongLighting(In.WorldPosition, normalize(In.Normal)), 1);
+}
+
 
 BlendState SrcColorBlendingAdd
 {
@@ -396,26 +425,6 @@ BlendState SrcColorBlendingAdd
 //--------------------------------------------------------------------------------------
 // Renders scene
 //--------------------------------------------------------------------------------------
-technique10 GouraudShading
-{
-  pass P0
-  {
-    SetVertexShader( CompileShader( vs_4_0, GouraudShading_VS() ) );
-    SetGeometryShader( NULL );
-    SetPixelShader( CompileShader( ps_4_0, GouraudShading_PS() ) );
-  }
-}
-
-technique10 PhongShading
-{
-  pass P0
-  {
-    SetVertexShader( CompileShader( vs_4_0, GouraudShading_VS() ) );
-    SetGeometryShader( NULL );
-    SetPixelShader( CompileShader( ps_4_0, GouraudShading_PS() ) );
-  }
-}
-
 technique10 VertexShaderColoring
 {
   pass P0
@@ -473,3 +482,22 @@ technique10 SpecialFX
   }
 }
 
+technique10 GouraudShading
+{
+  pass P0
+  {
+    SetVertexShader( CompileShader( vs_4_0, GouraudShading_VS() ) );
+    SetGeometryShader( NULL );
+    SetPixelShader( CompileShader( ps_4_0, GouraudShading_PS() ) );
+  }
+}
+
+technique10 PhongShading
+{
+  pass P0
+  {
+    SetVertexShader( CompileShader( vs_4_0, PhongShading_VS() ) );
+    SetGeometryShader( NULL );
+    SetPixelShader( CompileShader( ps_4_0, PhongShading_PS() ) );
+  }
+}
