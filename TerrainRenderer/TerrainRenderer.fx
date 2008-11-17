@@ -38,21 +38,20 @@ cbuffer cb2
 cbuffer cbStaticLightParams
 {
   uint g_nPointLights;
-  float3 g_vPointLight_Color[16];
   uint g_nDirectionalLights;
-  float3 g_vDirectionalLight_Color[16];
   uint g_nSpotLights;
-  float3 g_vSpotLight_Color[16];
-  float g_vSpotLight_CutoffAngle[16];
-  float g_vSpotLight_Exponent[16];
+  float3 g_vPointLight_Color[8];
+  float3 g_vDirectionalLight_Color[8];
+  float3 g_vSpotLight_Color[8];
+  float2 g_fSpotLight_AngleExp[8];
 }
 
 cbuffer cbLightsOnFrameMove
 {
-  float3 g_vPointLight_Position[16];
-  float3 g_vDirectionalLight_Direction[16];
-  float3 g_vSpotLight_Position[16];
-  float3 g_vSpotLight_Direction[16];
+  float3 g_vPointLight_Position[8];
+  float3 g_vDirectionalLight_Direction[8]; // Guaranteed to be normalized
+  float3 g_vSpotLight_Position[8];
+  float3 g_vSpotLight_Direction[8]; // Guaranteed to be normalized
 }
 
 Texture2D g_tWaves;
@@ -86,13 +85,13 @@ const float4 g_Colors[NUM_SPOTS] = {
 };
 
 
-const float k_a = 0.0;
-const float k_d = 1.0;
-const float k_s = 0.0;
+const float k_a = 0.1;
+const float k_d = 0.4;
+const float k_s = 0.5;
 const float k_n = 50;
 
-const float PointLightA = 1;
-const float PointLightB = 0;
+const float PointLightA = 0;
+const float PointLightB = 1;
 const float PointLightC = 0;
 
 
@@ -292,8 +291,8 @@ VS_GOURAUD_SHADING_OUTPUT GouraudShading_VS( VS_INPUT In )
 
   float3 vLightColor = float3(0, 0, 0); 
   // Point lights
-  for (int i = 0; i < g_nPointLights; i++) {
-    // Attenuation
+  uint i;
+  for (i = 0; i < g_nPointLights; i++) {
     float d = length(vPos - g_vPointLight_Position[i]);
     float attenuation = 1 / (PointLightA + PointLightB*d + PointLightC*d*d);
     vLightColor += Phong(In.Position, g_vPointLight_Position[i] - vPos,
@@ -301,25 +300,27 @@ VS_GOURAUD_SHADING_OUTPUT GouraudShading_VS( VS_INPUT In )
   }
 
   // Directional lights
-  for (int i = 0; i < g_nDirectionalLights; i++) {
+  for (i = 0; i < g_nDirectionalLights; i++) {
     vLightColor += Phong(In.Position, g_vDirectionalLight_Direction[i], In.Normal,
                          g_vDirectionalLight_Color[i], 1);
   }
 
   // Spot lights
-  for (int i = 0; i < g_nSpotLights; i++) {
+  for (i = 0; i < g_nSpotLights; i++) {
     float d = length(vPos - g_vSpotLight_Position[i]);
-    float attenuation = 1 / (PointLightA + PointLightB*d + PointLightC*d*d);
-    float3 I = normalize(g_vSpotLight_Position[i] - vPos);
-    float IdotL = dot(I, g_vSpotLight_Direction[i]);
-    float theta = g_vSpotLight_CutoffAngle[i];
-    if (acos(IdotL) < theta) {
-      attenuation *= pow(-IdotL/cos(theta), g_vSpotLight_Exponent[i]);
+    float3 I = (g_vSpotLight_Position[i] - vPos) / d;
+    float IdotL = dot(-I, g_vSpotLight_Direction[i]);
+    float theta = g_fSpotLight_AngleExp[i].x;
+    float angle = acos(IdotL);
+    if (angle < theta) {
+      float attenuation = 1 / (PointLightA + PointLightB*d + PointLightC*d*d);
+      attenuation *= 1 - pow(angle/theta, g_fSpotLight_AngleExp[i].y);
       vLightColor += Phong(In.Position, g_vSpotLight_Position[i] - vPos,
                            In.Normal, g_vSpotLight_Color[i], attenuation);
     }
   }
 
+  // Ambient light
   Output.LightColor = vLightColor + k_a;
 
   return Output;
@@ -392,6 +393,16 @@ BlendState SrcColorBlendingAdd
 //--------------------------------------------------------------------------------------
 // Renders scene
 //--------------------------------------------------------------------------------------
+technique10 GouraudShading
+{
+  pass P0
+  {
+    SetVertexShader( CompileShader( vs_4_0, GouraudShading_VS() ) );
+    SetGeometryShader( NULL );
+    SetPixelShader( CompileShader( ps_4_0, GouraudShading_PS() ) );
+  }
+}
+
 technique10 GouraudShading
 {
   pass P0

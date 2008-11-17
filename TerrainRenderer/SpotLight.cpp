@@ -3,8 +3,7 @@
 unsigned int SpotLight::instance_count = 0;
 ID3D10EffectVectorVariable *SpotLight::pPos = NULL;
 ID3D10EffectVectorVariable *SpotLight::pDir = NULL;
-ID3D10EffectScalarVariable *SpotLight::pExp = NULL;
-ID3D10EffectScalarVariable *SpotLight::pAngle = NULL;
+ID3D10EffectVectorVariable *SpotLight::pAngleExp = NULL;
 ID3D10EffectVectorVariable *SpotLight::pColor = NULL;
 ID3D10EffectScalarVariable *SpotLight::pNumSL = NULL;
 
@@ -22,10 +21,8 @@ void SpotLight::GetHandles(ID3D10Effect *effect) {
       effect->GetVariableByName("g_vSpotLight_Position")->AsVector();
   SpotLight::pDir =
       effect->GetVariableByName("g_vSpotLight_Direction")->AsVector();
-  SpotLight::pExp =
-      effect->GetVariableByName("g_vSpotLight_Exponent")->AsScalar();
-  SpotLight::pAngle =
-      effect->GetVariableByName("g_vSpotLight_Angle")->AsScalar();
+  SpotLight::pAngleExp =
+      effect->GetVariableByName("g_fSpotLight_AngleExp")->AsVector();
   SpotLight::pColor =
       effect->GetVariableByName("g_vSpotLight_Color")->AsVector();
   SpotLight::pNumSL = effect->GetVariableByName("g_nSpotLights")->AsScalar();
@@ -37,8 +34,10 @@ SpotLight::SpotLight(D3DXVECTOR3 &position, D3DXVECTOR3 &direction,
   color_ = color;
   instance_id_ = SpotLight::instance_count++;
   SpotLight::pColor->SetFloatVectorArray(color_, instance_id_, 1);
-  SpotLight::pDir->SetFloatVectorArray(direction, instance_id_, 1);
-  SpotLight::pExp->SetFloatArray(&exponent, instance_id_, 1);
-  SpotLight::pAngle->SetFloatArray(&cutoff_angle, instance_id_, 1);  
+  D3DXVECTOR3 temp;
+  D3DXVec3Normalize(&temp, &direction);
+  SpotLight::pDir->SetFloatVectorArray(temp, instance_id_, 1);
+  float angle_exp[] = { cutoff_angle, exponent };
+  SpotLight::pAngleExp->SetFloatVectorArray(angle_exp, instance_id_, 1);
   SpotLight::pNumSL->SetInt(SpotLight::instance_count);
 }

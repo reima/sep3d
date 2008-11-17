@@ -17,8 +17,7 @@ class SpotLight : public LightSource {
   static unsigned int instance_count;
   static ID3D10EffectVectorVariable *pPos;
   static ID3D10EffectVectorVariable *pDir;
-  static ID3D10EffectScalarVariable *pExp;
-  static ID3D10EffectScalarVariable *pAngle;
+  static ID3D10EffectVectorVariable *pAngleExp;
   static ID3D10EffectVectorVariable *pColor;
   static ID3D10EffectScalarVariable *pNumSL;
 };

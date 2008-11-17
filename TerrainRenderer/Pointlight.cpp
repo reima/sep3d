@@ -8,7 +8,7 @@ ID3D10EffectScalarVariable *PointLight::pNumPL = NULL;
 
 void PointLight::OnFrameMove(float elapsed_time) {
   D3DXMATRIX rotation_matrix;
-  D3DXMatrixRotationYawPitchRoll(&rotation_matrix, elapsed_time, elapsed_time, elapsed_time);
+  D3DXMatrixRotationYawPitchRoll(&rotation_matrix, elapsed_time, 0, 0);
   D3DXVECTOR4 new_position;
   D3DXVec3Transform(&new_position, &position_, &rotation_matrix);
   position_ = static_cast<D3DXVECTOR3>(new_position);
