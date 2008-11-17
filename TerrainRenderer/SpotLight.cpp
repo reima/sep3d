@@ -11,13 +11,16 @@ SpotLight::SpotLight(const D3DXVECTOR3 &position, const D3DXVECTOR3 &direction,
                      const D3DXVECTOR3 &color, const D3DXVECTOR3 &rotation,
                      float cutoff_angle, float exponent)
     : LightSource(color, rotation),
-      position_(position) {
+      position_(position),
+      direction_(direction),
+      cutoff_angle_(cutoff_angle),
+      exponent_(exponent) {
   instance_id_ = SpotLight::instance_count++;
   SpotLight::pColor->SetFloatVectorArray(color_, instance_id_, 1);
   D3DXVECTOR3 temp;
   D3DXVec3Normalize(&temp, &direction);
   SpotLight::pDir->SetFloatVectorArray(temp, instance_id_, 1);
-  float angle_exp[] = { cutoff_angle, exponent };
+  float angle_exp[] = { cutoff_angle_, exponent_ };
   SpotLight::pAngleExp->SetFloatVectorArray(angle_exp, instance_id_, 1);
   SpotLight::pNumSL->SetInt(SpotLight::instance_count);
 }

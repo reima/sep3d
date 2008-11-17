@@ -11,6 +11,9 @@ class SpotLight : public LightSource {
 
  private:
   D3DXVECTOR3 position_;
+  D3DXVECTOR3 direction_;
+  float cutoff_angle_;
+  float exponent_;
   static unsigned int instance_count;
   static ID3D10EffectVectorVariable *pPos;
   static ID3D10EffectVectorVariable *pDir;

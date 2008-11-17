@@ -40,9 +40,6 @@ CDXUTDialog                 g_HUD;                  // dialog for standard contr
 CDXUTDialog                 g_SampleUI;             // dialog for sample specific controls
 CDXUTDialog                 g_TerrainUI;
 CDXUTDialog                 g_SfxUI[3];
-Scene                       g_Scene;
-
-
 
 // Direct3D 10 resources
 ID3DX10Font*                g_pFont10 = NULL;
@@ -72,6 +69,7 @@ ID3D10ShaderResourceView*   g_pWavesRV = NULL;
 
 Tile*                       g_pTile = NULL;
 LODSelector*                g_pLODSelector = NULL;
+Scene*                      g_pScene;
 
 bool                        g_bShowSettings = false;
 bool                        g_bWireframe = false;
@@ -506,39 +504,40 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   };
   V_RETURN(pd3dDevice->CreateRasterizerState(&rast_desc, &g_pRSWireframe));
 
-  //lighthandles 
-  g_Scene.GetShaderHandles(g_pEffect10);
+  // Szene erstellen
+  g_pScene = new Scene(0.05f, 0.45f, 0.5f, 100);
+  g_pScene->GetShaderHandles(g_pEffect10);
 
-  // lights
-  g_Scene.AddPointLight(D3DXVECTOR3(-2.5f, 1.0f, 2.5f),
-                        D3DXVECTOR3(1, 0, 1),
-                        D3DXVECTOR3(1, 0, 0));
-  g_Scene.AddPointLight(D3DXVECTOR3(2.5f, 1.0f, -2.5f),
-                        D3DXVECTOR3(0, 1, 1),
-                        D3DXVECTOR3(1, 0, 0));
-  g_Scene.AddDirectionalLight(D3DXVECTOR3(1.0f, 0.0f, 0.0f),
-                              D3DXVECTOR3(1, 1, 0),
-                              D3DXVECTOR3(1, 0, 0));
-  g_Scene.AddSpotLight(D3DXVECTOR3(2.5f, 3.0f, 0.0f),
-                       D3DXVECTOR3(0, -1, 0),
-                       D3DXVECTOR3(1, 1, 0),
-                       D3DXVECTOR3(1, 0, 0),
-                       .5f, 5);
-  g_Scene.AddSpotLight(D3DXVECTOR3(-2.5f, 3.0f, 0.0f),
-                       D3DXVECTOR3(0, -1, 0),
-                       D3DXVECTOR3(0, 1, 1),
-                       D3DXVECTOR3(1, 0, 0),
-                       .5f, 5);
-  g_Scene.AddSpotLight(D3DXVECTOR3(0.0f, 3.0f, 2.5f),
-                       D3DXVECTOR3(0, -1, 0),
-                       D3DXVECTOR3(1, 0, 1),
-                       D3DXVECTOR3(1, 0, 0),
-                       .5f, 5);
-  g_Scene.AddSpotLight(D3DXVECTOR3(0.0f, 3.0f, -2.5f),
-                       D3DXVECTOR3(0, -1, 0),
-                       D3DXVECTOR3(1, 1, 1),
-                       D3DXVECTOR3(1, 0, 0),
-                       .5f, 5);
+  // Lichter hinzufügen
+  g_pScene->AddPointLight(D3DXVECTOR3(-2.5f, 1.0f, 2.5f),
+                          D3DXVECTOR3(1, 0, 1),
+                          D3DXVECTOR3(1, 0, 0));
+  g_pScene->AddPointLight(D3DXVECTOR3(2.5f, 1.0f, -2.5f),
+                          D3DXVECTOR3(0, 1, 1),
+                          D3DXVECTOR3(1, 0, 0));
+  g_pScene->AddDirectionalLight(D3DXVECTOR3(1.0f, 0.0f, 0.0f),
+                                D3DXVECTOR3(1, 1, 0),
+                                D3DXVECTOR3(1, 0, 0));
+  g_pScene->AddSpotLight(D3DXVECTOR3(2.5f, 3.0f, 0.0f),
+                         D3DXVECTOR3(0, -1, 0),
+                         D3DXVECTOR3(1, 1, 0),
+                         D3DXVECTOR3(1, 0, 0),
+                         .5f, 5);
+  g_pScene->AddSpotLight(D3DXVECTOR3(-2.5f, 3.0f, 0.0f),
+                         D3DXVECTOR3(0, -1, 0),
+                         D3DXVECTOR3(0, 1, 1),
+                         D3DXVECTOR3(1, 0, 0),
+                         .5f, 5);
+  g_pScene->AddSpotLight(D3DXVECTOR3(0.0f, 3.0f, 2.5f),
+                         D3DXVECTOR3(0, -1, 0),
+                         D3DXVECTOR3(1, 0, 1),
+                         D3DXVECTOR3(1, 0, 0),
+                         .5f, 5);
+  g_pScene->AddSpotLight(D3DXVECTOR3(0.0f, 3.0f, -2.5f),
+                         D3DXVECTOR3(0, -1, 0),
+                         D3DXVECTOR3(1, 1, 1),
+                         D3DXVECTOR3(1, 0, 0),
+                         .5f, 5);
   return S_OK;
 }
 
@@ -667,6 +666,7 @@ void CALLBACK OnD3D10DestroyDevice(void* pUserContext) {
   SAFE_DELETE(g_pTxtHelper);
   SAFE_DELETE(g_pTile);
   SAFE_DELETE(g_pLODSelector);
+  SAFE_DELETE(g_pScene);
 }
 
 
@@ -727,7 +727,7 @@ void CALLBACK OnFrameMove(double fTime, float fElapsedTime,
                           void* pUserContext) {
   // Update the camera's position based on user input
   g_Camera.FrameMove(fElapsedTime);
-  g_Scene.OnFrameMove(fElapsedTime);
+  g_pScene->OnFrameMove(fElapsedTime);
 }
 
 

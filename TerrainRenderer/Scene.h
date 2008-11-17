@@ -5,7 +5,7 @@
 
 class Scene {
  public:
-  Scene(void);
+  Scene(float ambient, float diffuse, float specular, float exponent);
   ~Scene(void);
 
   void AddPointLight(const D3DXVECTOR3 &position, const D3DXVECTOR3 &color,
@@ -18,8 +18,13 @@ class Scene {
                     float cutoff_angle, float exponent);
 
   void OnFrameMove(float fTime);
-  void GetShaderHandles(ID3D10Effect* pFx);
+  void GetShaderHandles(ID3D10Effect* effect);
 
  private:
   std::vector<LightSource *> light_sources_;
+  float ambient_;
+  float diffuse_;
+  float specular_;
+  float exponent_;
+  ID3D10EffectVectorVariable *pMaterialParameters;
 };

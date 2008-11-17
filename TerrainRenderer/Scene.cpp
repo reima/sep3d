@@ -3,7 +3,11 @@
 #include "DirectionalLight.h"
 #include "SpotLight.h"
 
-Scene::Scene(void) {
+Scene::Scene(float ambient, float diffuse, float specular, float exponent)
+    : ambient_(ambient),
+      diffuse_(diffuse),
+      specular_(specular),
+      exponent_(exponent) {
 }
 
 Scene::~Scene(void) {
@@ -41,8 +45,12 @@ void Scene::OnFrameMove(float fTime) {
   }
 }
 
-void Scene::GetShaderHandles(ID3D10Effect* pFx) {
-  PointLight::GetHandles(pFx);
-  DirectionalLight::GetHandles(pFx);
-  SpotLight::GetHandles(pFx);
+void Scene::GetShaderHandles(ID3D10Effect* effect) {
+  PointLight::GetHandles(effect);
+  DirectionalLight::GetHandles(effect);
+  SpotLight::GetHandles(effect);
+  pMaterialParameters =
+      effect->GetVariableByName("g_vMaterialParameters")->AsVector();
+  float material_parameters[] = { ambient_, diffuse_, specular_, exponent_ };
+  pMaterialParameters->SetFloatVector(material_parameters);
 }

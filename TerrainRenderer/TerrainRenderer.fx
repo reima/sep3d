@@ -54,6 +54,11 @@ cbuffer cbLightsOnFrameMove
   float3 g_vSpotLight_Direction[8]; // Guaranteed to be normalized
 }
 
+cbuffer cbMaterialParameters
+{
+  float4 g_vMaterialParameters; // = { k_a, k_d, k_s, n }
+}
+
 Texture2D g_tWaves;
 SamplerState g_ssWaves
 {
@@ -84,11 +89,6 @@ const float4 g_Colors[NUM_SPOTS] = {
   float4(1, 1, 1, 1)
 };
 
-
-const float k_a = 0.1;
-const float k_d = 0.4;
-const float k_s = 0.5;
-const float k_n = 50;
 
 const float PointLightA = 1;
 const float PointLightB = 0;
@@ -184,13 +184,14 @@ float3 Phong(float3 vPos, float3 vLightDir, float3 vNormal, float3 vColor,
   float3 L = normalize(vLightDir);
   float3 N = normalize(vNormal);
   float NdotL = saturate(dot(N, L));
-  float3 vOutColor = NdotL * k_d * vColor * attenuation;
+  float3 vOutColor = NdotL * g_vMaterialParameters.y * vColor * attenuation;
 
   // Specular
   float3 R = normalize(reflect(-L, N));
   float3 V = normalize(g_vCamPos - vPos);
   float RdotV = saturate(dot(R, V));
-  vOutColor += pow(RdotV, k_n) * k_s * vColor * attenuation;
+  vOutColor += pow(RdotV, g_vMaterialParameters.w) *
+      g_vMaterialParameters.z * vColor * attenuation;
 
   return vOutColor;
 }
@@ -229,7 +230,7 @@ float3 PhongLighting(float3 vPos, float3 vNormal)
   }
 
   // Ambient light (white) and done.
-  return vLightColor + k_a;
+  return vLightColor + g_vMaterialParameters.x;
 }
 
 //--------------------------------------------------------------------------------------
