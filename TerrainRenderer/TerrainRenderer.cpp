@@ -242,14 +242,13 @@ void InitApp() {
 
   g_SampleUI.AddStatic(0, L"Technique:", 35, iY += 24, 125, 22);
   g_SampleUI.AddComboBox(IDC_TECHNIQUE, 35, iY += 24, 125, 22);
-  g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Vertex Coloring", "VertexShaderColoring");
-  g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Vertex Col. + Diffuse", "VertexShaderColoringPhong");
-  g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Pixel Coloring", "PixelShaderColoring");
-  g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Normal Coloring", "NormalColoring");
-  g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Special FX", "SpecialFX");
+  //g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Vertex Coloring", "VertexShaderColoring");
+  //g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Vertex Col. + Diffuse", "VertexShaderColoringPhong");
+  //g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Pixel Coloring", "PixelShaderColoring");
+  //g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Normal Coloring", "NormalColoring");
   g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"GouraudShading", "GouraudShading");
   g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"PhongShading", "PhongShading");
-  
+  g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Special FX", "SpecialFX");
 
   g_SampleUI.AddStatic(0, L"SFX Settings:", 35, iY += 24, 125, 22);
   g_SampleUI.AddComboBox(IDC_SFX_OPTS, 35, iY += 24, 125, 22);

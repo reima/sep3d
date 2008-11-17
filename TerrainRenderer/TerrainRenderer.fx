@@ -446,62 +446,45 @@ BlendState SrcColorBlendingAdd
 //--------------------------------------------------------------------------------------
 // Renders scene
 //--------------------------------------------------------------------------------------
-technique10 VertexShaderColoring
-{
-  pass P0
-  {
-    SetVertexShader( CompileShader( vs_4_0, VertexColoring_VS(false) ) );
-    SetGeometryShader( NULL );
-    SetPixelShader( CompileShader( ps_4_0, VertexColoring_PS() ) );
-  }
-}
-
-technique10 VertexShaderColoringPhong
-{
-  pass P0
-  {
-    SetVertexShader( CompileShader( vs_4_0, VertexColoring_VS(true) ) );
-    SetGeometryShader( NULL );
-    SetPixelShader( CompileShader( ps_4_0, VertexColoring_PS() ) );
-  }
-}
-
-technique10 PixelShaderColoring
-{
-  pass P0
-  {
-    SetVertexShader( CompileShader( vs_4_0, PixelColoring_VS() ) );
-    SetGeometryShader( NULL );
-    SetPixelShader( CompileShader( ps_4_0, PixelColoring_PS() ) );
-  }
-}
-
-technique10 NormalColoring
-{
-  pass P0
-  {
-    SetVertexShader( CompileShader( vs_4_0, NormalColoring_VS() ) );
-    SetGeometryShader( NULL );
-    SetPixelShader( CompileShader( ps_4_0, VertexColoring_PS() ) );
-  }
-}
-
-technique10 SpecialFX
-{
-  pass P0
-  {
-    SetVertexShader( CompileShader( vs_4_0, SFX_P0_VS() ) );
-    SetGeometryShader( NULL );
-    SetPixelShader( CompileShader( ps_4_0, SFX_P0_PS() ) );
-  }
-  pass P1
-  {
-    SetVertexShader( CompileShader( vs_4_0, SFX_P1_VS() ) );
-    SetGeometryShader( NULL );
-    SetPixelShader( CompileShader( ps_4_0, SFX_P1_PS() ) );
-    SetBlendState( SrcColorBlendingAdd, float4(1, 1, 1, 1), 0xffffffff );
-  }
-}
+//technique10 VertexShaderColoring
+//{
+//  pass P0
+//  {
+//    SetVertexShader( CompileShader( vs_4_0, VertexColoring_VS(false) ) );
+//    SetGeometryShader( NULL );
+//    SetPixelShader( CompileShader( ps_4_0, VertexColoring_PS() ) );
+//  }
+//}
+//
+//technique10 VertexShaderColoringPhong
+//{
+//  pass P0
+//  {
+//    SetVertexShader( CompileShader( vs_4_0, VertexColoring_VS(true) ) );
+//    SetGeometryShader( NULL );
+//    SetPixelShader( CompileShader( ps_4_0, VertexColoring_PS() ) );
+//  }
+//}
+//
+//technique10 PixelShaderColoring
+//{
+//  pass P0
+//  {
+//    SetVertexShader( CompileShader( vs_4_0, PixelColoring_VS() ) );
+//    SetGeometryShader( NULL );
+//    SetPixelShader( CompileShader( ps_4_0, PixelColoring_PS() ) );
+//  }
+//}
+//
+//technique10 NormalColoring
+//{
+//  pass P0
+//  {
+//    SetVertexShader( CompileShader( vs_4_0, NormalColoring_VS() ) );
+//    SetGeometryShader( NULL );
+//    SetPixelShader( CompileShader( ps_4_0, VertexColoring_PS() ) );
+//  }
+//}
 
 technique10 GouraudShading
 {
@@ -520,5 +503,22 @@ technique10 PhongShading
     SetVertexShader( CompileShader( vs_4_0, PhongShading_VS() ) );
     SetGeometryShader( NULL );
     SetPixelShader( CompileShader( ps_4_0, PhongShading_PS() ) );
+  }
+}
+
+technique10 SpecialFX
+{
+  pass P0
+  {
+    SetVertexShader( CompileShader( vs_4_0, SFX_P0_VS() ) );
+    SetGeometryShader( NULL );
+    SetPixelShader( CompileShader( ps_4_0, SFX_P0_PS() ) );
+  }
+  pass P1
+  {
+    SetVertexShader( CompileShader( vs_4_0, SFX_P1_VS() ) );
+    SetGeometryShader( NULL );
+    SetPixelShader( CompileShader( ps_4_0, SFX_P1_PS() ) );
+    SetBlendState( SrcColorBlendingAdd, float4(1, 1, 1, 1), 0xffffffff );
   }
 }
