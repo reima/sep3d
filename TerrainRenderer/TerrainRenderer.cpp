@@ -50,7 +50,6 @@ ID3D10InputLayout*          g_pVertexLayout = NULL;
 ID3D10EffectMatrixVariable* g_pmWorldViewProj = NULL;
 ID3D10EffectMatrixVariable* g_pmWorld = NULL;
 ID3D10EffectScalarVariable* g_pfTime = NULL;
-ID3D10EffectVectorVariable* g_pvCamPos = NULL;
 ID3D10EffectVectorVariable* g_pvLightPos = NULL;
 ID3D10EffectVectorVariable* g_pvLightColor = NULL;
 ID3D10EffectScalarVariable* g_pfWaveHeight = NULL;
@@ -436,7 +435,6 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
       g_pEffect10->GetVariableByName("g_mWorldViewProjection")->AsMatrix();
   g_pmWorld = g_pEffect10->GetVariableByName("g_mWorld")->AsMatrix();
   g_pfTime = g_pEffect10->GetVariableByName("g_fTime")->AsScalar();
-  g_pvCamPos = g_pEffect10->GetVariableByName("g_vCamPos")->AsVector();
   g_pvLightPos = g_pEffect10->GetVariableByName("g_vLightPos")->AsVector();
   g_pvLightColor = g_pEffect10->GetVariableByName("g_vLightColor")->AsVector();
   g_pfWaveHeight = g_pEffect10->GetVariableByName("g_fWaveHeight")->AsScalar();
@@ -614,9 +612,7 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   g_pmWorldViewProj->SetMatrix((float*)&mWorldViewProjection);
   g_pmWorld->SetMatrix((float*)&mWorld);
   g_pfTime->SetFloat((float)fTime);
-  D3DXVECTOR3 cam_pos(*g_Camera.GetEyePt());
-  g_pvCamPos->SetFloatVector(cam_pos);
-
+  
   // Set vertex Layout
   pd3dDevice->IASetInputLayout(g_pVertexLayout);
 
@@ -727,7 +723,7 @@ void CALLBACK OnFrameMove(double fTime, float fElapsedTime,
                           void* pUserContext) {
   // Update the camera's position based on user input
   g_Camera.FrameMove(fElapsedTime);
-  g_pScene->OnFrameMove(fElapsedTime);
+  g_pScene->OnFrameMove(fElapsedTime, *g_Camera.GetEyePt());
 }
 
 

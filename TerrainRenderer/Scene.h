@@ -17,7 +17,7 @@ class Scene {
                     const D3DXVECTOR3 &color, const D3DXVECTOR3 &rotation,
                     float cutoff_angle, float exponent);
 
-  void OnFrameMove(float fTime);
+  void OnFrameMove(float elapsed_time, const D3DXVECTOR3 &cam_pos);
   void GetShaderHandles(ID3D10Effect* effect);
 
  private:
@@ -26,5 +26,7 @@ class Scene {
   float diffuse_;
   float specular_;
   float exponent_;
+  D3DXVECTOR3 cam_pos_;
   ID3D10EffectVectorVariable *pMaterialParameters;
+  ID3D10EffectVectorVariable *pCameraPosition;
 };

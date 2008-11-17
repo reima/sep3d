@@ -7,7 +7,8 @@ Scene::Scene(float ambient, float diffuse, float specular, float exponent)
     : ambient_(ambient),
       diffuse_(diffuse),
       specular_(specular),
-      exponent_(exponent) {
+      exponent_(exponent),
+      cam_pos_(D3DXVECTOR3(0, 0, 0)) {
 }
 
 Scene::~Scene(void) {
@@ -38,10 +39,12 @@ void Scene::AddSpotLight(const D3DXVECTOR3 &position,
                                          cutoff_angle, exponent));
 }
 
-void Scene::OnFrameMove(float fTime) {
+void Scene::OnFrameMove(float elapsed_time, const D3DXVECTOR3 &cam_pos) {
+  cam_pos_ = cam_pos;
+  pCameraPosition->SetFloatVector(cam_pos_);
   std::vector<LightSource *>::iterator it;
   for (it = light_sources_.begin(); it != light_sources_.end(); ++it) {
-    (*it)->OnFrameMove(fTime);
+    (*it)->OnFrameMove(elapsed_time);
   }
 }
 
@@ -53,4 +56,6 @@ void Scene::GetShaderHandles(ID3D10Effect* effect) {
       effect->GetVariableByName("g_vMaterialParameters")->AsVector();
   float material_parameters[] = { ambient_, diffuse_, specular_, exponent_ };
   pMaterialParameters->SetFloatVector(material_parameters);
+  pCameraPosition =
+      effect->GetVariableByName("g_vCamPos")->AsVector();
 }
