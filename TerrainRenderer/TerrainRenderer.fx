@@ -186,6 +186,42 @@ float3 Phong(float3 vPos, float3 vLightDir, float3 vNormal, float3 vColor,
   return vOutColor;
 }
 
+float3 PhongLighting(float3 vPos, float3 vNormal) {
+  float3 vLightColor = float3(0, 0, 0);
+  // Point lights
+  uint i;
+  for (i = 0; i < g_nPointLights; i++) {
+    float d = length(vPos - g_vPointLight_Position[i]);
+    float attenuation = 1 / (PointLightA + PointLightB*d + PointLightC*d*d);
+    vLightColor += Phong(vPos, g_vPointLight_Position[i] - vPos,
+                         vNormal, g_vPointLight_Color[i], attenuation);
+  }
+
+  // Directional lights
+  for (i = 0; i < g_nDirectionalLights; i++) {
+    vLightColor += Phong(vPos, g_vDirectionalLight_Direction[i], vNormal,
+                         g_vDirectionalLight_Color[i], 1);
+  }
+
+  // Spot lights
+  for (i = 0; i < g_nSpotLights; i++) {
+    float d = length(vPos - g_vSpotLight_Position[i]);
+    float3 I = (g_vSpotLight_Position[i] - vPos) / d;
+    float IdotL = dot(-I, g_vSpotLight_Direction[i]);
+    float theta = g_fSpotLight_AngleExp[i].x;
+    float angle = acos(IdotL);
+    if (angle < theta) {
+      float attenuation = 1 / (PointLightA + PointLightB*d + PointLightC*d*d);
+      attenuation *= 1 - pow(angle/theta, g_fSpotLight_AngleExp[i].y);
+      vLightColor += Phong(vPos, g_vSpotLight_Position[i] - vPos,
+                           vNormal, g_vSpotLight_Color[i], attenuation);
+    }
+  }
+
+  // Ambient light (white) and done.
+  return vLightColor + k_a;
+}
+
 //--------------------------------------------------------------------------------------
 // Vertex Shaders
 //--------------------------------------------------------------------------------------
@@ -288,40 +324,7 @@ VS_GOURAUD_SHADING_OUTPUT GouraudShading_VS( VS_INPUT In )
   Output.Height = vPos.y;
   // Transform the position from object space to homogeneous projection space
   Output.Position = mul(vPos, g_mWorldViewProjection);
-
-  float3 vLightColor = float3(0, 0, 0); 
-  // Point lights
-  uint i;
-  for (i = 0; i < g_nPointLights; i++) {
-    float d = length(vPos - g_vPointLight_Position[i]);
-    float attenuation = 1 / (PointLightA + PointLightB*d + PointLightC*d*d);
-    vLightColor += Phong(In.Position, g_vPointLight_Position[i] - vPos,
-                         In.Normal, g_vPointLight_Color[i], attenuation);
-  }
-
-  // Directional lights
-  for (i = 0; i < g_nDirectionalLights; i++) {
-    vLightColor += Phong(In.Position, g_vDirectionalLight_Direction[i], In.Normal,
-                         g_vDirectionalLight_Color[i], 1);
-  }
-
-  // Spot lights
-  for (i = 0; i < g_nSpotLights; i++) {
-    float d = length(vPos - g_vSpotLight_Position[i]);
-    float3 I = (g_vSpotLight_Position[i] - vPos) / d;
-    float IdotL = dot(-I, g_vSpotLight_Direction[i]);
-    float theta = g_fSpotLight_AngleExp[i].x;
-    float angle = acos(IdotL);
-    if (angle < theta) {
-      float attenuation = 1 / (PointLightA + PointLightB*d + PointLightC*d*d);
-      attenuation *= 1 - pow(angle/theta, g_fSpotLight_AngleExp[i].y);
-      vLightColor += Phong(In.Position, g_vSpotLight_Position[i] - vPos,
-                           In.Normal, g_vSpotLight_Color[i], attenuation);
-    }
-  }
-
-  // Ambient light
-  Output.LightColor = vLightColor + k_a;
+  Output.LightColor = PhongLighting(In.Position, normalize(In.Normal));
 
   return Output;
 }
@@ -403,7 +406,7 @@ technique10 GouraudShading
   }
 }
 
-technique10 GouraudShading
+technique10 PhongShading
 {
   pass P0
   {
