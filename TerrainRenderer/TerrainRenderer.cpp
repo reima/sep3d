@@ -507,7 +507,7 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   g_pScene->GetShaderHandles(g_pEffect10);
 
   // Lichter hinzufügen
-  g_pScene->AddPointLight(D3DXVECTOR3(-2.5f, 1.0f, 2.5f),
+  /*g_pScene->AddPointLight(D3DXVECTOR3(-2.5f, 1.0f, 2.5f),
                           D3DXVECTOR3(1, 0, 1),
                           D3DXVECTOR3(1, 0, 0));
   g_pScene->AddPointLight(D3DXVECTOR3(2.5f, 1.0f, -2.5f),
@@ -515,7 +515,7 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
                           D3DXVECTOR3(1, 0, 0));
   g_pScene->AddDirectionalLight(D3DXVECTOR3(1.0f, 0.0f, 0.0f),
                                 D3DXVECTOR3(1, 1, 0),
-                                D3DXVECTOR3(1, 0, 0));
+                                D3DXVECTOR3(1, 0, 0));*/
   g_pScene->AddSpotLight(D3DXVECTOR3(2.5f, 3.0f, 0.0f),
                          D3DXVECTOR3(0, -1, 0),
                          D3DXVECTOR3(1, 1, 0),

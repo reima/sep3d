@@ -144,7 +144,8 @@ struct VS_GOURAUD_SHADING_OUTPUT
 {
   float4 Position       : SV_Position;
   float  Height         : HEIGHT;
-  float3 LightColor     : LIGHTCOLOR;
+  float3 DiffuseLight   : DIFFUSELIGHT;
+  float3 SpecularLight  : SPECULARLIGHT;
 };
 
 struct VS_PHONG_SHADING_OUTPUT
@@ -153,6 +154,12 @@ struct VS_PHONG_SHADING_OUTPUT
   float3 WorldPosition  : POSITION;
   float  Height         : HEIGHT;
   float3 Normal         : NORMAL0;
+};
+
+struct PHONG
+{
+  float3 DiffuseLight : DIFFUSE;
+  float3 SpecularLight : SPECULAR;
 };
 
 //--------------------------------------------------------------------------------------
@@ -177,41 +184,43 @@ float4 GetColorFromHeight(float height)
   return color;
 }
 
-float3 Phong(float3 vPos, float3 vLightDir, float3 vNormal, float3 vColor,
-             float attenuation)
+float2 Phong(float3 vPos, float3 vLightDir, float3 vNormal)
 {
   // Diffuse
   float3 L = normalize(vLightDir);
   float3 N = normalize(vNormal);
   float NdotL = saturate(dot(N, L));
-  float3 vOutColor = NdotL * g_vMaterialParameters.y * vColor * attenuation;
+  float fDiffuse = NdotL * g_vMaterialParameters.y;
 
   // Specular
   float3 R = normalize(reflect(-L, N));
   float3 V = normalize(g_vCamPos - vPos);
   float RdotV = saturate(dot(R, V));
-  vOutColor += pow(RdotV, g_vMaterialParameters.w) *
-      g_vMaterialParameters.z * vColor * attenuation;
+  float fSpecular = pow(RdotV, g_vMaterialParameters.w) *
+      g_vMaterialParameters.z;
 
-  return vOutColor;
+  return float2(fDiffuse, fSpecular);
 }
 
-float3 PhongLighting(float3 vPos, float3 vNormal)
+PHONG PhongLighting(float3 vPos, float3 vNormal)
 {
-  float3 vLightColor = float3(0, 0, 0);
+  float3 vDiffuseLight = float3(0, 0, 0);
+  float3 vSpecularLight = float3(0, 0, 0);
   // Point lights
   uint i;
   for (i = 0; i < g_nPointLights; i++) {
     float d = length(vPos - g_vPointLight_Position[i]);
-    float attenuation = 1 / (PointLightA + PointLightB*d + PointLightC*d*d);
-    vLightColor += Phong(vPos, g_vPointLight_Position[i] - vPos,
-                         vNormal, g_vPointLight_Color[i], attenuation);
+    float fAttenuation = 1 / (PointLightA + PointLightB*d + PointLightC*d*d);
+    float2 vPhong = Phong(vPos, g_vPointLight_Position[i] - vPos, vNormal);
+    vDiffuseLight += vPhong.x * g_vPointLight_Color[i] * fAttenuation;
+    vSpecularLight += vPhong.y * g_vPointLight_Color[i] * fAttenuation;
   }
 
   // Directional lights
   for (i = 0; i < g_nDirectionalLights; i++) {
-    vLightColor += Phong(vPos, g_vDirectionalLight_Direction[i], vNormal,
-                         g_vDirectionalLight_Color[i], 1);
+    float2 vPhong = Phong(vPos, g_vDirectionalLight_Direction[i], vNormal);
+    vDiffuseLight += vPhong.x * g_vDirectionalLight_Color[i];
+    vSpecularLight += vPhong.y * g_vDirectionalLight_Color[i];
   }
 
   // Spot lights
@@ -222,15 +231,18 @@ float3 PhongLighting(float3 vPos, float3 vNormal)
     float theta = g_fSpotLight_AngleExp[i].x;
     float angle = acos(IdotL);
     if (angle < theta) {
-      float attenuation = 1 / (PointLightA + PointLightB*d + PointLightC*d*d);
-      attenuation *= 1 - pow(angle/theta, g_fSpotLight_AngleExp[i].y);
-      vLightColor += Phong(vPos, g_vSpotLight_Position[i] - vPos,
-                           vNormal, g_vSpotLight_Color[i], attenuation);
+      float fAttenuation = 1 / (PointLightA + PointLightB*d + PointLightC*d*d);
+      fAttenuation *= 1 - pow(angle/theta, g_fSpotLight_AngleExp[i].y);
+      float2 vPhong = Phong(vPos, g_vSpotLight_Position[i] - vPos, vNormal);
+      vDiffuseLight += vPhong.x * g_vSpotLight_Color[i] * fAttenuation;
+      vSpecularLight += vPhong.y * g_vSpotLight_Color[i] * fAttenuation; 
     }
   }
 
-  // Ambient light (white) and done.
-  return vLightColor + g_vMaterialParameters.x;
+  PHONG ret;
+  ret.DiffuseLight = vDiffuseLight;
+  ret.SpecularLight = vSpecularLight;
+  return ret;
 }
 
 //--------------------------------------------------------------------------------------
@@ -335,7 +347,9 @@ VS_GOURAUD_SHADING_OUTPUT GouraudShading_VS( VS_INPUT In )
   Output.Height = vPos.y;
   // Transform the position from object space to homogeneous projection space
   Output.Position = mul(vPos, g_mWorldViewProjection);
-  Output.LightColor = PhongLighting(In.Position, normalize(In.Normal));
+  PHONG phong = PhongLighting(In.Position, normalize(In.Normal));
+  Output.DiffuseLight = phong.DiffuseLight;
+  Output.SpecularLight = phong.SpecularLight;
 
   return Output;
 }
@@ -405,13 +419,19 @@ float4 SFX_P1_PS( VS_SFX_P1_OUTPUT In ) : SV_Target
 
 float4 GouraudShading_PS( VS_GOURAUD_SHADING_OUTPUT In ) : SV_Target
 {
-  return GetColorFromHeight(In.Height) * float4(In.LightColor, 1);
+  float4 vTerrainColor = GetColorFromHeight(In.Height);
+  return vTerrainColor * g_vMaterialParameters.x +
+    vTerrainColor * float4(In.DiffuseLight, 1) +
+    float4(In.SpecularLight, 1);
 }
 
 float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In ) : SV_Target
 {
-  return GetColorFromHeight(In.Height) *
-      float4(PhongLighting(In.WorldPosition, normalize(In.Normal)), 1);
+  PHONG phong = PhongLighting(In.WorldPosition, normalize(In.Normal));
+  float4 vTerrainColor = GetColorFromHeight(In.Height);
+  return vTerrainColor * g_vMaterialParameters.x +
+    vTerrainColor * float4(phong.DiffuseLight, 1) +
+    float4(phong.SpecularLight, 1);
 }
 
 
