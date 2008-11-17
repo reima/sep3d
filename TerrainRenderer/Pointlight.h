@@ -3,6 +3,11 @@
 
 class PointLight : public LightSource {
  public:
+  /**
+   * Konstruktor.
+   * Erzeugt eine neue Punkt-Lichtquelle an einer bestimmten Startposition,
+   * mit bestimmter Farbe und Rotationsgeschwindigkeit.
+   */
   PointLight(const D3DXVECTOR3 &position, const D3DXVECTOR3 &color,
              const D3DXVECTOR3 &rotation);
   static void GetHandles(ID3D10Effect *effect);

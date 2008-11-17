@@ -8,7 +8,9 @@ Scene::Scene(float ambient, float diffuse, float specular, float exponent)
       diffuse_(diffuse),
       specular_(specular),
       exponent_(exponent),
-      cam_pos_(D3DXVECTOR3(0, 0, 0)) {
+      cam_pos_(D3DXVECTOR3(0, 0, 0)),
+      pMaterialParameters(NULL),
+      pCameraPosition(NULL) {
 }
 
 Scene::~Scene(void) {
@@ -40,6 +42,7 @@ void Scene::AddSpotLight(const D3DXVECTOR3 &position,
 }
 
 void Scene::OnFrameMove(float elapsed_time, const D3DXVECTOR3 &cam_pos) {
+  assert(pCameraPosition != NULL);
   cam_pos_ = cam_pos;
   pCameraPosition->SetFloatVector(cam_pos_);
   std::vector<LightSource *>::iterator it;
@@ -49,6 +52,7 @@ void Scene::OnFrameMove(float elapsed_time, const D3DXVECTOR3 &cam_pos) {
 }
 
 void Scene::GetShaderHandles(ID3D10Effect* effect) {
+  assert(effect != NULL);
   PointLight::GetHandles(effect);
   DirectionalLight::GetHandles(effect);
   SpotLight::GetHandles(effect);

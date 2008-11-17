@@ -3,6 +3,12 @@
 
 class SpotLight : public LightSource {
  public:
+  /**
+   * Konstruktor.
+   * Erzeugt eine neue Scheinwerfer-Lichtquelle an einer bestimmten Start-
+   * position, mit bestimmter Richtung, Farbe und Rotationsgeschwindigkeit,
+   * Öffnungswinkel und Abfall-Exponenten.
+   */
   SpotLight(const D3DXVECTOR3 &position, const D3DXVECTOR3 &direction,
             const D3DXVECTOR3 &color, const D3DXVECTOR3 &rotation,
             float cutoff_angle, float exponent);

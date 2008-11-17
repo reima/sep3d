@@ -17,6 +17,7 @@ DirectionalLight::DirectionalLight(const D3DXVECTOR3 &direction,
 }
 
 void DirectionalLight::GetHandles(ID3D10Effect *effect) {
+  assert(effect != NULL);
   DirectionalLight::pDir =
       effect->GetVariableByName("g_vDirectionalLight_Direction")->AsVector();
   DirectionalLight::pColor =
@@ -26,6 +27,7 @@ void DirectionalLight::GetHandles(ID3D10Effect *effect) {
 }
 
 void DirectionalLight::OnFrameMove(float elapsed_time) {
+  assert(DirectionalLight::pDir != NULL);
   D3DXMATRIX rotation_matrix;
   D3DXMatrixRotationYawPitchRoll(&rotation_matrix,
     elapsed_time * rotation_.x,

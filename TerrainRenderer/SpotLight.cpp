@@ -38,6 +38,7 @@ void SpotLight::GetHandles(ID3D10Effect *effect) {
 }
 
 void SpotLight::OnFrameMove(float elapsed_time) {
+  assert(SpotLight::pPos != NULL);
   D3DXMATRIX rotation_matrix;
   D3DXMatrixRotationYawPitchRoll(&rotation_matrix,
     elapsed_time * rotation_.x,

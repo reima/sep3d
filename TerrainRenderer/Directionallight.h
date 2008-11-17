@@ -3,6 +3,11 @@
 
 class DirectionalLight : public LightSource {
  public:
+  /**
+   * Konstruktor.
+   * Erzeugt eine neue gerichtet Lichtquelle mit bestimmter Startrichtung,
+   * Farbe und Rotationsgeschwindigkeit.
+   */
   DirectionalLight(const D3DXVECTOR3 &direction, const D3DXVECTOR3 &color,
                    const D3DXVECTOR3 &rotation);
   static void GetHandles(ID3D10Effect *effect);
