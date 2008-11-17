@@ -510,13 +510,35 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   g_Scene.GetShaderHandles(g_pEffect10);
 
   // lights
-  //g_Scene.AddPointLight(D3DXVECTOR3(-2.5f,1.0f,2.5f), D3DXVECTOR3(1, 0, 1));
-  //g_Scene.AddPointLight(D3DXVECTOR3(2.5f,1.0f,-2.5f), D3DXVECTOR3(0, 1, 1));
-  //g_Scene.AddDirectionalLight(D3DXVECTOR3(1.0f, 0.0f, 0.0f), D3DXVECTOR3(1, 1, 0));
-  g_Scene.AddSpotLight(D3DXVECTOR3(2.5f,3.0f,0.0f), D3DXVECTOR3(0, -1, 0), D3DXVECTOR3(1, 1, 0), .5f, 5);
-  g_Scene.AddSpotLight(D3DXVECTOR3(-2.5f,3.0f,0.0f), D3DXVECTOR3(0, -1, 0), D3DXVECTOR3(0, 1, 1), .5f, 5);
-  g_Scene.AddSpotLight(D3DXVECTOR3(0.0f,3.0f,2.5f), D3DXVECTOR3(0, -1, 0), D3DXVECTOR3(1, 0, 1), .5f, 5);
-  g_Scene.AddSpotLight(D3DXVECTOR3(0.0f,3.0f,-2.5f), D3DXVECTOR3(0, -1, 0), D3DXVECTOR3(1, 1, 1), .5f, 5);
+  g_Scene.AddPointLight(D3DXVECTOR3(-2.5f, 1.0f, 2.5f),
+                        D3DXVECTOR3(1, 0, 1),
+                        D3DXVECTOR3(1, 0, 0));
+  g_Scene.AddPointLight(D3DXVECTOR3(2.5f, 1.0f, -2.5f),
+                        D3DXVECTOR3(0, 1, 1),
+                        D3DXVECTOR3(1, 0, 0));
+  g_Scene.AddDirectionalLight(D3DXVECTOR3(1.0f, 0.0f, 0.0f),
+                              D3DXVECTOR3(1, 1, 0),
+                              D3DXVECTOR3(1, 0, 0));
+  g_Scene.AddSpotLight(D3DXVECTOR3(2.5f, 3.0f, 0.0f),
+                       D3DXVECTOR3(0, -1, 0),
+                       D3DXVECTOR3(1, 1, 0),
+                       D3DXVECTOR3(1, 0, 0),
+                       .5f, 5);
+  g_Scene.AddSpotLight(D3DXVECTOR3(-2.5f, 3.0f, 0.0f),
+                       D3DXVECTOR3(0, -1, 0),
+                       D3DXVECTOR3(0, 1, 1),
+                       D3DXVECTOR3(1, 0, 0),
+                       .5f, 5);
+  g_Scene.AddSpotLight(D3DXVECTOR3(0.0f, 3.0f, 2.5f),
+                       D3DXVECTOR3(0, -1, 0),
+                       D3DXVECTOR3(1, 0, 1),
+                       D3DXVECTOR3(1, 0, 0),
+                       .5f, 5);
+  g_Scene.AddSpotLight(D3DXVECTOR3(0.0f, 3.0f, -2.5f),
+                       D3DXVECTOR3(0, -1, 0),
+                       D3DXVECTOR3(1, 1, 1),
+                       D3DXVECTOR3(1, 0, 0),
+                       .5f, 5);
   return S_OK;
 }
 

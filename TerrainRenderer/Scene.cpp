@@ -3,17 +3,35 @@
 #include "DirectionalLight.h"
 #include "SpotLight.h"
 
-void Scene::AddPointLight(D3DXVECTOR3 &position, D3DXVECTOR3 &color) {
-  light_sources_.push_back(new PointLight(position, color));
+Scene::Scene(void) {
 }
 
-void Scene::AddDirectionalLight(D3DXVECTOR3 &direction, D3DXVECTOR3 &color) {
-  light_sources_.push_back(new DirectionalLight(direction, color));
+Scene::~Scene(void) {
+  std::vector<LightSource *>::iterator it;
+  for (it = light_sources_.begin(); it != light_sources_.end(); ++it) {
+    delete (*it);
+  }
 }
 
-void Scene::AddSpotLight(D3DXVECTOR3 &position, D3DXVECTOR3 &direction,
-                         D3DXVECTOR3 &color, float cutoff_angle, float exponent) {
-  light_sources_.push_back(new SpotLight(position, direction, color, cutoff_angle, exponent));
+void Scene::AddPointLight(const D3DXVECTOR3 &position,
+                          const D3DXVECTOR3 &color,
+                          const D3DXVECTOR3 &rotation) {
+  light_sources_.push_back(new PointLight(position, color, rotation));
+}
+
+void Scene::AddDirectionalLight(const D3DXVECTOR3 &direction,
+                                const D3DXVECTOR3 &color,
+                                const D3DXVECTOR3 &rotation) {
+  light_sources_.push_back(new DirectionalLight(direction, color, rotation));
+}
+
+void Scene::AddSpotLight(const D3DXVECTOR3 &position,
+                         const D3DXVECTOR3 &direction,
+                         const D3DXVECTOR3 &color,
+                         const D3DXVECTOR3 &rotation,
+                         float cutoff_angle, float exponent) {
+  light_sources_.push_back(new SpotLight(position, direction, color, rotation,
+                                         cutoff_angle, exponent));
 }
 
 void Scene::OnFrameMove(float fTime) {
@@ -27,14 +45,4 @@ void Scene::GetShaderHandles(ID3D10Effect* pFx) {
   PointLight::GetHandles(pFx);
   DirectionalLight::GetHandles(pFx);
   SpotLight::GetHandles(pFx);
-}
-
-Scene::Scene(void) {
-}
-
-Scene::~Scene(void) {
-  std::vector<LightSource *>::iterator it;
-  for (it = light_sources_.begin(); it != light_sources_.end(); ++it) {
-    delete (*it);
-  }
 }
