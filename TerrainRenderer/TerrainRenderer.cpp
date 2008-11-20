@@ -20,6 +20,7 @@
 #include "LODSelector.h"
 #include "FixedLODSelector.h"
 #include "Scene.h"
+#include "Environment.h"
 
 
 //#define DEBUG_VS   // Uncomment this line to debug D3D9 vertex shaders
@@ -65,10 +66,13 @@ ID3D10EffectScalarVariable* g_pbDynamicMinMax = NULL;
 ID3D10EffectScalarVariable* g_pbDirectionalLight = NULL;
 ID3D10EffectShaderResourceVariable* g_ptWaves = NULL;
 ID3D10ShaderResourceView*   g_pWavesRV = NULL;
+ID3D10EffectShaderResourceVariable* g_ptCubeMap = NULL;
+ID3D10ShaderResourceView*   g_pCubeMapRV = NULL;
 
 Tile*                       g_pTile = NULL;
 LODSelector*                g_pLODSelector = NULL;
 Scene*                      g_pScene;
+Environment*                g_pEnvironment;
 
 bool                        g_bShowSettings = false;
 bool                        g_bWireframe = false;
@@ -426,8 +430,12 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   g_pTechnique = g_pEffect10->GetTechniqueByIndex(0);
 
   // Load wave normal map
-  V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"waves.dds",
-      NULL, NULL, &g_pWavesRV, NULL));
+  V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice,
+      L"Textures/waves.dds", NULL, NULL, &g_pWavesRV, NULL));
+
+  // Load cube map
+  V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice,
+      L"Textures/SouthernSea.dds", NULL, NULL, &g_pCubeMapRV, NULL));
 
   // Get effects variables
   g_pmWorldViewProj =
@@ -446,6 +454,9 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
       g_pEffect10->GetVariableByName("g_fFresnelBias")->AsScalar();
   g_ptWaves = g_pEffect10->GetVariableByName("g_tWaves")->AsShaderResource();
   V_RETURN(g_ptWaves->SetResource(g_pWavesRV));
+  g_ptCubeMap =
+      g_pEffect10->GetVariableByName("g_tCubeMap")->AsShaderResource();
+  V_RETURN(g_ptCubeMap->SetResource(g_pCubeMapRV));
   g_pfMinHeight = g_pEffect10->GetVariableByName("g_fMinHeight")->AsScalar();
   g_pfMaxHeight = g_pEffect10->GetVariableByName("g_fMaxHeight")->AsScalar();
   g_pbDynamicMinMax =
@@ -506,35 +517,40 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   g_pScene->GetShaderHandles(g_pEffect10);
 
   // Lichter hinzufügen
-  /*g_pScene->AddPointLight(D3DXVECTOR3(-2.5f, 1.0f, 2.5f),
-                          D3DXVECTOR3(1, 0, 1),
-                          D3DXVECTOR3(1, 0, 0));
-  g_pScene->AddPointLight(D3DXVECTOR3(2.5f, 1.0f, -2.5f),
-                          D3DXVECTOR3(0, 1, 1),
+  g_pScene->AddPointLight(D3DXVECTOR3(-2.5f, 0.0f, 0.0f),
+                          D3DXVECTOR3(1, 0, 0),
+                          D3DXVECTOR3(0, 0, 1));
+  g_pScene->AddPointLight(D3DXVECTOR3(0.0f, 0.0f, -2.5f),
+                          D3DXVECTOR3(0, 1, 0),
                           D3DXVECTOR3(1, 0, 0));
   g_pScene->AddDirectionalLight(D3DXVECTOR3(1.0f, 0.0f, 0.0f),
-                                D3DXVECTOR3(1, 1, 0),
-                                D3DXVECTOR3(1, 0, 0));*/
+                                D3DXVECTOR3(1, 1, 1),
+                                D3DXVECTOR3(0, 1, 0));
   g_pScene->AddSpotLight(D3DXVECTOR3(2.5f, 3.0f, 0.0f),
                          D3DXVECTOR3(0, -1, 0),
                          D3DXVECTOR3(1, 1, 0),
-                         D3DXVECTOR3(1, 0, 0),
+                         D3DXVECTOR3(0, 1, 0),
                          .5f, 5);
   g_pScene->AddSpotLight(D3DXVECTOR3(-2.5f, 3.0f, 0.0f),
                          D3DXVECTOR3(0, -1, 0),
                          D3DXVECTOR3(0, 1, 1),
-                         D3DXVECTOR3(1, 0, 0),
+                         D3DXVECTOR3(0, 1, 0),
                          .5f, 5);
   g_pScene->AddSpotLight(D3DXVECTOR3(0.0f, 3.0f, 2.5f),
                          D3DXVECTOR3(0, -1, 0),
                          D3DXVECTOR3(1, 0, 1),
-                         D3DXVECTOR3(1, 0, 0),
+                         D3DXVECTOR3(0, 1, 0),
                          .5f, 5);
   g_pScene->AddSpotLight(D3DXVECTOR3(0.0f, 3.0f, -2.5f),
                          D3DXVECTOR3(0, -1, 0),
                          D3DXVECTOR3(1, 1, 1),
-                         D3DXVECTOR3(1, 0, 0),
+                         D3DXVECTOR3(0, 1, 0),
                          .5f, 5);
+
+  // Environment erstellen
+  g_pEnvironment = new Environment(pd3dDevice);
+  g_pEnvironment->GetShaderHandles(g_pEffect10);
+
   return S_OK;
 }
 
@@ -572,6 +588,11 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain(ID3D10Device* pd3dDevice,
   g_SfxUI[1].SetSize(170, 300);
   g_SfxUI[2].SetLocation(pBackBufferSurfaceDesc->Width - 170, 300);
   g_SfxUI[2].SetSize(170, 300);
+
+  if (g_pEnvironment) {
+    g_pEnvironment->SetBackBufferSize(pBackBufferSurfaceDesc->Width,
+                                      pBackBufferSurfaceDesc->Height);
+  }
 
   return S_OK;
 }
@@ -612,6 +633,10 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   g_pmWorld->SetMatrix((float*)&mWorld);
   g_pfTime->SetFloat((float)fTime);
   
+  //
+  // Render the terrain.
+  //
+
   // Set vertex Layout
   pd3dDevice->IASetInputLayout(g_pVertexLayout);
 
@@ -623,6 +648,12 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
     g_pTechnique->GetPassByIndex(p)->Apply(0);
     g_pTile->Draw(pd3dDevice, g_pLODSelector, g_Camera.GetEyePt());
   }
+
+  //
+  // Render the environment
+  //
+  g_pEnvironment->OnFrameMove(&mView, D3DX_PI / 4);
+  g_pEnvironment->Draw(pd3dDevice);
 
   if (g_bWireframe) pd3dDevice->RSSetState(NULL);
 
@@ -658,10 +689,12 @@ void CALLBACK OnD3D10DestroyDevice(void* pUserContext) {
   SAFE_RELEASE(g_pSprite10);
   SAFE_RELEASE(g_pRSWireframe);
   SAFE_RELEASE(g_pWavesRV);
+  SAFE_RELEASE(g_pCubeMapRV);
   SAFE_DELETE(g_pTxtHelper);
   SAFE_DELETE(g_pTile);
   SAFE_DELETE(g_pLODSelector);
   SAFE_DELETE(g_pScene);
+  SAFE_DELETE(g_pEnvironment);
 }
 
 
@@ -670,35 +703,6 @@ void CALLBACK OnD3D10DestroyDevice(void* pUserContext) {
 //--------------------------------------------------------------------------------------
 bool CALLBACK ModifyDeviceSettings(DXUTDeviceSettings* pDeviceSettings,
                                    void* pUserContext) {
-  if(pDeviceSettings->ver == DXUT_D3D9_DEVICE) {
-    IDirect3D9* pD3D = DXUTGetD3D9Object();
-    D3DCAPS9 Caps;
-    pD3D->GetDeviceCaps(pDeviceSettings->d3d9.AdapterOrdinal,
-                        pDeviceSettings->d3d9.DeviceType, &Caps);
-
-    // If device doesn't support HW T&L or doesn't support 1.1 vertex shaders in HW
-    // then switch to SWVP.
-    if ((Caps.DevCaps & D3DDEVCAPS_HWTRANSFORMANDLIGHT) == 0 ||
-        Caps.VertexShaderVersion < D3DVS_VERSION(1, 1)) {
-      pDeviceSettings->d3d9.BehaviorFlags = D3DCREATE_SOFTWARE_VERTEXPROCESSING;
-    }
-
-    // Debugging vertex shaders requires either REF or software vertex processing
-    // and debugging pixel shaders requires REF.
-#ifdef DEBUG_VS
-    if (pDeviceSettings->d3d9.DeviceType != D3DDEVTYPE_REF) {
-      pDeviceSettings->d3d9.BehaviorFlags &=
-          ~D3DCREATE_HARDWARE_VERTEXPROCESSING;
-      pDeviceSettings->d3d9.BehaviorFlags &= ~D3DCREATE_PUREDEVICE;
-      pDeviceSettings->d3d9.BehaviorFlags |=
-          D3DCREATE_SOFTWARE_VERTEXPROCESSING;
-    }
-#endif
-#ifdef DEBUG_PS
-    pDeviceSettings->d3d9.DeviceType = D3DDEVTYPE_REF;
-#endif
-  }
-
   // For the first device created if its a REF device, optionally display a warning dialog box
   static bool s_bFirstTime = true;
   if (s_bFirstTime) {

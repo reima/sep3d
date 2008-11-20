@@ -44,6 +44,7 @@ cbuffer cbStaticLightParams
   float3 g_vDirectionalLight_Color[8];
   float3 g_vSpotLight_Color[8];
   float2 g_fSpotLight_AngleExp[8];
+  float4 g_vMaterialParameters; // = { k_a, k_d, k_s, n }
 }
 
 cbuffer cbLightsOnFrameMove
@@ -54,13 +55,21 @@ cbuffer cbLightsOnFrameMove
   float3 g_vSpotLight_Direction[8]; // Guaranteed to be normalized
 }
 
-cbuffer cbMaterialParameters
+cbuffer cbEnvironmentOnFrame
 {
-  float4 g_vMaterialParameters; // = { k_a, k_d, k_s, n }
+  float4x4 g_mWorldViewInv;
+  float g_fCameraFOV;
+}
+
+cbuffer cbEnvironmentSeldom
+{
+  uint2 g_vBackBufferSize;
 }
 
 Texture2D g_tWaves;
-SamplerState g_ssWaves
+TextureCube g_tCubeMap;
+
+SamplerState g_ssLinear
 {
 	Filter = MIN_MAG_MIP_LINEAR;
 };
@@ -89,11 +98,7 @@ const float4 g_Colors[NUM_SPOTS] = {
   float4(1, 1, 1, 1)
 };
 
-
-const float PointLightA = 1;
-const float PointLightB = 0;
-const float PointLightC = 0;
-
+const float3 vAttenuation = { 1, 0.5, 0.25 }; // Constant, linear, quadratic
 
 //--------------------------------------------------------------------------------------
 // Vertex shader input structures
@@ -210,7 +215,7 @@ PHONG PhongLighting(float3 vPos, float3 vNormal)
   uint i;
   for (i = 0; i < g_nPointLights; i++) {
     float d = length(vPos - g_vPointLight_Position[i]);
-    float fAttenuation = 1 / (PointLightA + PointLightB*d + PointLightC*d*d);
+    float fAttenuation = 1 / dot(vAttenuation, float3(1, d, d*d));
     float2 vPhong = Phong(vPos, g_vPointLight_Position[i] - vPos, vNormal);
     vDiffuseLight += vPhong.x * g_vPointLight_Color[i] * fAttenuation;
     vSpecularLight += vPhong.y * g_vPointLight_Color[i] * fAttenuation;
@@ -231,7 +236,7 @@ PHONG PhongLighting(float3 vPos, float3 vNormal)
     float theta = g_fSpotLight_AngleExp[i].x;
     float angle = acos(IdotL);
     if (angle < theta) {
-      float fAttenuation = 1 / (PointLightA + PointLightB*d + PointLightC*d*d);
+      float fAttenuation = 1 / dot(vAttenuation, float3(1, d, d*d));
       fAttenuation *= 1 - pow(angle/theta, g_fSpotLight_AngleExp[i].y);
       float2 vPhong = Phong(vPos, g_vSpotLight_Position[i] - vPos, vNormal);
       vDiffuseLight += vPhong.x * g_vSpotLight_Color[i] * fAttenuation;
@@ -367,6 +372,11 @@ VS_PHONG_SHADING_OUTPUT PhongShading_VS( VS_INPUT In )
   return Output;
 }
 
+float4 Environment_VS( VS_INPUT In ) : SV_Position
+{
+  return float4(In.Position, 1);
+}
+
 //--------------------------------------------------------------------------------------
 // Pixel Shaders
 //--------------------------------------------------------------------------------------
@@ -392,10 +402,10 @@ float4 SFX_P0_PS( VS_SFX_P0_OUTPUT In ) : SV_Target
 float4 SFX_P1_PS( VS_SFX_P1_OUTPUT In ) : SV_Target
 {
   // Waves bump map lookups
-  float3 vWave0 = g_tWaves.Sample(g_ssWaves, In.Wave0);
-  float3 vWave1 = g_tWaves.Sample(g_ssWaves, In.Wave1);
-  float3 vWave2 = g_tWaves.Sample(g_ssWaves, In.Wave2);
-  float3 vWave3 = g_tWaves.Sample(g_ssWaves, In.Wave3);
+  float3 vWave0 = g_tWaves.Sample(g_ssLinear, In.Wave0);
+  float3 vWave1 = g_tWaves.Sample(g_ssLinear, In.Wave1);
+  float3 vWave2 = g_tWaves.Sample(g_ssLinear, In.Wave2);
+  float3 vWave3 = g_tWaves.Sample(g_ssLinear, In.Wave3);
   // Combine waves to get normal pertubation vector
   float3 vNormalPertubation = normalize(vWave0 + vWave1 +
                                         vWave2 + vWave3 - 2);
@@ -432,6 +442,22 @@ float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In ) : SV_Target
   return vTerrainColor * g_vMaterialParameters.x +
     vTerrainColor * float4(phong.DiffuseLight, 1) +
     float4(phong.SpecularLight, 1);
+}
+
+float4 Environment_PS( float4 vPos : SV_Position ) : SV_Target
+{
+  // Transform vPos.xy in NDC
+  vPos.xy /= float2(g_vBackBufferSize.x - 1, g_vBackBufferSize.y - 1);
+  vPos.x = 2*vPos.x-1;
+  vPos.y = 1-2*vPos.y;
+  float fRatio = g_vBackBufferSize.y / (float)g_vBackBufferSize.x;
+  // Calculate view vector in view space
+  float3 vView = float3(fRatio * tan(0.5f * 0.78539816339744830961566084581988f) * vPos.x,
+                        tan(0.5f * 0.78539816339744830961566084581988f) * vPos.y,
+                        1.0);
+  // Transform view vector in world space
+  vView = mul(vView, g_mWorldViewInv);
+  return g_tCubeMap.Sample(g_ssLinear, vView);
 }
 
 
@@ -520,5 +546,15 @@ technique10 SpecialFX
     SetGeometryShader( NULL );
     SetPixelShader( CompileShader( ps_4_0, SFX_P1_PS() ) );
     SetBlendState( SrcColorBlendingAdd, float4(1, 1, 1, 1), 0xffffffff );
+  }
+}
+
+technique10 Environment
+{
+  pass P0
+  {
+    SetVertexShader( CompileShader( vs_4_0, Environment_VS() ) );
+    SetGeometryShader( NULL );
+    SetPixelShader( CompileShader( ps_4_0, Environment_PS() ) );
   }
 }

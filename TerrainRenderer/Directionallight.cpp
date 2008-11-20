@@ -30,8 +30,8 @@ void DirectionalLight::OnFrameMove(float elapsed_time) {
   assert(DirectionalLight::pDir != NULL);
   D3DXMATRIX rotation_matrix;
   D3DXMatrixRotationYawPitchRoll(&rotation_matrix,
-    elapsed_time * rotation_.x,
     elapsed_time * rotation_.y,
+    elapsed_time * rotation_.x,
     elapsed_time * rotation_.z);
   D3DXVECTOR4 new_direction;
   D3DXVec3Transform(&new_direction, &direction_, &rotation_matrix);

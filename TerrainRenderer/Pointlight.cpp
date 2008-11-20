@@ -28,8 +28,8 @@ void PointLight::OnFrameMove(float elapsed_time) {
   assert(PointLight::pPos != NULL);
   D3DXMATRIX rotation_matrix;
   D3DXMatrixRotationYawPitchRoll(&rotation_matrix,
-    elapsed_time * rotation_.x,
     elapsed_time * rotation_.y,
+    elapsed_time * rotation_.x,
     elapsed_time * rotation_.z);
   D3DXVECTOR4 new_position;
   D3DXVec3Transform(&new_position, &position_, &rotation_matrix);
