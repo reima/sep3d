@@ -25,7 +25,7 @@ void Environment::Init(ID3D10Device *device) {
   D3DXVECTOR3 vertices[] = {
     D3DXVECTOR3(-1.0f,  1.0f, 0.99999f),
     D3DXVECTOR3( 1.0f,  1.0f, 0.99999f),
-    D3DXVECTOR3(-1.0f, -1.0f, 0.99999f),    
+    D3DXVECTOR3(-1.0f, -1.0f, 0.99999f),
     D3DXVECTOR3( 1.0f, -1.0f, 0.99999f),
   };
   D3D10_SUBRESOURCE_DATA init_data;
