@@ -67,11 +67,15 @@ cbuffer cbEnvironmentSeldom
 }
 
 Texture2D g_tWaves;
+Texture2D g_tGround;
+Texture3D g_tGround3D;
 TextureCube g_tCubeMap;
 
 SamplerState g_ssLinear
 {
 	Filter = MIN_MAG_MIP_LINEAR;
+	AddressU = Wrap;
+	AddressV = Wrap;
 };
 
 #define NUM_SPOTS 8
@@ -159,6 +163,7 @@ struct VS_PHONG_SHADING_OUTPUT
   float3 WorldPosition  : POSITION;
   float  Height         : HEIGHT;
   float3 Normal         : NORMAL0;
+  float2 TexCoord		: TEXCOORD0;
 };
 
 struct PHONG
@@ -368,6 +373,7 @@ VS_PHONG_SHADING_OUTPUT PhongShading_VS( VS_INPUT In )
   Output.Position = mul(vPos, g_mWorldViewProjection);
   Output.Normal = normalize(In.Normal);
   Output.WorldPosition = In.Position;
+  Output.TexCoord = In.Position.xz * 5;
 
   return Output;
 }
@@ -437,11 +443,23 @@ float4 GouraudShading_PS( VS_GOURAUD_SHADING_OUTPUT In ) : SV_Target
 
 float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In ) : SV_Target
 {
-  PHONG phong = PhongLighting(In.WorldPosition, normalize(In.Normal));
-  float4 vTerrainColor = GetColorFromHeight(In.Height);
+  float3 N = normalize(In.Normal);
+  PHONG phong = PhongLighting(In.WorldPosition, N);
+//  float4 vTerrainColor = GetColorFromHeight(In.Height);
+  //float4 vTerrainColor = g_tGround.Sample(g_ssLinear, In.TexCoord);
+  //float4 vTerrainColor = g_tGround.SampleLevel(g_ssLinear, In.TexCoord, 0);
+  float fHeightNormalized = (In.Height - g_fMinHeight) / (g_fMaxHeight - g_fMinHeight);
+  float4 vTerrainColor = g_tGround3D.SampleLevel(g_ssLinear, float3(In.TexCoord, fHeightNormalized), 0);
+
+  float3 I = normalize(In.WorldPosition - g_vCamPos);
+  float3 R = reflect(I, N);
+
+  float4 vReflect = g_tCubeMap.Sample(g_ssLinear, R.xyz);
+  
   return vTerrainColor * g_vMaterialParameters.x +
     vTerrainColor * float4(phong.DiffuseLight, 1) +
-    float4(phong.SpecularLight, 1);
+    float4(phong.SpecularLight, 1) +
+	g_vMaterialParameters.z * vReflect;
 }
 
 float4 Environment_PS( float4 vPos : SV_Position ) : SV_Target
@@ -452,8 +470,8 @@ float4 Environment_PS( float4 vPos : SV_Position ) : SV_Target
   vPos.y = 1-2*vPos.y;
   float fRatio = g_vBackBufferSize.y / (float)g_vBackBufferSize.x;
   // Calculate view vector in view space
-  float3 vView = float3(fRatio * tan(0.5f * 0.78539816339744830961566084581988f) * vPos.x,
-                        tan(0.5f * 0.78539816339744830961566084581988f) * vPos.y,
+  float3 vView = float3(fRatio * tan(0.5f * g_fCameraFOV) * vPos.x,
+                        tan(0.5f * g_fCameraFOV) * vPos.y,
                         1.0);
   // Transform view vector in world space
   vView = mul(vView, g_mWorldViewInv);

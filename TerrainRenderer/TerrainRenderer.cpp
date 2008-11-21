@@ -66,6 +66,10 @@ ID3D10EffectScalarVariable* g_pbDynamicMinMax = NULL;
 ID3D10EffectScalarVariable* g_pbDirectionalLight = NULL;
 ID3D10EffectShaderResourceVariable* g_ptWaves = NULL;
 ID3D10ShaderResourceView*   g_pWavesRV = NULL;
+ID3D10EffectShaderResourceVariable* g_ptGround = NULL;
+ID3D10ShaderResourceView*   g_pGroundRV = NULL;
+ID3D10EffectShaderResourceVariable* g_ptGround3D = NULL;
+ID3D10ShaderResourceView*   g_pGround3DRV = NULL;
 ID3D10EffectShaderResourceVariable* g_ptCubeMap = NULL;
 ID3D10ShaderResourceView*   g_pCubeMapRV = NULL;
 
@@ -433,9 +437,17 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice,
       L"Textures/waves.dds", NULL, NULL, &g_pWavesRV, NULL));
 
+  // Load ground texture
+  V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice,
+     L"Textures/asd.bmp", NULL, NULL, &g_pGroundRV, NULL));
+  
+  // Load ground texture 3d
+  V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice,
+     L"Textures/terrain.dds", NULL, NULL, &g_pGround3DRV, NULL));
+
   // Load cube map
   V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice,
-      L"Textures/SouthernSea.dds", NULL, NULL, &g_pCubeMapRV, NULL));
+      L"Textures/cg.dds", NULL, NULL, &g_pCubeMapRV, NULL));
 
   // Get effects variables
   g_pmWorldViewProj =
@@ -454,6 +466,10 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
       g_pEffect10->GetVariableByName("g_fFresnelBias")->AsScalar();
   g_ptWaves = g_pEffect10->GetVariableByName("g_tWaves")->AsShaderResource();
   V_RETURN(g_ptWaves->SetResource(g_pWavesRV));
+  g_ptGround = g_pEffect10->GetVariableByName("g_tGround")->AsShaderResource();
+  V_RETURN(g_ptGround->SetResource(g_pGroundRV));
+  g_ptGround3D = g_pEffect10->GetVariableByName("g_tGround3D")->AsShaderResource();
+  V_RETURN(g_ptGround3D->SetResource(g_pGround3DRV));
   g_ptCubeMap =
       g_pEffect10->GetVariableByName("g_tCubeMap")->AsShaderResource();
   V_RETURN(g_ptCubeMap->SetResource(g_pCubeMapRV));
@@ -513,19 +529,19 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   V_RETURN(pd3dDevice->CreateRasterizerState(&rast_desc, &g_pRSWireframe));
 
   // Szene erstellen
-  g_pScene = new Scene(0.05f, 0.45f, 0.5f, 100);
+  g_pScene = new Scene(0.05f, 0.8f, 0.15f, 1000000);
   g_pScene->GetShaderHandles(g_pEffect10);
-
+/*
   // Lichter hinzufügen
   g_pScene->AddPointLight(D3DXVECTOR3(-2.5f, 0.0f, 0.0f),
                           D3DXVECTOR3(1, 0, 0),
                           D3DXVECTOR3(0, 0, 1));
   g_pScene->AddPointLight(D3DXVECTOR3(0.0f, 0.0f, -2.5f),
                           D3DXVECTOR3(0, 1, 0),
-                          D3DXVECTOR3(1, 0, 0));
-  g_pScene->AddDirectionalLight(D3DXVECTOR3(1.0f, 0.0f, 0.0f),
+                          D3DXVECTOR3(1, 0, 0));*/
+  g_pScene->AddDirectionalLight(D3DXVECTOR3(1.0f, 1.0f, 0.0f),
                                 D3DXVECTOR3(1, 1, 1),
-                                D3DXVECTOR3(0, 1, 0));
+                                D3DXVECTOR3(0, 1, 0));/*
   g_pScene->AddSpotLight(D3DXVECTOR3(2.5f, 3.0f, 0.0f),
                          D3DXVECTOR3(0, -1, 0),
                          D3DXVECTOR3(1, 1, 0),
@@ -546,7 +562,7 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
                          D3DXVECTOR3(1, 1, 1),
                          D3DXVECTOR3(0, 1, 0),
                          .5f, 5);
-
+*/
   // Environment erstellen
   g_pEnvironment = new Environment(pd3dDevice);
   g_pEnvironment->GetShaderHandles(g_pEffect10);
@@ -688,6 +704,8 @@ void CALLBACK OnD3D10DestroyDevice(void* pUserContext) {
   SAFE_RELEASE(g_pVertexLayout);
   SAFE_RELEASE(g_pSprite10);
   SAFE_RELEASE(g_pRSWireframe);
+  SAFE_RELEASE(g_pGroundRV);
+  SAFE_RELEASE(g_pGround3DRV);
   SAFE_RELEASE(g_pWavesRV);
   SAFE_RELEASE(g_pCubeMapRV);
   SAFE_DELETE(g_pTxtHelper);
