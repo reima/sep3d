@@ -40,7 +40,6 @@ CDXUTTextHelper*            g_pTxtHelper = NULL;
 CDXUTDialog                 g_HUD;                  // dialog for standard controls
 CDXUTDialog                 g_SampleUI;             // dialog for sample specific controls
 CDXUTDialog                 g_TerrainUI;
-CDXUTDialog                 g_SfxUI[3];
 
 // Direct3D 10 resources
 ID3DX10Font*                g_pFont10 = NULL;
@@ -51,19 +50,9 @@ ID3D10InputLayout*          g_pVertexLayout = NULL;
 ID3D10EffectMatrixVariable* g_pmWorldViewProj = NULL;
 ID3D10EffectMatrixVariable* g_pmWorld = NULL;
 ID3D10EffectScalarVariable* g_pfTime = NULL;
-ID3D10EffectVectorVariable* g_pvLightPos = NULL;
-ID3D10EffectVectorVariable* g_pvLightColor = NULL;
-ID3D10EffectScalarVariable* g_pfWaveHeight = NULL;
-ID3D10EffectVectorVariable* g_pvWaveScale = NULL;
-ID3D10EffectVectorVariable* g_pvWaveSpeed = NULL;
-ID3D10EffectVectorVariable* g_pvWaterColor = NULL;
-ID3D10EffectScalarVariable* g_piPhongExp = NULL;
-ID3D10EffectScalarVariable* g_pfFresnelBias = NULL;
-ID3D10EffectScalarVariable* g_piFresnelExp = NULL;
 ID3D10EffectScalarVariable* g_pfMinHeight = NULL;
 ID3D10EffectScalarVariable* g_pfMaxHeight = NULL;
 ID3D10EffectScalarVariable* g_pbDynamicMinMax = NULL;
-ID3D10EffectScalarVariable* g_pbDirectionalLight = NULL;
 ID3D10EffectShaderResourceVariable* g_ptWaves = NULL;
 ID3D10ShaderResourceView*   g_pWavesRV = NULL;
 ID3D10EffectShaderResourceVariable* g_ptGround = NULL;
@@ -72,6 +61,7 @@ ID3D10EffectShaderResourceVariable* g_ptGround3D = NULL;
 ID3D10ShaderResourceView*   g_pGround3DRV = NULL;
 ID3D10EffectShaderResourceVariable* g_ptCubeMap = NULL;
 ID3D10ShaderResourceView*   g_pCubeMapRV = NULL;
+ID3D10EffectScalarVariable* g_pbWaveNormals = NULL;
 
 Tile*                       g_pTile = NULL;
 LODSelector*                g_pLODSelector = NULL;
@@ -93,8 +83,8 @@ ID3D10RasterizerState*      g_pRSWireframe = NULL;
 #define IDC_LODSLIDER_S             6
 #define IDC_WIREFRAME               7
 #define IDC_DYNAMICMINMAX           8
-#define IDC_TECHNIQUE               9
-#define IDC_SFX_OPTS                10
+#define IDC_WAVENORMALS             9
+#define IDC_TECHNIQUE               10
 
 #define IDC_NEWTERRAIN_LOD          100
 #define IDC_NEWTERRAIN_SIZE         101
@@ -103,37 +93,6 @@ ID3D10RasterizerState*      g_pRSWireframe = NULL;
 #define IDC_NEWTERRAIN_SIZE_S       104
 #define IDC_NEWTERRAIN_ROUGHNESS_S  105
 #define IDC_NEWTERRAIN_OK           106
-
-#define IDC_LIGHT_S                 200
-#define IDC_LIGHTX                  201
-#define IDC_LIGHTY                  202
-#define IDC_LIGHTZ                  203
-#define IDC_LIGHTCOLOR_S            204
-#define IDC_LIGHTCOLOR_R            205
-#define IDC_LIGHTCOLOR_G            206
-#define IDC_LIGHTCOLOR_B            207
-#define IDC_LIGHTDIRECTIONAL        208
-
-#define IDC_WAVEHEIGHT_S            300
-#define IDC_WAVEHEIGHT              301
-#define IDC_WAVESCALE_S             302
-#define IDC_WAVESCALEX              303
-#define IDC_WAVESCALEY              304
-#define IDC_WAVESPEED_S             305
-#define IDC_WAVESPEEDX              306
-#define IDC_WAVESPEEDY              307
-
-#define IDC_WATERCOLOR_S            400
-#define IDC_WATERCOLOR_R            401
-#define IDC_WATERCOLOR_G            402
-#define IDC_WATERCOLOR_B            403
-#define IDC_WATER_PHONG_EXP_S       404
-#define IDC_WATER_PHONG_EXP         405
-#define IDC_WATER_FRESNEL_BIAS_S    406
-#define IDC_WATER_FRESNEL_BIAS      407
-#define IDC_WATER_FRESNEL_EXP_S     408
-#define IDC_WATER_FRESNEL_EXP       409
-
 
 //--------------------------------------------------------------------------------------
 // Forward declarations
@@ -219,9 +178,6 @@ void InitApp() {
   g_HUD.Init(&g_DialogResourceManager);
   g_SampleUI.Init(&g_DialogResourceManager);
   g_TerrainUI.Init(&g_DialogResourceManager);
-  g_SfxUI[0].Init(&g_DialogResourceManager);
-  g_SfxUI[1].Init(&g_DialogResourceManager);
-  g_SfxUI[2].Init(&g_DialogResourceManager);
 
   g_HUD.SetCallback(OnGUIEvent);
   int iY = 10;
@@ -242,6 +198,9 @@ void InitApp() {
                     g_bWireframe, VK_F5);
   g_SampleUI.AddCheckBox(IDC_DYNAMICMINMAX, L"Dynamic Min/Max", 35, iY += 24, 125,
                     22, false);
+  g_SampleUI.AddCheckBox(IDC_WAVENORMALS, L"Wave normals", 35, iY += 24, 125,
+                    22, true);
+
 
   WCHAR sz[100];
   StringCchPrintf(sz, 100, L"LOD (+/-): %d", 0);
@@ -250,80 +209,8 @@ void InitApp() {
 
   g_SampleUI.AddStatic(0, L"Technique:", 35, iY += 24, 125, 22);
   g_SampleUI.AddComboBox(IDC_TECHNIQUE, 35, iY += 24, 125, 22);
-  //g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Vertex Coloring", "VertexShaderColoring");
-  //g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Vertex Col. + Diffuse", "VertexShaderColoringPhong");
-  //g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Pixel Coloring", "PixelShaderColoring");
-  //g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Normal Coloring", "NormalColoring");
   g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"GouraudShading", "GouraudShading");
   g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"PhongShading", "PhongShading");
-  g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"Special FX", "SpecialFX");
-
-  g_SampleUI.AddStatic(0, L"SFX Settings:", 35, iY += 24, 125, 22);
-  g_SampleUI.AddComboBox(IDC_SFX_OPTS, 35, iY += 24, 125, 22);
-  g_SampleUI.GetComboBox(IDC_SFX_OPTS)->AddItem(L"Light", NULL);
-  g_SampleUI.GetComboBox(IDC_SFX_OPTS)->AddItem(L"Waves", NULL);
-  g_SampleUI.GetComboBox(IDC_SFX_OPTS)->AddItem(L"Water", NULL);
-
-  /**
-   * Sfx UI 0
-   */
-  g_SfxUI[0].SetCallback(OnGUIEvent);
-  iY = 10;
-  g_SfxUI[0].AddCheckBox(IDC_LIGHTDIRECTIONAL, L"Directional?", 35, iY, 125,
-      22, true);
-
-  g_SfxUI[0].AddStatic(IDC_LIGHT_S, L"", 35, iY += 24, 125, 22);
-  g_SfxUI[0].AddSlider(IDC_LIGHTX, 35, iY += 24, 125, 22, -100, 100, 14);
-  g_SfxUI[0].AddSlider(IDC_LIGHTY, 35, iY += 24, 125, 22, -100, 100, 30);
-  g_SfxUI[0].AddSlider(IDC_LIGHTZ, 35, iY += 24, 125, 22, -100, 100, 28);
-
-  g_SfxUI[0].AddStatic(IDC_LIGHTCOLOR_S, L"", 35, iY += 24, 125, 22);
-  g_SfxUI[0].AddSlider(IDC_LIGHTCOLOR_R, 35, iY += 24, 125, 22, 0, 100, 100);
-  g_SfxUI[0].AddStatic(0, L"R:", 0, iY, 20, 22);
-  g_SfxUI[0].AddSlider(IDC_LIGHTCOLOR_G, 35, iY += 24, 125, 22, 0, 100, 75);
-  g_SfxUI[0].AddStatic(0, L"G:", 0, iY, 20, 22);
-  g_SfxUI[0].AddSlider(IDC_LIGHTCOLOR_B, 35, iY += 24, 125, 22, 0, 100, 50);
-  g_SfxUI[0].AddStatic(0, L"B:", 0, iY, 20, 22);
-
-  /**
-   * Sfx UI 1
-   */
-  g_SfxUI[1].SetCallback(OnGUIEvent);
-  g_SfxUI[1].SetVisible(false);
-  iY = 10;
-  g_SfxUI[1].AddStatic(IDC_WAVEHEIGHT_S, L"", 35, iY, 125, 22);
-  g_SfxUI[1].AddSlider(IDC_WAVEHEIGHT, 35, iY += 24, 125, 22, 0, 100, 3);
-
-  g_SfxUI[1].AddStatic(IDC_WAVESCALE_S, L"", 35, iY += 24, 125, 22);
-  g_SfxUI[1].AddSlider(IDC_WAVESCALEX, 35, iY += 24, 125, 22, 0, 100, 30);
-  g_SfxUI[1].AddSlider(IDC_WAVESCALEY, 35, iY += 24, 125, 22, 0, 100, 25);
-
-  g_SfxUI[1].AddStatic(IDC_WAVESPEED_S, L"", 35, iY += 24, 125, 22);
-  g_SfxUI[1].AddSlider(IDC_WAVESPEEDX, 35, iY += 24, 125, 22, -100, 100, -20);
-  g_SfxUI[1].AddSlider(IDC_WAVESPEEDY, 35, iY += 24, 125, 22, -100, 100, 30);
-
-  /**
-   * Sfx UI 2
-   */
-  g_SfxUI[2].SetCallback(OnGUIEvent);
-  g_SfxUI[2].SetVisible(false);
-  iY = 10;
-  g_SfxUI[2].AddStatic(IDC_WATERCOLOR_S, L"", 35, iY, 125, 22);
-  g_SfxUI[2].AddSlider(IDC_WATERCOLOR_R, 35, iY += 24, 125, 22, 0, 100, 50);
-  g_SfxUI[2].AddStatic(0, L"R:", 0, iY, 20, 22);
-  g_SfxUI[2].AddSlider(IDC_WATERCOLOR_G, 35, iY += 24, 125, 22, 0, 100, 75);
-  g_SfxUI[2].AddStatic(0, L"G:", 0, iY, 20, 22);
-  g_SfxUI[2].AddSlider(IDC_WATERCOLOR_B, 35, iY += 24, 125, 22, 0, 100, 100);
-  g_SfxUI[2].AddStatic(0, L"B:", 0, iY, 20, 22);
-
-  g_SfxUI[2].AddStatic(IDC_WATER_PHONG_EXP_S, L"", 35, iY += 24, 125, 22);
-  g_SfxUI[2].AddSlider(IDC_WATER_PHONG_EXP, 35, iY += 24, 125, 22, 0, 1000, 200);
-
-  g_SfxUI[2].AddStatic(IDC_WATER_FRESNEL_BIAS_S, L"", 35, iY += 24, 125, 22);
-  g_SfxUI[2].AddSlider(IDC_WATER_FRESNEL_BIAS, 35, iY += 24, 125, 22, 0, 100, 40);
-
-  g_SfxUI[2].AddStatic(IDC_WATER_FRESNEL_EXP_S, L"", 35, iY += 24, 125, 22);
-  g_SfxUI[2].AddSlider(IDC_WATER_FRESNEL_EXP, 35, iY += 24, 125, 22, 0, 100, 5);
 
   /**
    * Terrain UI
@@ -348,8 +235,6 @@ void InitApp() {
   g_TerrainUI.AddButton(IDC_NEWTERRAIN_OK, L"Generate", 0, iY += 24, 125, 22);
 
   g_TerrainUI.SetVisible(false);
-
- 
 }
 
 
@@ -439,7 +324,7 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
 
   // Load ground texture
   V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice,
-     L"Textures/asd.bmp", NULL, NULL, &g_pGroundRV, NULL));
+     L"Textures/checker1.png", NULL, NULL, &g_pGroundRV, NULL));
   
   // Load ground texture 3d
   V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice,
@@ -447,23 +332,13 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
 
   // Load cube map
   V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice,
-      L"Textures/cg.dds", NULL, NULL, &g_pCubeMapRV, NULL));
+      L"Textures/SouthernSea.dds", NULL, NULL, &g_pCubeMapRV, NULL));
 
   // Get effects variables
   g_pmWorldViewProj =
       g_pEffect10->GetVariableByName("g_mWorldViewProjection")->AsMatrix();
   g_pmWorld = g_pEffect10->GetVariableByName("g_mWorld")->AsMatrix();
   g_pfTime = g_pEffect10->GetVariableByName("g_fTime")->AsScalar();
-  g_pvLightPos = g_pEffect10->GetVariableByName("g_vLightPos")->AsVector();
-  g_pvLightColor = g_pEffect10->GetVariableByName("g_vLightColor")->AsVector();
-  g_pfWaveHeight = g_pEffect10->GetVariableByName("g_fWaveHeight")->AsScalar();
-  g_pvWaveScale = g_pEffect10->GetVariableByName("g_vWaveScale")->AsVector();
-  g_pvWaveSpeed = g_pEffect10->GetVariableByName("g_vWaveSpeed")->AsVector();
-  g_pvWaterColor = g_pEffect10->GetVariableByName("g_vWaterColor")->AsVector();
-  g_piPhongExp = g_pEffect10->GetVariableByName("g_iPhongExp")->AsScalar();
-  g_piFresnelExp = g_pEffect10->GetVariableByName("g_iFresnelExp")->AsScalar();
-  g_pfFresnelBias =
-      g_pEffect10->GetVariableByName("g_fFresnelBias")->AsScalar();
   g_ptWaves = g_pEffect10->GetVariableByName("g_tWaves")->AsShaderResource();
   V_RETURN(g_ptWaves->SetResource(g_pWavesRV));
   g_ptGround = g_pEffect10->GetVariableByName("g_tGround")->AsShaderResource();
@@ -477,21 +352,12 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   g_pfMaxHeight = g_pEffect10->GetVariableByName("g_fMaxHeight")->AsScalar();
   g_pbDynamicMinMax =
       g_pEffect10->GetVariableByName("g_bDynamicMinMax")->AsScalar();
-  g_pbDirectionalLight =
-      g_pEffect10->GetVariableByName("g_bDirectionalLight")->AsScalar();
+  g_pbWaveNormals =
+      g_pEffect10->GetVariableByName("g_bWaveNormals")->AsScalar();
 
   // Flush effect vars/init GUI text
   OnGUIEvent(0, IDC_DYNAMICMINMAX, NULL, NULL);
-  OnGUIEvent(0, IDC_LIGHTDIRECTIONAL, NULL, NULL);
-  OnGUIEvent(0, IDC_LIGHTX, NULL, NULL);
-  OnGUIEvent(0, IDC_LIGHTCOLOR_R, NULL, NULL);
-  OnGUIEvent(0, IDC_WAVEHEIGHT, NULL, NULL);
-  OnGUIEvent(0, IDC_WAVESCALEX, NULL, NULL);
-  OnGUIEvent(0, IDC_WAVESPEEDX, NULL, NULL);
-  OnGUIEvent(0, IDC_WATERCOLOR_R, NULL, NULL);
-  OnGUIEvent(0, IDC_WATER_PHONG_EXP, NULL, NULL);
-  OnGUIEvent(0, IDC_WATER_FRESNEL_BIAS, NULL, NULL);
-  OnGUIEvent(0, IDC_WATER_FRESNEL_EXP, NULL, NULL);
+  OnGUIEvent(0, IDC_WAVENORMALS, NULL, NULL);
 
   // Setup the camera's view parameters
   D3DXVECTOR3 vecEye(0.0f, 5.0f, -5.0f);
@@ -529,40 +395,40 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   V_RETURN(pd3dDevice->CreateRasterizerState(&rast_desc, &g_pRSWireframe));
 
   // Szene erstellen
-  g_pScene = new Scene(0.05f, 0.8f, 0.15f, 1000000);
+  g_pScene = new Scene(0.05f, 0.9f, 0.05, 50);
   g_pScene->GetShaderHandles(g_pEffect10);
-/*
+
   // Lichter hinzufügen
-  g_pScene->AddPointLight(D3DXVECTOR3(-2.5f, 0.0f, 0.0f),
-                          D3DXVECTOR3(1, 0, 0),
-                          D3DXVECTOR3(0, 0, 1));
-  g_pScene->AddPointLight(D3DXVECTOR3(0.0f, 0.0f, -2.5f),
-                          D3DXVECTOR3(0, 1, 0),
-                          D3DXVECTOR3(1, 0, 0));*/
+  //g_pScene->AddPointLight(D3DXVECTOR3(-2.5f, 0.0f, 0.0f),
+  //                        D3DXVECTOR3(1, 0, 0),
+  //                        D3DXVECTOR3(0, 0, 1));
+  //g_pScene->AddPointLight(D3DXVECTOR3(0.0f, 0.0f, -2.5f),
+  //                        D3DXVECTOR3(0, 1, 0),
+  //                        D3DXVECTOR3(1, 0, 0));
   g_pScene->AddDirectionalLight(D3DXVECTOR3(1.0f, 1.0f, 0.0f),
-                                D3DXVECTOR3(1, 1, 1),
-                                D3DXVECTOR3(0, 1, 0));/*
-  g_pScene->AddSpotLight(D3DXVECTOR3(2.5f, 3.0f, 0.0f),
-                         D3DXVECTOR3(0, -1, 0),
-                         D3DXVECTOR3(1, 1, 0),
-                         D3DXVECTOR3(0, 1, 0),
-                         .5f, 5);
-  g_pScene->AddSpotLight(D3DXVECTOR3(-2.5f, 3.0f, 0.0f),
-                         D3DXVECTOR3(0, -1, 0),
-                         D3DXVECTOR3(0, 1, 1),
-                         D3DXVECTOR3(0, 1, 0),
-                         .5f, 5);
-  g_pScene->AddSpotLight(D3DXVECTOR3(0.0f, 3.0f, 2.5f),
-                         D3DXVECTOR3(0, -1, 0),
-                         D3DXVECTOR3(1, 0, 1),
-                         D3DXVECTOR3(0, 1, 0),
-                         .5f, 5);
-  g_pScene->AddSpotLight(D3DXVECTOR3(0.0f, 3.0f, -2.5f),
-                         D3DXVECTOR3(0, -1, 0),
-                         D3DXVECTOR3(1, 1, 1),
-                         D3DXVECTOR3(0, 1, 0),
-                         .5f, 5);
-*/
+                                D3DXVECTOR3(1, 0.75f, 0.5f),
+                                D3DXVECTOR3(0, 1, 0));
+  //g_pScene->AddSpotLight(D3DXVECTOR3(2.5f, 3.0f, 0.0f),
+  //                       D3DXVECTOR3(0, -1, 0),
+  //                       D3DXVECTOR3(1, 1, 0),
+  //                       D3DXVECTOR3(0, 1, 0),
+  //                       .5f, 5);
+  //g_pScene->AddSpotLight(D3DXVECTOR3(-2.5f, 3.0f, 0.0f),
+  //                       D3DXVECTOR3(0, -1, 0),
+  //                       D3DXVECTOR3(0, 1, 1),
+  //                       D3DXVECTOR3(0, 1, 0),
+  //                       .5f, 5);
+  //g_pScene->AddSpotLight(D3DXVECTOR3(0.0f, 3.0f, 2.5f),
+  //                       D3DXVECTOR3(0, -1, 0),
+  //                       D3DXVECTOR3(1, 0, 1),
+  //                       D3DXVECTOR3(0, 1, 0),
+  //                       .5f, 5);
+  //g_pScene->AddSpotLight(D3DXVECTOR3(0.0f, 3.0f, -2.5f),
+  //                       D3DXVECTOR3(0, -1, 0),
+  //                       D3DXVECTOR3(1, 1, 1),
+  //                       D3DXVECTOR3(0, 1, 0),
+  //                       .5f, 5);
+
   // Environment erstellen
   g_pEnvironment = new Environment(pd3dDevice);
   g_pEnvironment->GetShaderHandles(g_pEffect10);
@@ -598,12 +464,6 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain(ID3D10Device* pd3dDevice,
   g_SampleUI.SetSize(170, 300);
   g_TerrainUI.SetLocation(pBackBufferSurfaceDesc->Width - 320, 0);
   g_TerrainUI.SetSize(150, 300);
-  g_SfxUI[0].SetLocation(pBackBufferSurfaceDesc->Width - 170, 300);
-  g_SfxUI[0].SetSize(170, 300);
-  g_SfxUI[1].SetLocation(pBackBufferSurfaceDesc->Width - 170, 300);
-  g_SfxUI[1].SetSize(170, 300);
-  g_SfxUI[2].SetLocation(pBackBufferSurfaceDesc->Width - 170, 300);
-  g_SfxUI[2].SetSize(170, 300);
 
   if (g_pEnvironment) {
     g_pEnvironment->SetBackBufferSize(pBackBufferSurfaceDesc->Width,
@@ -676,9 +536,6 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   DXUT_BeginPerfEvent(DXUT_PERFEVENTCOLOR, L"HUD / Stats");
   RenderText();
   g_HUD.OnRender(fElapsedTime);
-  g_SfxUI[0].OnRender(fElapsedTime);
-  g_SfxUI[1].OnRender(fElapsedTime);
-  g_SfxUI[2].OnRender(fElapsedTime);
   g_SampleUI.OnRender(fElapsedTime);
   g_TerrainUI.OnRender(fElapsedTime);
   DXUT_EndPerfEvent();
@@ -777,15 +634,6 @@ LRESULT CALLBACK MsgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
   *pbNoFurtherProcessing = g_TerrainUI.MsgProc(hWnd, uMsg, wParam, lParam);
   if (*pbNoFurtherProcessing)
     return 0;
-  *pbNoFurtherProcessing = g_SfxUI[0].MsgProc(hWnd, uMsg, wParam, lParam);
-  if (*pbNoFurtherProcessing)
-    return 0;
-  *pbNoFurtherProcessing = g_SfxUI[1].MsgProc(hWnd, uMsg, wParam, lParam);
-  if (*pbNoFurtherProcessing)
-    return 0;
-  *pbNoFurtherProcessing = g_SfxUI[2].MsgProc(hWnd, uMsg, wParam, lParam);
-  if (*pbNoFurtherProcessing)
-    return 0;
 
   // Pass all remaining windows messages to camera so it can respond to user input
   g_Camera.HandleMessages(hWnd, uMsg, wParam, lParam);
@@ -851,6 +699,10 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
       g_pbDynamicMinMax->SetBool(
           g_SampleUI.GetCheckBox(IDC_DYNAMICMINMAX)->GetChecked());
       break;
+    case IDC_WAVENORMALS:
+      g_pbWaveNormals->SetBool(
+          g_SampleUI.GetCheckBox(IDC_WAVENORMALS)->GetChecked());
+      break;
     case IDC_NEWTERRAIN:
       g_TerrainUI.SetVisible(true);
       break;
@@ -858,12 +710,6 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
       char *tech =
           (char *)g_SampleUI.GetComboBox(IDC_TECHNIQUE)->GetSelectedData();
       g_pTechnique = g_pEffect10->GetTechniqueByName(tech);
-      break;
-    }
-    case IDC_SFX_OPTS: {
-      int ui = g_SampleUI.GetComboBox(IDC_SFX_OPTS)->GetSelectedIndex();
-      for (int i = 0; i < 3; ++i) g_SfxUI[i].SetVisible(false);
-      g_SfxUI[ui].SetVisible(true);
       break;
     }
 
@@ -908,138 +754,6 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
       g_SampleUI.GetStatic(IDC_LODSLIDER_S)->SetText(L"LOD (+/-): 0");
       SAFE_DELETE(g_pLODSelector);
       g_pLODSelector = new FixedLODSelector(0);
-      break;
-    }
-
-    /**
-     * Sfx UI 0
-     */
-    case IDC_LIGHTDIRECTIONAL:
-      g_pbDirectionalLight->SetBool(
-          g_SfxUI[0].GetCheckBox(IDC_LIGHTDIRECTIONAL)->GetChecked());
-      // Lazy fallthrough for updating IDC_LIGHT_S
-    case IDC_LIGHTX:
-    case IDC_LIGHTY:
-    case IDC_LIGHTZ: {
-      D3DXVECTOR3 light_pos = D3DXVECTOR3(
-        g_SfxUI[0].GetSlider(IDC_LIGHTX)->GetValue() / 10.f,
-        g_SfxUI[0].GetSlider(IDC_LIGHTY)->GetValue() / 10.f,
-        g_SfxUI[0].GetSlider(IDC_LIGHTZ)->GetValue() / 10.f
-      );
-      WCHAR sz[100];
-      bool dir = g_SfxUI[0].GetCheckBox(IDC_LIGHTDIRECTIONAL)->GetChecked();
-      if (dir) {
-        StringCchPrintf(sz, 100, L"Direction: (%.1f, %.1f, %.1f)",
-                      light_pos.x, light_pos.y, light_pos.z);
-      } else {
-        StringCchPrintf(sz, 100, L"Position: (%.1f, %.1f, %.1f)",
-                      light_pos.x, light_pos.y, light_pos.z);
-      }
-      g_SfxUI[0].GetStatic(IDC_LIGHT_S)->SetText(sz);
-      g_pvLightPos->SetFloatVector(light_pos);
-      break;
-    }
-
-    case IDC_LIGHTCOLOR_R:
-    case IDC_LIGHTCOLOR_G:
-    case IDC_LIGHTCOLOR_B: {
-      D3DXVECTOR3 light_col = D3DXVECTOR3(
-        g_SfxUI[0].GetSlider(IDC_LIGHTCOLOR_R)->GetValue() / 100.f,
-        g_SfxUI[0].GetSlider(IDC_LIGHTCOLOR_G)->GetValue() / 100.f,
-        g_SfxUI[0].GetSlider(IDC_LIGHTCOLOR_B)->GetValue() / 100.f
-      );
-      WCHAR sz[100];
-      StringCchPrintf(sz, 100, L"Color: (%.2f, %.2f, %.2f)",
-                      light_col.x, light_col.y, light_col.z);
-      g_SfxUI[0].GetStatic(IDC_LIGHTCOLOR_S)->SetText(sz);
-      g_pvLightColor->SetFloatVector(light_col);
-      break;
-    }
-
-    /**
-     * Sfx UI 1
-     */
-    case IDC_WAVEHEIGHT: {
-      float value = g_SfxUI[1].GetSlider(IDC_WAVEHEIGHT)->GetValue() / 100.0f;
-      WCHAR sz[100];
-      StringCchPrintf(sz, 100, L"Wave Height: %.2f", value);
-      g_SfxUI[1].GetStatic(IDC_WAVEHEIGHT_S)->SetText(sz);
-      g_pfWaveHeight->SetFloat(value);
-      break;
-    }
-
-    case IDC_WAVESCALEX:
-    case IDC_WAVESCALEY: {
-      D3DXVECTOR2 wave_scale = D3DXVECTOR2(
-        g_SfxUI[1].GetSlider(IDC_WAVESCALEX)->GetValue() / 10.f,
-        g_SfxUI[1].GetSlider(IDC_WAVESCALEY)->GetValue() / 10.f
-      );
-      WCHAR sz[100];
-      StringCchPrintf(sz, 100, L"Wave Scale: (%.1f, %.1f)",
-                      wave_scale.x, wave_scale.y);
-      g_SfxUI[1].GetStatic(IDC_WAVESCALE_S)->SetText(sz);
-      g_pvWaveScale->SetFloatVector(wave_scale);
-      break;
-    }
-
-    case IDC_WAVESPEEDX:
-    case IDC_WAVESPEEDY: {
-      D3DXVECTOR2 wave_speed = D3DXVECTOR2(
-        g_SfxUI[1].GetSlider(IDC_WAVESPEEDX)->GetValue() / 10.f,
-        g_SfxUI[1].GetSlider(IDC_WAVESPEEDY)->GetValue() / 10.f
-      );
-      WCHAR sz[100];
-      StringCchPrintf(sz, 100, L"Wave Speed: (%.1f, %.1f)",
-                      wave_speed.x, wave_speed.y);
-      g_SfxUI[1].GetStatic(IDC_WAVESPEED_S)->SetText(sz);
-      g_pvWaveSpeed->SetFloatVector(wave_speed);
-      break;
-    }
-
-    /**
-     * Sfx UI 2
-     */
-    case IDC_WATERCOLOR_R:
-    case IDC_WATERCOLOR_G:
-    case IDC_WATERCOLOR_B: {
-      D3DXVECTOR3 water_col = D3DXVECTOR3(
-        g_SfxUI[2].GetSlider(IDC_WATERCOLOR_R)->GetValue() / 100.f,
-        g_SfxUI[2].GetSlider(IDC_WATERCOLOR_G)->GetValue() / 100.f,
-        g_SfxUI[2].GetSlider(IDC_WATERCOLOR_B)->GetValue() / 100.f
-      );
-      WCHAR sz[100];
-      StringCchPrintf(sz, 100, L"Color: (%.2f, %.2f, %.2f)",
-                      water_col.x, water_col.y, water_col.z);
-      g_SfxUI[2].GetStatic(IDC_WATERCOLOR_S)->SetText(sz);
-      g_pvWaterColor->SetFloatVector(water_col);
-      break;
-    }
-
-    case IDC_WATER_PHONG_EXP: {
-      int value = g_SfxUI[2].GetSlider(IDC_WATER_PHONG_EXP)->GetValue();
-      WCHAR sz[100];
-      StringCchPrintf(sz, 100, L"Phong Exponent: %d", value);
-      g_SfxUI[2].GetStatic(IDC_WATER_PHONG_EXP_S)->SetText(sz);
-      g_piPhongExp->SetInt(value);
-      break;
-    }
-
-    case IDC_WATER_FRESNEL_BIAS: {
-      float value =
-          g_SfxUI[2].GetSlider(IDC_WATER_FRESNEL_BIAS)->GetValue() / 100.f;
-      WCHAR sz[100];
-      StringCchPrintf(sz, 100, L"Fresnel Bias: %.2f", value);
-      g_SfxUI[2].GetStatic(IDC_WATER_FRESNEL_BIAS_S)->SetText(sz);
-      g_pfFresnelBias->SetFloat(value);
-      break;
-    }
-
-    case IDC_WATER_FRESNEL_EXP: {
-      int value = g_SfxUI[2].GetSlider(IDC_WATER_FRESNEL_EXP)->GetValue();
-      WCHAR sz[100];
-      StringCchPrintf(sz, 100, L"Fresnel Exponent: %d", value);
-      g_SfxUI[2].GetStatic(IDC_WATER_FRESNEL_EXP_S)->SetText(sz);
-      g_piFresnelExp->SetInt(value);
       break;
     }
   }
