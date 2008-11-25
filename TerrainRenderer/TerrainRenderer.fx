@@ -321,7 +321,10 @@ float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In ) : SV_Target
     //float4 vTerrainColor = g_tGround.Sample(g_ssLinear, In.TexCoord);
     //float4 vTerrainColor = g_tGround.SampleLevel(g_ssLinear, In.TexCoord, 0);
     float fHeightNormalized = In.Height / g_fMaxHeight + 0.1;
-    vTerrainColor = g_tGround3D.SampleLevel(g_ssLinear, float3(In.TexCoord, fHeightNormalized), 0);
+    vTerrainColor = g_tGround3D.SampleLevel(g_ssLinear,
+                                            float3(In.TexCoord,
+                                                   fHeightNormalized),
+                                            0);
     N = normalize(In.Normal);
   }
   

@@ -1,30 +1,23 @@
 Anmerkungen
 ===========
-zu 5.1:
-a) Bei den Spotlights wurden CutOffAngle und Exponent für eine Lichtquelle je-
-   weils in ein float2 gepackt, um das Problem mit SetFloatArray (siehe
-   Discussion Board) zu umgehen. Den Hinweis auf SetRawValue haben wir erst zu
-   spät entdeckt und es dann einfach dabei belassen.
-   Die Anzahl an Lichtquellen, die angelegt werden können, werden vom Haupt-
-   programm nicht limitiert. Der Shader unterstützt allerdings nur 8 Licht-
-   quellen pro Typ. Werden im Hauptprogramm darüberhinaus Lichtquellen erzeugt,
-   so ist das Verhalten undefiniert.
-b) Unsere Szene verwendet zwei Punkt-, eine gerichtete und vier Spotlight-
-   Lichtquellen, die während der Laufzeit nicht verändert werden können. Da das
-   ziemlich viel Licht auf kleinem Raum ist, empfiehlt es sich, einzelne davon
-   auszukommentieren ;-)
+zu 6.1
+b) Die Screenshots liegen im Verzeichnis ./Screenshots und tragen hoffentlich
+   alle selbsterklärende Namen.
+   Unsere Kreativität haben wir derart ausgelebt, dass wir statt einer
+   einzelnen 2D-Textur eine Volumentextur verwendet haben, wobei jedes Level
+   einer anderen Geländeart entspricht (Strand, 2x Wiese, 2x Gebirge, Schnee).
+   Das für die Texturierung verwendete Level hängt dabei ausschließlich von der
+   Geländehöhe ab. Für das Wasser wurde wieder Normalmapping verwendet. Die
+   Materialparameter von Wasser und Gelände sind unterschiedlich und werden
+   erst im Shader gesetzt.
 
-zu 5.2:
-Statt Passes haben wir Techniques verwendet, welche nicht über Tastendruck,
-sondern wieder durch die Technique-Combobox angewählt werden können.
-Das Lichtmodell aus Folie 17 enthält unserer Meinung nach zwei Unstimmigkeiten:
-i) Die Farbe des ambienten Anteils hängt nur von der ambienten Lichtfarbe ab,
-   ohne Beleuchtung erscheint das Modell also einfarbig.
-ii) Der diffuse Anteil hängt nicht von der Farbe der Lichtquelle ab. Ein grünes
-    Objekt erscheint also auch unter rotem Licht als grün.
-Deshalb haben wir das Modell insofern abgeändert, dass der ambiente Anteil
-zusätzlich mit der Geländefarbe (komponentenweise) multipliziert wird und der
-diffuse Anteil (komponentenweise) mit der Lichtfarbe.
-Die Farbe des ambienten Lichts ist fest auf weiß eingestellt.
-Die Attenuation-Faktoren sind in der Effekt-Datei über die Konstante
-vAttenuation festgelegt.
+zu 6.2
+a) Wir haben die spiegelnde Beleuchtung so implementiert, dass zusätzlich zu
+   den spekularen Anteilen der Lichtquellen noch die Spiegelung der Umgebung
+   auf den Farbwert addiert wird. Dies geschieht allerdings nur auf der
+   Wasseroberfläche. Da die Spiegelung mit Normalmapping sehr "diffus" wird,
+   kann man dieses auch über die entsprechende Checkbox ausschalten.
+b) Für das Environment dient die neue Klasse gleichen Namens, die sich um
+   das Setzen der entsprechenden Shadervariablen kümmert und das Screen Aligned
+   Quad zeichnet.
+
