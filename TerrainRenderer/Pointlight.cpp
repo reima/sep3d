@@ -16,6 +16,9 @@ PointLight::PointLight(const D3DXVECTOR3 &position,
   PointLight::pNumPL->SetInt(PointLight::instance_count);
 }
 
+PointLight::~PointLight(void) {
+}
+
 void PointLight::GetHandles(ID3D10Effect *effect) {
   PointLight::pPos =
       effect->GetVariableByName("g_vPointLight_Position")->AsVector();

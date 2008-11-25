@@ -25,6 +25,9 @@ SpotLight::SpotLight(const D3DXVECTOR3 &position, const D3DXVECTOR3 &direction,
   SpotLight::pNumSL->SetInt(SpotLight::instance_count);
 }
 
+SpotLight::~SpotLight(void) {
+}
+
 void SpotLight::GetHandles(ID3D10Effect *effect) {
   SpotLight::pPos =
       effect->GetVariableByName("g_vSpotLight_Position")->AsVector();

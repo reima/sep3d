@@ -21,6 +21,8 @@
 #include "FixedLODSelector.h"
 #include "Scene.h"
 #include "Environment.h"
+#include "ShadowedDirectionalLight.h"
+#include "ShadowedPointLight.h"
 
 
 //#define DEBUG_VS   // Uncomment this line to debug D3D9 vertex shaders
@@ -65,8 +67,11 @@ ID3D10EffectScalarVariable* g_pbWaveNormals = NULL;
 
 Tile*                       g_pTile = NULL;
 LODSelector*                g_pLODSelector = NULL;
-Scene*                      g_pScene;
-Environment*                g_pEnvironment;
+Scene*                      g_pScene = NULL;
+Environment*                g_pEnvironment = NULL;
+
+ShadowedDirectionalLight*   g_pShadowedDirectionalLight = NULL;
+ShadowedPointLight*         g_pShadowedPointLight = NULL;
 
 bool                        g_bShowSettings = false;
 bool                        g_bWireframe = false;
@@ -395,7 +400,7 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   V_RETURN(pd3dDevice->CreateRasterizerState(&rast_desc, &g_pRSWireframe));
 
   // Szene erstellen
-  g_pScene = new Scene(0.05f, 0.9f, 0.05, 50);
+  g_pScene = new Scene(0.05f, 0.9f, 0.05f, 50);
   g_pScene->GetShaderHandles(g_pEffect10);
 
   // Lichter hinzufügen
@@ -405,9 +410,9 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   //g_pScene->AddPointLight(D3DXVECTOR3(0.0f, 0.0f, -2.5f),
   //                        D3DXVECTOR3(0, 1, 0),
   //                        D3DXVECTOR3(1, 0, 0));
-  g_pScene->AddDirectionalLight(D3DXVECTOR3(1.0f, 1.0f, 0.0f),
-                                D3DXVECTOR3(1, 0.75f, 0.5f),
-                                D3DXVECTOR3(0, 1, 0));
+  //g_pScene->AddDirectionalLight(D3DXVECTOR3(1.0f, 1.0f, 0.0f),
+  //                              D3DXVECTOR3(1, 0.75f, 0.5f),
+  //                              D3DXVECTOR3(0, 1, 0));
   //g_pScene->AddSpotLight(D3DXVECTOR3(2.5f, 3.0f, 0.0f),
   //                       D3DXVECTOR3(0, -1, 0),
   //                       D3DXVECTOR3(1, 1, 0),
@@ -432,6 +437,18 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   // Environment erstellen
   g_pEnvironment = new Environment(pd3dDevice);
   g_pEnvironment->GetShaderHandles(g_pEffect10);
+
+  g_pShadowedDirectionalLight = new ShadowedDirectionalLight(
+      D3DXVECTOR3(1.0f, 1.0f, 0.0f),
+      D3DXVECTOR3(1, 0.75f, 0.5f),
+      D3DXVECTOR3(0, 1, 0));
+  V_RETURN(g_pShadowedDirectionalLight->OnCreateDevice(pd3dDevice));
+
+  g_pShadowedPointLight = new ShadowedPointLight(
+      D3DXVECTOR3(-2.5f, 0.0f, 0.0f),
+      D3DXVECTOR3(1, 0, 0),
+      D3DXVECTOR3(0, 0, 1));
+  V_RETURN(g_pShadowedPointLight->OnCreateDevice(pd3dDevice));
 
   return S_OK;
 }
@@ -508,7 +525,7 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   g_pmWorldViewProj->SetMatrix((float*)&mWorldViewProjection);
   g_pmWorld->SetMatrix((float*)&mWorld);
   g_pfTime->SetFloat((float)fTime);
-  
+
   //
   // Render the terrain.
   //
@@ -570,6 +587,10 @@ void CALLBACK OnD3D10DestroyDevice(void* pUserContext) {
   SAFE_DELETE(g_pLODSelector);
   SAFE_DELETE(g_pScene);
   SAFE_DELETE(g_pEnvironment);
+  g_pShadowedDirectionalLight->OnDestroyDevice();
+  SAFE_DELETE(g_pShadowedDirectionalLight);
+  g_pShadowedPointLight->OnDestroyDevice();
+  SAFE_DELETE(g_pShadowedPointLight);
 }
 
 
@@ -602,6 +623,8 @@ void CALLBACK OnFrameMove(double fTime, float fElapsedTime,
   // Update the camera's position based on user input
   g_Camera.FrameMove(fElapsedTime);
   g_pScene->OnFrameMove(fElapsedTime, *g_Camera.GetEyePt());
+  g_pShadowedDirectionalLight->OnFrameMove(fElapsedTime);
+  g_pShadowedPointLight->OnFrameMove(fElapsedTime);
 }
 
 

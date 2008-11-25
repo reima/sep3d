@@ -711,14 +711,54 @@
 				>
 			</File>
 		</Filter>
-		<File
-			RelativePath=".\DirectionalLight.cpp"
+		<Filter
+			Name="Lights"
 			>
-		</File>
-		<File
-			RelativePath=".\DirectionalLight.h"
-			>
-		</File>
+			<File
+				RelativePath=".\DirectionalLight.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\DirectionalLight.h"
+				>
+			</File>
+			<File
+				RelativePath=".\LightSource.h"
+				>
+			</File>
+			<File
+				RelativePath=".\PointLight.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\PointLight.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ShadowedDirectionalLight.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\ShadowedDirectionalLight.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ShadowedPointLight.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\ShadowedPointLight.h"
+				>
+			</File>
+			<File
+				RelativePath=".\SpotLight.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\SpotLight.h"
+				>
+			</File>
+		</Filter>
 		<File
 			RelativePath=".\Environment.cpp"
 			>
@@ -736,23 +776,11 @@
 			>
 		</File>
 		<File
-			RelativePath=".\LightSource.h"
-			>
-		</File>
-		<File
 			RelativePath=".\LoadEffect.cpp"
 			>
 		</File>
 		<File
 			RelativePath=".\LODSelector.h"
-			>
-		</File>
-		<File
-			RelativePath=".\PointLight.cpp"
-			>
-		</File>
-		<File
-			RelativePath=".\PointLight.h"
 			>
 		</File>
 		<File
@@ -765,14 +793,6 @@
 		</File>
 		<File
 			RelativePath=".\Scene.h"
-			>
-		</File>
-		<File
-			RelativePath=".\SpotLight.cpp"
-			>
-		</File>
-		<File
-			RelativePath=".\SpotLight.h"
 			>
 		</File>
 		<File

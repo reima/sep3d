@@ -16,6 +16,9 @@ DirectionalLight::DirectionalLight(const D3DXVECTOR3 &direction,
   DirectionalLight::pNumDL->SetInt(DirectionalLight::instance_count);
 }
 
+DirectionalLight::~DirectionalLight(void) {
+}
+
 void DirectionalLight::GetHandles(ID3D10Effect *effect) {
   assert(effect != NULL);
   DirectionalLight::pDir =

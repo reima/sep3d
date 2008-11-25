@@ -12,6 +12,7 @@ class SpotLight : public LightSource {
   SpotLight(const D3DXVECTOR3 &position, const D3DXVECTOR3 &direction,
             const D3DXVECTOR3 &color, const D3DXVECTOR3 &rotation,
             float cutoff_angle, float exponent);
+  virtual ~SpotLight(void);
   static void GetHandles(ID3D10Effect *effect);
   virtual void OnFrameMove(float elapsed_time);
 

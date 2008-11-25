@@ -10,6 +10,7 @@ class LightSource {
    */
   LightSource(const D3DXVECTOR3 &color, const D3DXVECTOR3 &rotation)
       : color_(color), rotation_(rotation) {};
+  virtual ~LightSource(void) {};
   /**
    * Führt Per-Frame-Updates an der Lichtquelle aus (Rotation).
    */

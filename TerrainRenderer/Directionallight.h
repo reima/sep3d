@@ -10,11 +10,14 @@ class DirectionalLight : public LightSource {
    */
   DirectionalLight(const D3DXVECTOR3 &direction, const D3DXVECTOR3 &color,
                    const D3DXVECTOR3 &rotation);
+  virtual ~DirectionalLight(void);
   static void GetHandles(ID3D10Effect *effect);
   virtual void OnFrameMove(float elapsed_time);
 
- private:
+ protected:
   D3DXVECTOR3 direction_;
+ 
+ private:
   static unsigned int instance_count;  
   static ID3D10EffectVectorVariable *pDir;
   static ID3D10EffectVectorVariable *pColor;
