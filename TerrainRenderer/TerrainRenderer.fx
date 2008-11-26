@@ -44,6 +44,7 @@ cbuffer cbLightsOnFrameMove
   float3 g_vDirectionalLight_Direction[8]; // Guaranteed to be normalized
   float3 g_vSpotLight_Position[8];
   float3 g_vSpotLight_Direction[8]; // Guaranteed to be normalized
+  float4x4 g_mDirectionalLightSpaceTransform;
 }
 
 cbuffer cbEnvironmentOnFrame
@@ -61,6 +62,7 @@ Texture2D g_tWaves;
 Texture2D g_tGround;
 Texture3D g_tGround3D;
 TextureCube g_tCubeMap;
+Texture2D g_tDirectionalShadowMap;
 
 SamplerState g_ssLinear
 {
@@ -123,6 +125,7 @@ struct VS_PHONG_SHADING_OUTPUT
 {
   float4 Position       : SV_Position;
   float3 WorldPosition  : POSITION;
+  float4 LightSpacePos  : LIGHTSPACEPOS;
   float  Height         : HEIGHT;
   float3 Normal         : NORMAL0;
   float2 TexCoord       : TEXCOORD0;
@@ -262,6 +265,7 @@ VS_PHONG_SHADING_OUTPUT PhongShading_VS( VS_INPUT In )
   Output.Position = mul(vPos, g_mWorldViewProjection);
   Output.Normal = normalize(In.Normal);
   Output.WorldPosition = vPos;
+  Output.LightSpacePos = mul(vPos, g_mDirectionalLightSpaceTransform);
   Output.TexCoord = vPos.xz * 2;
 
   if (g_bWaveNormals) {
@@ -279,6 +283,13 @@ VS_PHONG_SHADING_OUTPUT PhongShading_VS( VS_INPUT In )
 float4 Environment_VS( VS_INPUT In ) : SV_Position
 {
   return float4(In.Position, 1);
+}
+
+float4 DirectionalShadow_VS( VS_INPUT In ) : SV_Position
+{
+  float4 vPos = float4(In.Position, 1);
+  vPos.y = max(0, vPos.y);
+  return mul( vPos, g_mDirectionalLightSpaceTransform);
 }
 
 //--------------------------------------------------------------------------------------
@@ -317,9 +328,9 @@ float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In ) : SV_Target
     vTerrainColor = g_vWaterColor;
     vReflect = g_tCubeMap.Sample(g_ssLinear, R);
   } else {
-    //float4 vTerrainColor = GetColorFromHeight(In.Height);
-    //float4 vTerrainColor = g_tGround.Sample(g_ssLinear, In.TexCoord);
-    //float4 vTerrainColor = g_tGround.SampleLevel(g_ssLinear, In.TexCoord, 0);
+    //vTerrainColor = GetColorFromHeight(In.Height);
+    //vTerrainColor = g_tDirectionalShadowMap.Sample(g_ssLinear, In.TexCoord);
+    //vTerrainColor = g_tGround.SampleLevel(g_ssLinear, In.TexCoord, 0);
     float fHeightNormalized = In.Height / g_fMaxHeight + 0.1;
     vTerrainColor = g_tGround3D.SampleLevel(g_ssLinear,
                                             float3(In.TexCoord,
@@ -327,11 +338,28 @@ float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In ) : SV_Target
                                             0);
     N = normalize(In.Normal);
   }
-  
-  PHONG phong = PhongLighting(In.WorldPosition, N, In.Material);
-  return vTerrainColor * In.Material.x +
-    vTerrainColor * float4(phong.DiffuseLight, 1) +
-    float4(phong.SpecularLight, 1) + In.Material.z * vReflect;
+
+  float3 vLightSpacePos = In.LightSpacePos.xyz / In.LightSpacePos.w;
+  float fLightDist = vLightSpacePos.z;
+  vLightSpacePos.x = 0.5 * vLightSpacePos.x + 0.5;
+  vLightSpacePos.y = 1 - (0.5 * vLightSpacePos.y + 0.5);
+
+  uint nInShadow = 0;
+  for (int x = -1; x <= 1; ++x) {
+    for (int y = -1; y <= 1; ++y) {
+      float fShadowMap = g_tDirectionalShadowMap.Load(int3(vLightSpacePos.xy*1023 + float2(x, y), 0));
+      if (fShadowMap + 0.01f < fLightDist) nInShadow++;
+    }
+  }
+  if (nInShadow == 9) {
+    return vTerrainColor * In.Material.x;
+  } else {
+    PHONG phong = PhongLighting(In.WorldPosition, N, In.Material);
+    float fLightScale = 1.0f - nInShadow / 9.0f;
+    return vTerrainColor * In.Material.x + fLightScale * (
+      vTerrainColor * float4(phong.DiffuseLight, 1) +
+      float4(phong.SpecularLight, 1) + In.Material.z * vReflect);
+  }
 }
 
 float4 Environment_PS( float4 vPos : SV_Position ) : SV_Target
@@ -350,7 +378,14 @@ float4 Environment_PS( float4 vPos : SV_Position ) : SV_Target
   return g_tCubeMap.Sample(g_ssLinear, vView);
 }
 
+float DirectionalShadow_PS( float4 vPos : SV_Position ) : SV_Depth
+{
+  return vPos.z/vPos.w;
+}
 
+//--------------------------------------------------------------------------------------
+// States
+//--------------------------------------------------------------------------------------
 BlendState SrcColorBlendingAdd
 {
   BlendEnable[0] = TRUE;
@@ -359,8 +394,32 @@ BlendState SrcColorBlendingAdd
   DestBlend = INV_SRC_ALPHA;
 };
 
+DepthStencilState EnableDepth
+{
+  DepthEnable = TRUE;
+  DepthWriteMask = ALL;
+  DepthFunc = LESS;
+};
+
+BlendState NoColorWrite
+{
+  RenderTargetWriteMask[0] = 0;
+  RenderTargetWriteMask[1] = 0;
+  RenderTargetWriteMask[2] = 0;
+  RenderTargetWriteMask[3] = 0;
+  RenderTargetWriteMask[4] = 0;
+  RenderTargetWriteMask[5] = 0;
+  RenderTargetWriteMask[6] = 0;
+  RenderTargetWriteMask[7] = 0;
+};
+
+RasterizerState rsCullNone
+{
+  CullMode = None;
+};
+
 //--------------------------------------------------------------------------------------
-// Renders scene
+// Techniques
 //--------------------------------------------------------------------------------------
 technique10 GouraudShading
 {
@@ -369,6 +428,8 @@ technique10 GouraudShading
     SetVertexShader( CompileShader( vs_4_0, GouraudShading_VS() ) );
     SetGeometryShader( NULL );
     SetPixelShader( CompileShader( ps_4_0, GouraudShading_PS() ) );
+    SetBlendState( NULL, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
+    SetRasterizerState( NULL );
   }
 }
 
@@ -379,6 +440,8 @@ technique10 PhongShading
     SetVertexShader( CompileShader( vs_4_0, PhongShading_VS() ) );
     SetGeometryShader( NULL );
     SetPixelShader( CompileShader( ps_4_0, PhongShading_PS() ) );
+    SetBlendState( NULL, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
+    SetRasterizerState( NULL );
   }
 }
 
@@ -389,5 +452,18 @@ technique10 Environment
     SetVertexShader( CompileShader( vs_4_0, Environment_VS() ) );
     SetGeometryShader( NULL );
     SetPixelShader( CompileShader( ps_4_0, Environment_PS() ) );
+  }
+}
+
+technique10 DirectionalShadowMap
+{
+  pass P0
+  {
+    SetVertexShader( CompileShader( vs_4_0, DirectionalShadow_VS() ) );
+    SetGeometryShader( NULL );
+    SetPixelShader( CompileShader( ps_4_0, DirectionalShadow_PS() ) );
+    SetDepthStencilState( EnableDepth, 0 );
+    SetRasterizerState( rsCullNone );
+    SetBlendState( NoColorWrite, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
   }
 }

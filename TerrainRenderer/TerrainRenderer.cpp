@@ -439,16 +439,18 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   g_pEnvironment->GetShaderHandles(g_pEffect10);
 
   g_pShadowedDirectionalLight = new ShadowedDirectionalLight(
-      D3DXVECTOR3(1.0f, 1.0f, 0.0f),
+      D3DXVECTOR3(1.0f, 0.25f, 0.0f),
       D3DXVECTOR3(1, 0.75f, 0.5f),
-      D3DXVECTOR3(0, 1, 0));
+      D3DXVECTOR3(0, 0.2f, 0));
   V_RETURN(g_pShadowedDirectionalLight->OnCreateDevice(pd3dDevice));
+  g_pShadowedDirectionalLight->GetShaderHandles(g_pEffect10);
 
   g_pShadowedPointLight = new ShadowedPointLight(
       D3DXVECTOR3(-2.5f, 0.0f, 0.0f),
       D3DXVECTOR3(1, 0, 0),
       D3DXVECTOR3(0, 0, 1));
   V_RETURN(g_pShadowedPointLight->OnCreateDevice(pd3dDevice));
+  //g_pShadowedPointLight->GetShaderHandles(g_pEffect10);
 
   return S_OK;
 }
@@ -623,7 +625,7 @@ void CALLBACK OnFrameMove(double fTime, float fElapsedTime,
   // Update the camera's position based on user input
   g_Camera.FrameMove(fElapsedTime);
   g_pScene->OnFrameMove(fElapsedTime, *g_Camera.GetEyePt());
-  g_pShadowedDirectionalLight->OnFrameMove(fElapsedTime);
+  g_pShadowedDirectionalLight->OnFrameMove(fElapsedTime, g_pTile);
   g_pShadowedPointLight->OnFrameMove(fElapsedTime);
 }
 

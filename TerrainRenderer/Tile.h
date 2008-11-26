@@ -95,6 +95,8 @@ class Tile {
    */
   void CalculateNormals(void);
 
+  void CalculateBoundingBox(D3DXVECTOR3 *out, D3DXVECTOR3 *mid);
+
  private:
   /**
    * Richtungstyp, der einen Quadranten eines Tiles spezifiziert
@@ -177,6 +179,9 @@ class Tile {
    */
   void ReleaseBuffers(void);
 
+
+  void CalculateHeights(void);
+
   /**
    * LOD-Stufe des Tiles
    */
@@ -229,6 +234,9 @@ class Tile {
    * Zeiger auf den D3D10-Index-Buffer.
    */
   ID3D10Buffer *index_buffer_;
+
+  float max_height_;
+  float min_height_;
 };
 
 #endif

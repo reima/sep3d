@@ -43,6 +43,7 @@ Tile::Tile(int n, float roughness, int num_lod)
   vertices_ = new D3DXVECTOR3[size_*size_];
   Init(roughness);
   InitChildren(roughness, NULL, NULL);
+  CalculateHeights();
 }
 
 Tile::Tile(Tile *parent, Tile::Direction direction, float roughness,
@@ -236,36 +237,35 @@ void Tile::FixEdges(Tile *north, Tile *west) {
   }
 }
 
-float Tile::GetMinHeight(void) const {
+void Tile::CalculateHeights(){
   assert(vertices_ != NULL);
   float min = std::numeric_limits<float>::max();
+  float max = std::numeric_limits<float>::min();
   if (num_lod_ > 0) {
     for (int dir = 0; dir < 4; ++dir) {
-      min = std::min(min, children_[dir]->GetMinHeight());
+      children_[dir]->CalculateHeights();
+      min = std::min(min, children_[dir]->min_height_);
+      max = std::max(max, children_[dir]->max_height_);
     }
   } else {
     const int res = GetResolution();
     for (int i = 0; i < res; ++i) {
       min = std::min(min, vertices_[i].y);
-    }
-  }
-  return min;
-}
-
-float Tile::GetMaxHeight(void) const {
-  assert(vertices_ != NULL);
-  float max = std::numeric_limits<float>::min();
-  if (num_lod_ > 0) {
-    for (int dir = 0; dir < 4; ++dir) {
-      max = std::max(max, children_[dir]->GetMaxHeight());
-    }
-  } else {
-    const int res = GetResolution();
-    for (int i = 1; i < res; ++i) {
       max = std::max(max, vertices_[i].y);
     }
   }
-  return max;
+
+  min_height_ = min;
+  max_height_ = max;
+}
+
+
+float Tile::GetMinHeight(void) const {
+  return min_height_;
+}
+
+float Tile::GetMaxHeight(void) const {
+  return max_height_;
 }
 
 void Tile::InitIndexBuffer(void) {
@@ -573,4 +573,16 @@ void Tile::NormalizeNormals(void) {
       children_[dir]->NormalizeNormals();
     }
   }
+}
+
+void Tile::CalculateBoundingBox(D3DXVECTOR3 *box, D3DXVECTOR3 *mid) {
+  *(box++) = D3DXVECTOR3(-2.5f, min_height_, -2.5f);
+  *(box++) = D3DXVECTOR3(-2.5f, min_height_,  2.5f);
+  *(box++) = D3DXVECTOR3( 2.5f, min_height_, -2.5f);
+  *(box++) = D3DXVECTOR3( 2.5f, min_height_,  2.5f);
+  *(box++) = D3DXVECTOR3(-2.5f, max_height_, -2.5f);
+  *(box++) = D3DXVECTOR3(-2.5f, max_height_,  2.5f);
+  *(box++) = D3DXVECTOR3( 2.5f, max_height_, -2.5f);
+  *(box++) = D3DXVECTOR3( 2.5f, max_height_,  2.5f);
+  *mid = D3DXVECTOR3(0.0f, 0.5f*(min_height_ + max_height_), 0.0f);
 }
