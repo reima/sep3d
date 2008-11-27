@@ -96,7 +96,7 @@ const float4 g_Colors[NUM_SPOTS] = {
   float4(1, 1, 1, 1)
 };
 
-const float3 vAttenuation = { 1, 0, 0 }; // Constant, linear, quadratic
+const float3 vAttenuation = { 0, 0, 1 }; // Constant, linear, quadratic
 
 const float4 g_vWaterColor = float4(0, 0.25, 0.5, 1.0);
 const float4 g_vMaterMaterial = float4(0.05, 0.45, 0.5, 200);
@@ -368,7 +368,7 @@ float4 Environment_PS( float4 vPos : SV_Position ) : SV_Target
   vPos.xy /= float2(g_vBackBufferSize.x - 1, g_vBackBufferSize.y - 1);
   vPos.x = 2*vPos.x-1;
   vPos.y = 1-2*vPos.y;
-  float fRatio = g_vBackBufferSize.y / (float)g_vBackBufferSize.x;
+  float fRatio = g_vBackBufferSize.x / (float)g_vBackBufferSize.y;
   // Calculate view vector in view space
   float3 vView = float3(fRatio * tan(0.5f * g_fCameraFOV) * vPos.x,
                         tan(0.5f * g_fCameraFOV) * vPos.y,
