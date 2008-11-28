@@ -289,7 +289,7 @@ float4 DirectionalShadow_VS( VS_INPUT In ) : SV_Position
 {
   float4 vPos = float4(In.Position, 1);
   vPos.y = max(0, vPos.y);
-  return mul( vPos, g_mDirectionalLightSpaceTransform);
+  return mul(vPos, g_mDirectionalLightSpaceTransform);
 }
 
 //--------------------------------------------------------------------------------------
@@ -428,8 +428,8 @@ technique10 GouraudShading
     SetVertexShader( CompileShader( vs_4_0, GouraudShading_VS() ) );
     SetGeometryShader( NULL );
     SetPixelShader( CompileShader( ps_4_0, GouraudShading_PS() ) );
-    SetBlendState( NULL, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
     SetRasterizerState( NULL );
+    SetBlendState( NULL, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
   }
 }
 
@@ -440,8 +440,8 @@ technique10 PhongShading
     SetVertexShader( CompileShader( vs_4_0, PhongShading_VS() ) );
     SetGeometryShader( NULL );
     SetPixelShader( CompileShader( ps_4_0, PhongShading_PS() ) );
-    SetBlendState( NULL, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
     SetRasterizerState( NULL );
+    SetBlendState( NULL, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
   }
 }
 

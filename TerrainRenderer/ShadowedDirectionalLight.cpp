@@ -130,10 +130,10 @@ void ShadowedDirectionalLight::OnFrameMove(float elapsed_time, Tile *tile) {
   device_->OMGetRenderTargets(D3D10_SIMULTANEOUS_RENDER_TARGET_COUNT,
                               rtv_old, &dsv_old);
 
-  // Viewport sichern
-  D3D10_VIEWPORT viewport_old;
-  UINT num_viewports = 1;
-  device_->RSGetViewports(&num_viewports, &viewport_old);
+  // Viewports sichern
+  D3D10_VIEWPORT viewports_old[D3D10_SIMULTANEOUS_RENDER_TARGET_COUNT];
+  UINT num_viewports = D3D10_SIMULTANEOUS_RENDER_TARGET_COUNT;
+  device_->RSGetViewports(&num_viewports, viewports_old);
 
   // Unsere Textur als Depth-Stencil-Target setzen
   device_->OMSetRenderTargets(0, NULL, depth_stencil_view_);
@@ -159,8 +159,8 @@ void ShadowedDirectionalLight::OnFrameMove(float elapsed_time, Tile *tile) {
   device_->OMSetRenderTargets(D3D10_SIMULTANEOUS_RENDER_TARGET_COUNT,
                               rtv_old, dsv_old);
 
-  // Alten Viewport wieder setzen
-  device_->RSSetViewports(1, &viewport_old);
+  // Alte Viewports wieder setzen
+  device_->RSSetViewports(num_viewports, viewports_old);
 
   // Referenzen auf alte Render Targets freigeben
   for (UINT i = 0; i < D3D10_SIMULTANEOUS_RENDER_TARGET_COUNT; ++i)
