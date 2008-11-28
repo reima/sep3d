@@ -114,6 +114,7 @@ void ShadowedDirectionalLight::OnFrameMove(float elapsed_time, Scene *scene) {
   assert(technique_ != NULL);
   assert(depth_stencil_view_ != NULL);
   assert(device_ != NULL);
+
   DirectionalLight::OnFrameMove(elapsed_time);
   UpdateMatrices(scene);
   SetShaderVariables();

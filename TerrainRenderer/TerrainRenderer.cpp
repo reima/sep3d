@@ -437,7 +437,7 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
       D3DXVECTOR3(1, 0, 0),
       D3DXVECTOR3(0, 0, 1));
   V_RETURN(g_pShadowedPointLight->OnCreateDevice(pd3dDevice));
-  //g_pShadowedPointLight->GetShaderHandles(g_pEffect10);
+  g_pShadowedPointLight->GetShaderHandles(g_pEffect10);
 
   return S_OK;
 }
@@ -595,6 +595,7 @@ bool CALLBACK ModifyDeviceSettings(DXUTDeviceSettings* pDeviceSettings,
       DXUTDisplaySwitchingToREFWarning(pDeviceSettings->ver);
     }
   }
+  pDeviceSettings->d3d10.SyncInterval = 0;
 
   return true;
 }
@@ -609,7 +610,7 @@ void CALLBACK OnFrameMove(double fTime, float fElapsedTime,
   g_Camera.FrameMove(fElapsedTime);
   g_pScene->OnFrameMove(fElapsedTime, *g_Camera.GetEyePt());
   g_pShadowedDirectionalLight->OnFrameMove(fElapsedTime, g_pScene);
-  //g_pShadowedPointLight->OnFrameMove(fElapsedTime, g_pScene);
+  g_pShadowedPointLight->OnFrameMove(fElapsedTime, g_pScene);
 }
 
 

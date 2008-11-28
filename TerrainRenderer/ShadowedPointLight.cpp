@@ -1,11 +1,7 @@
 #include "ShadowedPointLight.h"
 #include "LODSelector.h"
-#include "Tile.h"
+#include "Scene.h"
 #include "DXUTCamera.h"
-
-extern LODSelector *g_pLODSelector;
-extern CFirstPersonCamera g_Camera;
-extern ID3D10InputLayout* g_pVertexLayout;
 
 ShadowedPointLight::ShadowedPointLight(const D3DXVECTOR3 &position,
                                        const D3DXVECTOR3 &color,
@@ -73,15 +69,17 @@ void ShadowedPointLight::SetShaderVariables(void) {
   // TODO: Implementierung
 }
 
-void ShadowedPointLight::UpdateMatrices(Tile *tile) {
+void ShadowedPointLight::UpdateMatrices(Scene *scene) {
   // TODO: Implementierung
 }
 
-void ShadowedPointLight::OnFrameMove(float elapsed_time, Tile *tile) {
-  return;
+void ShadowedPointLight::OnFrameMove(float elapsed_time, Scene *scene) {
   assert(technique_ != NULL);
+  assert(depth_stencil_view_ != NULL);
+  assert(device_ != NULL);
+
   PointLight::OnFrameMove(elapsed_time);
-  UpdateMatrices(tile);
+  UpdateMatrices(scene);
   SetShaderVariables();
 
   // Render Targets sichern
@@ -110,9 +108,8 @@ void ShadowedPointLight::OnFrameMove(float elapsed_time, Tile *tile) {
   viewport.MinDepth = 0.0f;
   device_->RSSetViewports(1, &viewport);
 
-  device_->IASetInputLayout(g_pVertexLayout);
   technique_->GetPassByIndex(0)->Apply(0);
-  tile->Draw(device_, g_pLODSelector, g_Camera.GetEyePt());
+  scene->Draw();
 
   // Alte Render Targets wieder setzen
   device_->OMSetRenderTargets(D3D10_SIMULTANEOUS_RENDER_TARGET_COUNT,

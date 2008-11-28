@@ -45,6 +45,7 @@ cbuffer cbLightsOnFrameMove
   float3 g_vSpotLight_Position[8];
   float3 g_vSpotLight_Direction[8]; // Guaranteed to be normalized
   float4x4 g_mDirectionalLightSpaceTransform;
+  float4x4 g_mPointLightSpaceTransform[6];
 }
 
 cbuffer cbEnvironmentOnFrame
@@ -135,6 +136,17 @@ struct VS_PHONG_SHADING_OUTPUT
   float2 Wave2          : TEXCOORD4;
   float2 Wave3          : TEXCOORD5;
   float4 Material       : MATERIAL; // = { k_a, k_d, k_s, n }
+};
+
+struct GS_POINTSHADOW_INPUT
+{
+  float4 Position   : SV_Position;
+};
+
+struct GS_POINTSHADOW_OUTPUT
+{
+  float4 Position   : SV_Position;
+  uint   RTI        : SV_RenderTargetArrayIndex;
 };
 
 struct PHONG
@@ -295,8 +307,25 @@ float4 DirectionalShadow_VS( VS_INPUT In ) : SV_Position
 
 float4 PointShadow_VS( VS_INPUT In ) : SV_Position
 {
-  // TODO: Implementieren
-  return 0;
+  return float4(In.Position, 1);
+}
+
+//--------------------------------------------------------------------------------------
+// Geometry Shaders
+//--------------------------------------------------------------------------------------
+[MaxVertexCount(18)]
+void PointShadow_GS( triangle GS_POINTSHADOW_INPUT In[3],
+                     inout TriangleStream<GS_POINTSHADOW_OUTPUT> MeshStream )
+{
+  GS_POINTSHADOW_OUTPUT Output;
+  for (uint i = 0; i < 6; ++i) {
+    Output.RTI = i;
+    for (uint j = 0; j < 3; ++j) {
+      Output.Position = mul(In[j].Position, g_mPointLightSpaceTransform[i]);
+      MeshStream.Append(Output);
+    }
+    MeshStream.RestartStrip();
+  }
 }
 
 //--------------------------------------------------------------------------------------
@@ -392,7 +421,7 @@ float DirectionalShadow_PS( float4 vPos : SV_Position ) : SV_Depth
 
 float PointShadow_PS( float4 vPos : SV_Position ) : SV_Depth
 {
-  // TODO: Implementieren
+  return vPos.z/vPos.w;
 }
 
 //--------------------------------------------------------------------------------------
@@ -480,15 +509,15 @@ technique10 DirectionalShadowMap
   }
 }
 
-//technique10 PointShadowMap
-//{
-//  pass P0
-//  {
-//    SetVertexShader( CompileShader( vs_4_0, PointShadow_VS() ) );
-//    SetGeometryShader( CompileShader( gs_4_0, PointShadow_GS() ) );
-//    SetPixelShader( CompileShader( ps_4_0, PointShadow_PS() ) );
-//    SetDepthStencilState( EnableDepth, 0 );
-//    SetRasterizerState( rsCullNone );
-//    SetBlendState( NoColorWrite, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
-//  }
-//}
+technique10 PointShadowMap
+{
+  pass P0
+  {
+    SetVertexShader( CompileShader( vs_4_0, PointShadow_VS() ) );
+    SetGeometryShader( CompileShader( gs_4_0, PointShadow_GS() ) );
+    SetPixelShader( CompileShader( ps_4_0, PointShadow_PS() ) );
+    SetDepthStencilState( EnableDepth, 0 );
+    SetRasterizerState( rsCullNone );
+    SetBlendState( NoColorWrite, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
+  }
+}
