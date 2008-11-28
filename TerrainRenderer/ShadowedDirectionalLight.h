@@ -1,6 +1,7 @@
 #pragma once
 #include "DirectionalLight.h"
-#include "Tile.h"
+
+class Scene;
 
 class ShadowedDirectionalLight : public DirectionalLight {
  public:
@@ -15,9 +16,9 @@ class ShadowedDirectionalLight : public DirectionalLight {
   void GetShaderHandles(ID3D10Effect *effect);
   void SetShaderVariables(void);
 
-  void UpdateMatrices(Tile *tile) ;
+  void UpdateMatrices(Scene *scene);
 
-  void OnFrameMove(float elapsed_time, Tile *tile);
+  void OnFrameMove(float elapsed_time, Scene *scene);
 
  private:
   ID3D10Device *device_;
@@ -28,7 +29,7 @@ class ShadowedDirectionalLight : public DirectionalLight {
 
   D3DXMATRIX light_space_transform_;
 
-  ID3D10Effect *effect_;
+  ID3D10EffectTechnique *technique_;
   ID3D10EffectMatrixVariable *lst_effect_;
   ID3D10EffectShaderResourceVariable *shadow_map_effect_;
 

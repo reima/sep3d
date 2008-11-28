@@ -3,17 +3,30 @@
 #include "DXUT.h"
 #include "LightSource.h"
 
+class CFirstPersonCamera;
+class Tile;
+class LODSelector;
+
 class Scene {
  public:
   /**
    * Konstruktor.
    * Erzeugt eine neue Szene mit den angegebenen Materialeigenschaften
    */
-  Scene(float ambient, float diffuse, float specular, float exponent);
+  Scene(void);
   /**
    * Destruktor.
    */
   ~Scene(void);
+
+  void SetMaterial(float ambient, float diffuse, float specular,
+                   float exponent);
+
+  void SetCamera(CFirstPersonCamera *camera) { camera_ = camera; }
+  CFirstPersonCamera *GetCamera(void) { return camera_; }
+
+  void SetLODSelector(LODSelector *lod_selector) { lod_selector_ = lod_selector; }
+  LODSelector *GetLODSelector(void) { return lod_selector_; }
 
   /**
    * Erzeugt eine neue Punkt-Lichtquelle in der Szene.
@@ -34,10 +47,23 @@ class Scene {
                     float cutoff_angle, float exponent);
 
   /**
+   * Erzeugt ein neues Terrain mit den übergebenen Parametern und bereitet es auf
+   * das Rendering vor.
+   */
+  void CreateTerrain(int n, float roughness, int num_lod);
+  Tile *GetTerrain(void) { return tile_; }
+
+  void GetBoundingBox(D3DXVECTOR3 *box, D3DXVECTOR3 *mid);
+
+  /**
    * Führt Per-Frame-Updates in der Szene aus
    */
   void OnFrameMove(float elapsed_time, const D3DXVECTOR3 &cam_pos);
+
+  void OnCreateDevice(ID3D10Device *device);
   void GetShaderHandles(ID3D10Effect* effect);
+
+  void Draw(void);
 
  private:
    /**
@@ -45,25 +71,15 @@ class Scene {
    */
   std::vector<LightSource *> light_sources_;
   /**
-   * Materialeigenschaft: Ambienter Koeffizient
-   */
-  float ambient_;
-  /**
-   * Materialeigenschaft: Diffuser Koeffizient
-   */
-  float diffuse_;
-  /**
-   * Materialeigenschaft: Spekularer Koeffizient
-   */
-  float specular_;
-  /**
-   * Materialeigenschaft: Spekularer Exponent
-   */
-  float exponent_;
-  /**
    * Kameraposition
    */
   D3DXVECTOR3 cam_pos_;
+
+  CFirstPersonCamera *camera_;
+  Tile *tile_;
+  LODSelector *lod_selector_;
+
+  ID3D10Device *device_;
 
   ID3D10EffectVectorVariable *pMaterialParameters;
   ID3D10EffectVectorVariable *pCameraPosition;

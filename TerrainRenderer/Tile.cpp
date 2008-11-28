@@ -575,7 +575,7 @@ void Tile::NormalizeNormals(void) {
   }
 }
 
-void Tile::CalculateBoundingBox(D3DXVECTOR3 *box, D3DXVECTOR3 *mid) {
+void Tile::GetBoundingBox(D3DXVECTOR3 *box, D3DXVECTOR3 *mid) {
   *(box++) = D3DXVECTOR3(-2.5f, min_height_, -2.5f);
   *(box++) = D3DXVECTOR3(-2.5f, min_height_,  2.5f);
   *(box++) = D3DXVECTOR3( 2.5f, min_height_, -2.5f);

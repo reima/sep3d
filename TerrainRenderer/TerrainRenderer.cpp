@@ -65,7 +65,6 @@ ID3D10EffectShaderResourceVariable* g_ptCubeMap = NULL;
 ID3D10ShaderResourceView*   g_pCubeMapRV = NULL;
 ID3D10EffectScalarVariable* g_pbWaveNormals = NULL;
 
-Tile*                       g_pTile = NULL;
 LODSelector*                g_pLODSelector = NULL;
 Scene*                      g_pScene = NULL;
 Environment*                g_pEnvironment = NULL;
@@ -279,28 +278,6 @@ bool CALLBACK IsD3D10DeviceAcceptable(UINT Adapter, UINT Output,
   return true;
 }
 
-/**
- * Erzeugt ein neues Terrain mit den übergebenen Parametern und bereitet es auf
- * das Rendering vor.
- */
-HRESULT CreateTerrain(ID3D10Device *pd3dDevice) {
-  HRESULT hr;
-  SAFE_DELETE(g_pTile);
-  // Tile erzeugen
-  g_pTile = new Tile(g_nTerrainN, g_fTerrainR, g_nTerrainLOD);
-  g_pTile->TriangulateZOrder();
-  g_pTile->CalculateNormals();
-  // Tile-Daten in D3D10-Buffer speichern
-  V_RETURN(g_pTile->CreateBuffers(pd3dDevice));
-  // Minimum und Maximum an Effekt übergeben
-  g_pfMinHeight->SetFloat(g_pTile->GetMinHeight());
-  g_pfMaxHeight->SetFloat(g_pTile->GetMaxHeight());
-  // Lokale Tile-Daten freigeben
-  g_pTile->FreeMemory();
-  return S_OK;
-}
-
-
 //--------------------------------------------------------------------------------------
 // Create any D3D10 resources that aren't dependant on the back buffer
 //--------------------------------------------------------------------------------------
@@ -384,8 +361,7 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
                                          pass_desc.IAInputSignatureSize,
                                          &g_pVertexLayout));
 
-  // Terrain erzeugen
-  V_RETURN(CreateTerrain(pd3dDevice));
+  pd3dDevice->IASetInputLayout(g_pVertexLayout);
 
   // FixedLODSelector mit LOD-Stufe 0
   g_pLODSelector = new FixedLODSelector(0);
@@ -400,8 +376,19 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   V_RETURN(pd3dDevice->CreateRasterizerState(&rast_desc, &g_pRSWireframe));
 
   // Szene erstellen
-  g_pScene = new Scene(0.05f, 0.9f, 0.05f, 50);
+  g_pScene = new Scene();
   g_pScene->GetShaderHandles(g_pEffect10);
+  g_pScene->SetMaterial(0.05f, 0.9f, 0.05f, 50);
+  g_pScene->SetCamera(&g_Camera);
+  g_pScene->SetLODSelector(g_pLODSelector);
+  g_pScene->OnCreateDevice(pd3dDevice);
+  
+
+  // Terrain erzeugen
+  g_pScene->CreateTerrain(g_nTerrainN, g_fTerrainR, g_nTerrainLOD);
+  Tile *terrain = g_pScene->GetTerrain();
+  g_pfMinHeight->SetFloat(terrain->GetMinHeight());
+  g_pfMaxHeight->SetFloat(terrain->GetMaxHeight());
 
   // Lichter hinzufügen
   //g_pScene->AddPointLight(D3DXVECTOR3(-2.5f, 0.0f, 0.0f),
@@ -529,11 +516,8 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   g_pfTime->SetFloat((float)fTime);
 
   //
-  // Render the terrain.
+  // Render the scene.
   //
-
-  // Set vertex Layout
-  pd3dDevice->IASetInputLayout(g_pVertexLayout);
 
   if (g_bWireframe) pd3dDevice->RSSetState(g_pRSWireframe);
 
@@ -541,7 +525,7 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   g_pTechnique->GetDesc(&tech_desc);
   for (UINT p = 0; p < tech_desc.Passes; ++p) {
     g_pTechnique->GetPassByIndex(p)->Apply(0);
-    g_pTile->Draw(pd3dDevice, g_pLODSelector, g_Camera.GetEyePt());
+    g_pScene->Draw();
   }
 
   //
@@ -585,7 +569,6 @@ void CALLBACK OnD3D10DestroyDevice(void* pUserContext) {
   SAFE_RELEASE(g_pWavesRV);
   SAFE_RELEASE(g_pCubeMapRV);
   SAFE_DELETE(g_pTxtHelper);
-  SAFE_DELETE(g_pTile);
   SAFE_DELETE(g_pLODSelector);
   SAFE_DELETE(g_pScene);
   SAFE_DELETE(g_pEnvironment);
@@ -625,8 +608,8 @@ void CALLBACK OnFrameMove(double fTime, float fElapsedTime,
   // Update the camera's position based on user input
   g_Camera.FrameMove(fElapsedTime);
   g_pScene->OnFrameMove(fElapsedTime, *g_Camera.GetEyePt());
-  g_pShadowedDirectionalLight->OnFrameMove(fElapsedTime, g_pTile);
-  g_pShadowedPointLight->OnFrameMove(fElapsedTime);
+  g_pShadowedDirectionalLight->OnFrameMove(fElapsedTime, g_pScene);
+  //g_pShadowedPointLight->OnFrameMove(fElapsedTime, g_pScene);
 }
 
 
@@ -672,6 +655,7 @@ void SetLOD(int lod) {
   lod = g_SampleUI.GetSlider(IDC_LODSLIDER)->GetValue();
   SAFE_DELETE(g_pLODSelector);
   g_pLODSelector = new FixedLODSelector(lod);
+  g_pScene->SetLODSelector(g_pLODSelector);
   WCHAR sz[100];
   StringCchPrintf(sz, 100, L"LOD (+/-): %d", lod);
   g_SampleUI.GetStatic(IDC_LODSLIDER_S)->SetText(sz);
@@ -772,7 +756,10 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
           g_TerrainUI.GetSlider(IDC_NEWTERRAIN_ROUGHNESS)->GetValue()/100.0f;
       g_nTerrainLOD = g_TerrainUI.GetSlider(IDC_NEWTERRAIN_LOD)->GetValue();
 
-      CreateTerrain(DXUTGetD3D10Device());
+      g_pScene->CreateTerrain(g_nTerrainN, g_fTerrainR, g_nTerrainLOD);
+      Tile *terrain = g_pScene->GetTerrain();
+      g_pfMinHeight->SetFloat(terrain->GetMinHeight());
+      g_pfMaxHeight->SetFloat(terrain->GetMaxHeight());
 
       g_SampleUI.GetSlider(IDC_LODSLIDER)->SetValue(0);
       g_SampleUI.GetSlider(IDC_LODSLIDER)->SetRange(0, g_nTerrainLOD);

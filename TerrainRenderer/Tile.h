@@ -95,7 +95,7 @@ class Tile {
    */
   void CalculateNormals(void);
 
-  void CalculateBoundingBox(D3DXVECTOR3 *out, D3DXVECTOR3 *mid);
+  void GetBoundingBox(D3DXVECTOR3 *out, D3DXVECTOR3 *mid);
 
  private:
   /**

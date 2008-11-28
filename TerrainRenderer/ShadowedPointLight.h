@@ -1,6 +1,8 @@
 #pragma once
 #include "PointLight.h"
 
+class Tile;
+
 class ShadowedPointLight : public PointLight {
  public:
   ShadowedPointLight(const D3DXVECTOR3 &position, const D3DXVECTOR3 &color,
@@ -13,9 +15,9 @@ class ShadowedPointLight : public PointLight {
   void GetShaderHandles(ID3D10Effect *effect);
   void SetShaderVariables(void);
 
-  void UpdateMatrices();
+  void UpdateMatrices(Tile *tile);
 
-  void OnFrameMove(float elapsed_time);
+  void OnFrameMove(float elapsed_time, Tile *tile);
 
  private:
   ID3D10Device *device_;
@@ -26,5 +28,6 @@ class ShadowedPointLight : public PointLight {
 
   D3DXMATRIX light_space_transforms_[6];
 
+  ID3D10EffectTechnique *technique_;
   // TODO: Shader Handles
 };

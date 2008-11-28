@@ -63,6 +63,7 @@ Texture2D g_tGround;
 Texture3D g_tGround3D;
 TextureCube g_tCubeMap;
 Texture2D g_tDirectionalShadowMap;
+TextureCube g_tPointShadowMap;
 
 SamplerState g_ssLinear
 {
@@ -292,6 +293,12 @@ float4 DirectionalShadow_VS( VS_INPUT In ) : SV_Position
   return mul(vPos, g_mDirectionalLightSpaceTransform);
 }
 
+float4 PointShadow_VS( VS_INPUT In ) : SV_Position
+{
+  // TODO: Implementieren
+  return 0;
+}
+
 //--------------------------------------------------------------------------------------
 // Pixel Shaders
 //--------------------------------------------------------------------------------------
@@ -383,6 +390,11 @@ float DirectionalShadow_PS( float4 vPos : SV_Position ) : SV_Depth
   return vPos.z/vPos.w;
 }
 
+float PointShadow_PS( float4 vPos : SV_Position ) : SV_Depth
+{
+  // TODO: Implementieren
+}
+
 //--------------------------------------------------------------------------------------
 // States
 //--------------------------------------------------------------------------------------
@@ -467,3 +479,16 @@ technique10 DirectionalShadowMap
     SetBlendState( NoColorWrite, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
   }
 }
+
+//technique10 PointShadowMap
+//{
+//  pass P0
+//  {
+//    SetVertexShader( CompileShader( vs_4_0, PointShadow_VS() ) );
+//    SetGeometryShader( CompileShader( gs_4_0, PointShadow_GS() ) );
+//    SetPixelShader( CompileShader( ps_4_0, PointShadow_PS() ) );
+//    SetDepthStencilState( EnableDepth, 0 );
+//    SetRasterizerState( rsCullNone );
+//    SetBlendState( NoColorWrite, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
+//  }
+//}

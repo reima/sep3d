@@ -1,14 +1,7 @@
 #include "ShadowedDirectionalLight.h"
 #include "LODSelector.h"
+#include "Scene.h"
 #include "DXUTCamera.h"
-#include <limits>
-
-#undef min
-#undef max
-
-extern LODSelector *g_pLODSelector;
-extern CFirstPersonCamera g_Camera;
-extern ID3D10InputLayout* g_pVertexLayout;
 
 ShadowedDirectionalLight::ShadowedDirectionalLight(
     const D3DXVECTOR3 &direction,
@@ -68,23 +61,25 @@ void ShadowedDirectionalLight::OnDestroyDevice(void) {
 
 void ShadowedDirectionalLight::GetShaderHandles(ID3D10Effect *effect) {
   DirectionalLight::GetHandles(effect);
-  effect_ = effect;
   lst_effect_ =
       effect->GetVariableByName("g_mDirectionalLightSpaceTransform")->AsMatrix();
   shadow_map_effect_ =
       effect->GetVariableByName("g_tDirectionalShadowMap")->AsShaderResource();
+  technique_ = effect->GetTechniqueByName("DirectionalShadowMap");
 }
 
 void ShadowedDirectionalLight::SetShaderVariables(void) {
+  assert(lst_effect_ != NULL);
+  assert(shadow_map_effect_ != NULL);
   lst_effect_->SetMatrix(light_space_transform_);
   shadow_map_effect_->SetResource(shader_resource_view_);
 }
 
-void ShadowedDirectionalLight::UpdateMatrices(Tile *tile) {
+void ShadowedDirectionalLight::UpdateMatrices(Scene *scene) {
   D3DXVECTOR3 box[8];
   D3DXVECTOR3 mid;
 
-  tile->CalculateBoundingBox(box, &mid);
+  scene->GetBoundingBox(box, &mid);
   D3DXMATRIX view;
 
   D3DXVECTOR3 lookat = mid - direction_;
@@ -96,13 +91,9 @@ void ShadowedDirectionalLight::UpdateMatrices(Tile *tile) {
                               box, sizeof(D3DXVECTOR3),
                               &view, 8);
 
-  D3DXVECTOR3 min_coords(std::numeric_limits<float>::max(),
-                         std::numeric_limits<float>::max(),
-                         std::numeric_limits<float>::max());
-  D3DXVECTOR3 max_coords(std::numeric_limits<float>::min(),
-                         std::numeric_limits<float>::min(),
-                         std::numeric_limits<float>::min());
-  for (int i = 0; i < 8; ++i) {
+  D3DXVECTOR3 min_coords = box[0];
+  D3DXVECTOR3 max_coords = box[0];
+  for (int i = 1; i < 8; ++i) {
     D3DXVec3Minimize(&min_coords, &min_coords, &box[i]);
     D3DXVec3Maximize(&max_coords, &max_coords, &box[i]);
   }
@@ -119,9 +110,12 @@ void ShadowedDirectionalLight::UpdateMatrices(Tile *tile) {
   light_space_transform_ = view * proj;
 }
 
-void ShadowedDirectionalLight::OnFrameMove(float elapsed_time, Tile *tile) {
+void ShadowedDirectionalLight::OnFrameMove(float elapsed_time, Scene *scene) {
+  assert(technique_ != NULL);
+  assert(depth_stencil_view_ != NULL);
+  assert(device_ != NULL);
   DirectionalLight::OnFrameMove(elapsed_time);
-  UpdateMatrices(tile);
+  UpdateMatrices(scene);
   SetShaderVariables();
 
   // Render Targets sichern
@@ -150,10 +144,8 @@ void ShadowedDirectionalLight::OnFrameMove(float elapsed_time, Tile *tile) {
   viewport.MinDepth = 0.0f;
   device_->RSSetViewports(1, &viewport);
 
-  device_->IASetInputLayout(g_pVertexLayout);
-  ID3D10EffectTechnique *tech = effect_->GetTechniqueByName("DirectionalShadowMap");
-  tech->GetPassByIndex(0)->Apply(0);
-  tile->Draw(device_, g_pLODSelector, g_Camera.GetEyePt());
+  technique_->GetPassByIndex(0)->Apply(0);
+  scene->Draw();
 
   // Alte Render Targets wieder setzen
   device_->OMSetRenderTargets(D3D10_SIMULTANEOUS_RENDER_TARGET_COUNT,

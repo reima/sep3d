@@ -1,4 +1,11 @@
 #include "ShadowedPointLight.h"
+#include "LODSelector.h"
+#include "Tile.h"
+#include "DXUTCamera.h"
+
+extern LODSelector *g_pLODSelector;
+extern CFirstPersonCamera g_Camera;
+extern ID3D10InputLayout* g_pVertexLayout;
 
 ShadowedPointLight::ShadowedPointLight(const D3DXVECTOR3 &position,
                                        const D3DXVECTOR3 &color,
@@ -7,7 +14,7 @@ ShadowedPointLight::ShadowedPointLight(const D3DXVECTOR3 &position,
     device_(NULL),
     shadow_map_(NULL),
     depth_stencil_view_(NULL),
-    shader_resource_view_(NULL) {  
+    shader_resource_view_(NULL) {
 }
 
 ShadowedPointLight::~ShadowedPointLight(void) {
@@ -19,8 +26,8 @@ HRESULT ShadowedPointLight::OnCreateDevice(ID3D10Device *device) {
   device_ = device;
 
   D3D10_TEXTURE2D_DESC tex2d_desc;
-  tex2d_desc.Width = 512;
-  tex2d_desc.Height = 512;
+  tex2d_desc.Width = 1024;
+  tex2d_desc.Height = 1024;
   tex2d_desc.MipLevels = 1;
   tex2d_desc.ArraySize = 6;
   tex2d_desc.Format = DXGI_FORMAT_R32_TYPELESS;
@@ -59,19 +66,23 @@ void ShadowedPointLight::OnDestroyDevice(void) {
 
 void ShadowedPointLight::GetShaderHandles(ID3D10Effect *effect) {
   PointLight::GetHandles(effect);
-  // TODO: Implementierung
+  technique_ = effect->GetTechniqueByName("PointShadowMap");
 }
 
 void ShadowedPointLight::SetShaderVariables(void) {
   // TODO: Implementierung
 }
 
-void ShadowedPointLight::UpdateMatrices(void) {
-  // TODO: Impelmentierung
+void ShadowedPointLight::UpdateMatrices(Tile *tile) {
+  // TODO: Implementierung
 }
 
-void ShadowedPointLight::OnFrameMove(float elapsed_time) {
+void ShadowedPointLight::OnFrameMove(float elapsed_time, Tile *tile) {
+  return;
+  assert(technique_ != NULL);
   PointLight::OnFrameMove(elapsed_time);
+  UpdateMatrices(tile);
+  SetShaderVariables();
 
   // Render Targets sichern
   ID3D10RenderTargetView *rtv_old[D3D10_SIMULTANEOUS_RENDER_TARGET_COUNT];
@@ -79,16 +90,36 @@ void ShadowedPointLight::OnFrameMove(float elapsed_time) {
   device_->OMGetRenderTargets(D3D10_SIMULTANEOUS_RENDER_TARGET_COUNT,
                               rtv_old, &dsv_old);
 
+  // Viewports sichern
+  D3D10_VIEWPORT viewports_old[D3D10_SIMULTANEOUS_RENDER_TARGET_COUNT];
+  UINT num_viewports = D3D10_SIMULTANEOUS_RENDER_TARGET_COUNT;
+  device_->RSGetViewports(&num_viewports, viewports_old);
+
   // Unsere Textur als Depth-Stencil-Target setzen
   device_->OMSetRenderTargets(0, NULL, depth_stencil_view_);
   // Inhalt zurücksetzen
   device_->ClearDepthStencilView(depth_stencil_view_, D3D10_CLEAR_DEPTH, 1.0f, 0);
 
-  // TODO: Shadowmap rendern
+  // Viewport setzen
+  D3D10_VIEWPORT viewport;
+  viewport.TopLeftX = 0;
+  viewport.TopLeftY = 0;
+  viewport.Width = 1024;
+  viewport.Height = 1024;
+  viewport.MaxDepth = 1.0f;
+  viewport.MinDepth = 0.0f;
+  device_->RSSetViewports(1, &viewport);
+
+  device_->IASetInputLayout(g_pVertexLayout);
+  technique_->GetPassByIndex(0)->Apply(0);
+  tile->Draw(device_, g_pLODSelector, g_Camera.GetEyePt());
 
   // Alte Render Targets wieder setzen
   device_->OMSetRenderTargets(D3D10_SIMULTANEOUS_RENDER_TARGET_COUNT,
-                              rtv_old, dsv_old);  
+                              rtv_old, dsv_old);
+
+  // Alte Viewports wieder setzen
+  device_->RSSetViewports(num_viewports, viewports_old);
 
   // Referenzen auf alte Render Targets freigeben
   for (UINT i = 0; i < D3D10_SIMULTANEOUS_RENDER_TARGET_COUNT; ++i)
