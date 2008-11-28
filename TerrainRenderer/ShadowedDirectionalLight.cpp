@@ -97,6 +97,7 @@ void ShadowedDirectionalLight::UpdateMatrices(Scene *scene) {
     D3DXVec3Minimize(&min_coords, &min_coords, &box[i]);
     D3DXVec3Maximize(&max_coords, &max_coords, &box[i]);
   }
+  
 
   D3DXMATRIX proj;
   D3DXMatrixOrthoOffCenterLH(&proj,

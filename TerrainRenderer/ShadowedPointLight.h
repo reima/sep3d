@@ -28,6 +28,7 @@ class ShadowedPointLight : public PointLight {
 
   D3DXMATRIX light_space_transforms_[6];
 
+
   ID3D10EffectTechnique *technique_;
   ID3D10EffectMatrixVariable *lst_effect_;
   ID3D10EffectShaderResourceVariable *shadow_map_effect_;

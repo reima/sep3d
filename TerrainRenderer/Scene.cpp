@@ -104,5 +104,5 @@ void Scene::Draw(void) {
   assert(lod_selector_ != NULL);
   if (tile_) {
     tile_->Draw(device_, lod_selector_, &cam_pos_);
-  }
+  }  
 }

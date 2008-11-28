@@ -32,7 +32,7 @@ HRESULT ShadowedPointLight::OnCreateDevice(ID3D10Device *device) {
   tex2d_desc.Usage = D3D10_USAGE_DEFAULT;
   tex2d_desc.BindFlags = D3D10_BIND_DEPTH_STENCIL | D3D10_BIND_SHADER_RESOURCE;
   tex2d_desc.CPUAccessFlags = 0;
-  tex2d_desc.MiscFlags = D3D10_RESOURCE_MISC_TEXTURECUBE;
+  tex2d_desc.MiscFlags = 0;
   V_RETURN(device->CreateTexture2D(&tex2d_desc, NULL, &shadow_map_));
 
   D3D10_DEPTH_STENCIL_VIEW_DESC dsv_desc;
@@ -40,15 +40,17 @@ HRESULT ShadowedPointLight::OnCreateDevice(ID3D10Device *device) {
   dsv_desc.ViewDimension = D3D10_DSV_DIMENSION_TEXTURE2DARRAY;
   dsv_desc.Texture2DArray.ArraySize = 6;
   dsv_desc.Texture2DArray.FirstArraySlice = 0;
-  dsv_desc.Texture2DArray.MipSlice = 0;  
+  dsv_desc.Texture2DArray.MipSlice = 0;
   V_RETURN(device->CreateDepthStencilView(shadow_map_, &dsv_desc,
                                           &depth_stencil_view_));
 
   D3D10_SHADER_RESOURCE_VIEW_DESC srv_desc;
   srv_desc.Format = DXGI_FORMAT_R32_FLOAT;
-  srv_desc.ViewDimension = D3D10_SRV_DIMENSION_TEXTURECUBE;
-  srv_desc.TextureCube.MipLevels = 1;
-  srv_desc.TextureCube.MostDetailedMip = 0;
+  srv_desc.ViewDimension = D3D10_SRV_DIMENSION_TEXTURE2DARRAY;
+  srv_desc.Texture2DArray.ArraySize = 6;
+  srv_desc.Texture2DArray.FirstArraySlice = 0;
+  srv_desc.Texture2DArray.MipLevels = 1;
+  srv_desc.Texture2DArray.MostDetailedMip = 0;
   V_RETURN(device->CreateShaderResourceView(shadow_map_, &srv_desc,
                                             &shader_resource_view_));
   return S_OK;
@@ -63,14 +65,47 @@ void ShadowedPointLight::OnDestroyDevice(void) {
 void ShadowedPointLight::GetShaderHandles(ID3D10Effect *effect) {
   PointLight::GetHandles(effect);
   technique_ = effect->GetTechniqueByName("PointShadowMap");
+  lst_effect_ = effect->GetVariableByName("g_mPointLightSpaceTransform")->AsMatrix();
+  shadow_map_effect_ =
+      effect->GetVariableByName("g_tPointShadowMap")->AsShaderResource();
 }
 
 void ShadowedPointLight::SetShaderVariables(void) {
-  // TODO: Implementierung
+  assert(lst_effect_ != NULL);
+  assert(shadow_map_effect_ != NULL);
+  lst_effect_->SetMatrixArray((float *)light_space_transforms_, 0, 6);
+  shadow_map_effect_->SetResource(shader_resource_view_);
 }
 
 void ShadowedPointLight::UpdateMatrices(Scene *scene) {
-  // TODO: Implementierung
+  D3DXVECTOR3 upvec = D3DXVECTOR3(0, 1, 0);
+
+  D3DXVECTOR3 lookat = position_+ D3DXVECTOR3(-1,0,0);
+  D3DXMatrixLookAtLH(&light_space_transforms_[0], &position_, &lookat, &upvec);
+  
+  lookat = position_+ D3DXVECTOR3(+1,0,0);
+  D3DXMatrixLookAtLH(&light_space_transforms_[1], &position_, &lookat, &upvec);
+  
+  upvec = D3DXVECTOR3(0, 0, 1);
+  lookat = position_+ D3DXVECTOR3(0,-1,0);
+  D3DXMatrixLookAtLH(&light_space_transforms_[2], &position_, &lookat, &upvec);
+
+  upvec = D3DXVECTOR3(0, 0, -1);
+  lookat = position_+ D3DXVECTOR3(0,+1,0);
+  D3DXMatrixLookAtLH(&light_space_transforms_[3], &position_, &lookat, &upvec);
+
+  upvec = D3DXVECTOR3(0, 1, 0);
+  lookat = position_+ D3DXVECTOR3(0,0,-1);
+  D3DXMatrixLookAtLH(&light_space_transforms_[4], &position_, &lookat, &upvec);
+  
+  lookat = position_+ D3DXVECTOR3(0,0,1);
+  D3DXMatrixLookAtLH(&light_space_transforms_[5], &position_, &lookat, &upvec);
+
+  D3DXMATRIX proj;
+  D3DXMatrixPerspectiveFovLH(&proj, D3DX_PI/2, 1, 0.1f, 10);
+
+  for (int i=0; i<6; i++)
+    light_space_transforms_[i] *= proj;
 }
 
 void ShadowedPointLight::OnFrameMove(float elapsed_time, Scene *scene) {

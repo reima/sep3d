@@ -47,8 +47,6 @@ void SpotLight::OnFrameMove(float elapsed_time) {
     elapsed_time * rotation_.y,
     elapsed_time * rotation_.x,
     elapsed_time * rotation_.z);
-  D3DXVECTOR4 new_position;
-  D3DXVec3Transform(&new_position, &position_, &rotation_matrix);
-  position_ = static_cast<D3DXVECTOR3>(new_position);
+  D3DXVec3TransformCoord(&position_, &position_, &rotation_matrix);
   SpotLight::pPos->SetFloatVectorArray(position_, instance_id_, 1);
 }

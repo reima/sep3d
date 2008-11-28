@@ -64,7 +64,7 @@ Texture2D g_tGround;
 Texture3D g_tGround3D;
 TextureCube g_tCubeMap;
 Texture2D g_tDirectionalShadowMap;
-TextureCube g_tPointShadowMap;
+Texture2DArray g_tPointShadowMap;
 
 SamplerState g_ssLinear
 {
@@ -98,7 +98,7 @@ const float4 g_Colors[NUM_SPOTS] = {
   float4(1, 1, 1, 1)
 };
 
-const float3 vAttenuation = { 0, 0, 1 }; // Constant, linear, quadratic
+const float3 vAttenuation = { 1, 0, 0 }; // Constant, linear, quadratic
 
 const float4 g_vWaterColor = float4(0, 0.25, 0.5, 1.0);
 const float4 g_vMaterMaterial = float4(0.05, 0.45, 0.5, 200);
@@ -129,7 +129,7 @@ struct VS_PHONG_SHADING_OUTPUT
   float3 WorldPosition  : POSITION;
   float4 LightSpacePos  : LIGHTSPACEPOS;
   float  Height         : HEIGHT;
-  float3 Normal         : NORMAL0;
+  float3 Normal         : NORMAL;
   float2 TexCoord       : TEXCOORD0;
   float2 Wave0          : TEXCOORD2;
   float2 Wave1          : TEXCOORD3;
@@ -140,12 +140,13 @@ struct VS_PHONG_SHADING_OUTPUT
 
 struct GS_POINTSHADOW_INPUT
 {
-  float4 Position   : SV_Position;
+  float4 Position   : POSITION;
 };
 
 struct GS_POINTSHADOW_OUTPUT
 {
   float4 Position   : SV_Position;
+  float2 Depth      : DEPTH;
   uint   RTI        : SV_RenderTargetArrayIndex;
 };
 
@@ -210,12 +211,12 @@ PHONG PhongLighting(float3 vPos, float3 vNormal, float4 vMaterial)
   }
 
   // Directional lights
-  for (i = 0; i < g_nDirectionalLights; i++) {
-    float2 vPhong = Phong(vPos, g_vDirectionalLight_Direction[i], vNormal,
-                          vMaterial);
-    vDiffuseLight += vPhong.x * g_vDirectionalLight_Color[i];
-    vSpecularLight += vPhong.y * g_vDirectionalLight_Color[i];
-  }
+  //for (i = 0; i < g_nDirectionalLights; i++) {
+  //  float2 vPhong = Phong(vPos, g_vDirectionalLight_Direction[i], vNormal,
+  //                        vMaterial);
+  //  vDiffuseLight += vPhong.x * g_vDirectionalLight_Color[i];
+  //  vSpecularLight += vPhong.y * g_vDirectionalLight_Color[i];
+  //}
 
   // Spot lights
   for (i = 0; i < g_nSpotLights; i++) {
@@ -305,7 +306,7 @@ float4 DirectionalShadow_VS( VS_INPUT In ) : SV_Position
   return mul(vPos, g_mDirectionalLightSpaceTransform);
 }
 
-float4 PointShadow_VS( VS_INPUT In ) : SV_Position
+float4 PointShadow_VS( VS_INPUT In ) : POSITION
 {
   return float4(In.Position, 1);
 }
@@ -322,6 +323,7 @@ void PointShadow_GS( triangle GS_POINTSHADOW_INPUT In[3],
     Output.RTI = i;
     for (uint j = 0; j < 3; ++j) {
       Output.Position = mul(In[j].Position, g_mPointLightSpaceTransform[i]);
+      Output.Depth = Output.Position.zw;
       MeshStream.Append(Output);
     }
     MeshStream.RestartStrip();
@@ -375,18 +377,51 @@ float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In ) : SV_Target
     N = normalize(In.Normal);
   }
 
-  float3 vLightSpacePos = In.LightSpacePos.xyz / In.LightSpacePos.w;
+  //float3 vLightSpacePos = In.LightSpacePos.xyz / In.LightSpacePos.w;
+  //float fLightDist = vLightSpacePos.z;
+  //vLightSpacePos.x = 0.5 * vLightSpacePos.x + 0.5;
+  //vLightSpacePos.y = 1 - (0.5 * vLightSpacePos.y + 0.5);
+
+  //uint nInShadow = 0;
+  //for (int x = -1; x <= 1; ++x) {
+  //  for (int y = -1; y <= 1; ++y) {
+  //    float fShadowMap = g_tDirectionalShadowMap.Load(int3(vLightSpacePos.xy*1023 + float2(x, y), 0));
+  //    if (fShadowMap + 0.01f < fLightDist) nInShadow++;
+  //  }
+  //}
+
+  //return g_tPointShadowMap.Load(int4(In.Position.xy, 2, 0));
+
+  float3 vLightDir = In.WorldPosition - g_vPointLight_Position[0];
+  float3 vLightDirAbs = abs(vLightDir);
+  float fMaxCoord = max(vLightDirAbs.x, max(vLightDirAbs.y, vLightDirAbs.z));
+  uint uiArraySlice;
+  if (vLightDirAbs.x == fMaxCoord) {
+    if (vLightDir.x < 0) uiArraySlice = 0;
+    else uiArraySlice = 1;
+  } else if (vLightDirAbs.y == fMaxCoord) {
+    if (vLightDir.y < 0) uiArraySlice = 2;
+    else uiArraySlice = 3;
+  } else if (vLightDirAbs.z == fMaxCoord) {
+    if (vLightDir.z < 0) uiArraySlice = 4;
+    else uiArraySlice = 5;
+  }
+  // Transform in light space
+  float4 vLightSpacePos = mul(float4(In.WorldPosition, 1), g_mPointLightSpaceTransform[uiArraySlice]);
+  // Dehomogenize
+  vLightSpacePos /= vLightSpacePos.w;
   float fLightDist = vLightSpacePos.z;
   vLightSpacePos.x = 0.5 * vLightSpacePos.x + 0.5;
   vLightSpacePos.y = 1 - (0.5 * vLightSpacePos.y + 0.5);
-
+  float fShadowMap = g_tPointShadowMap.Load(int4(vLightSpacePos.xy*1023, uiArraySlice, 0));
   uint nInShadow = 0;
   for (int x = -1; x <= 1; ++x) {
     for (int y = -1; y <= 1; ++y) {
-      float fShadowMap = g_tDirectionalShadowMap.Load(int3(vLightSpacePos.xy*1023 + float2(x, y), 0));
-      if (fShadowMap + 0.01f < fLightDist) nInShadow++;
+      float fShadowMap = g_tPointShadowMap.Load(int4(vLightSpacePos.xy*1023 + float2(x, y), uiArraySlice, 0));
+      if (fShadowMap + 0.001f < fLightDist) nInShadow++;
     }
   }
+
   if (nInShadow == 9) {
     return vTerrainColor * In.Material.x;
   } else {
@@ -419,9 +454,9 @@ float DirectionalShadow_PS( float4 vPos : SV_Position ) : SV_Depth
   return vPos.z/vPos.w;
 }
 
-float PointShadow_PS( float4 vPos : SV_Position ) : SV_Depth
+float PointShadow_PS( GS_POINTSHADOW_OUTPUT In ) : SV_Depth
 {
-  return vPos.z/vPos.w;
+  return In.Depth.x/In.Depth.y;
 }
 
 //--------------------------------------------------------------------------------------
