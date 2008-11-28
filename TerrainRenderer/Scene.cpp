@@ -100,9 +100,9 @@ void Scene::GetBoundingBox(D3DXVECTOR3 *box, D3DXVECTOR3 *mid) {
 }
 
 void Scene::Draw(void) {
-  assert(device_ != NULL);
-  assert(lod_selector_ != NULL);
+  assert(device_ != NULL);  
   if (tile_) {
+    assert(lod_selector_ != NULL);
     tile_->Draw(device_, lod_selector_, &cam_pos_);
-  }  
+  }
 }

@@ -201,10 +201,13 @@ PHONG PhongLighting(float3 vPos, float3 vNormal, float4 vMaterial)
   float3 vSpecularLight = float3(0, 0, 0);
   // Point lights
   uint i;
+  float d;
+  float fAttenuation;
+  float2 vPhong;
   for (i = 0; i < g_nPointLights; i++) {
-    float d = length(vPos - g_vPointLight_Position[i]);
-    float fAttenuation = 1 / dot(vAttenuation, float3(1, d, d*d));
-    float2 vPhong = Phong(vPos, g_vPointLight_Position[i] - vPos, vNormal,
+    d = length(vPos - g_vPointLight_Position[i]);
+    fAttenuation = 1 / dot(vAttenuation, float3(1, d, d*d));
+    vPhong = Phong(vPos, g_vPointLight_Position[i] - vPos, vNormal,
                           vMaterial);
     vDiffuseLight += vPhong.x * g_vPointLight_Color[i] * fAttenuation;
     vSpecularLight += vPhong.y * g_vPointLight_Color[i] * fAttenuation;
@@ -212,23 +215,25 @@ PHONG PhongLighting(float3 vPos, float3 vNormal, float4 vMaterial)
 
   // Directional lights
   //for (i = 0; i < g_nDirectionalLights; i++) {
-  //  float2 vPhong = Phong(vPos, g_vDirectionalLight_Direction[i], vNormal,
+  //  vPhong = Phong(vPos, g_vDirectionalLight_Direction[i], vNormal,
   //                        vMaterial);
   //  vDiffuseLight += vPhong.x * g_vDirectionalLight_Color[i];
   //  vSpecularLight += vPhong.y * g_vDirectionalLight_Color[i];
   //}
 
   // Spot lights
+  float3 I;
+  float IdotL, theta, angle;
   for (i = 0; i < g_nSpotLights; i++) {
-    float d = length(vPos - g_vSpotLight_Position[i]);
-    float3 I = (g_vSpotLight_Position[i] - vPos) / d;
-    float IdotL = dot(-I, g_vSpotLight_Direction[i]);
-    float theta = g_fSpotLight_AngleExp[i].x;
-    float angle = acos(IdotL);
+    d = length(vPos - g_vSpotLight_Position[i]);
+    I = (g_vSpotLight_Position[i] - vPos) / d;
+    IdotL = dot(-I, g_vSpotLight_Direction[i]);
+    theta = g_fSpotLight_AngleExp[i].x;
+    angle = acos(IdotL);
     if (angle < theta) {
-      float fAttenuation = 1 / dot(vAttenuation, float3(1, d, d*d));
+      fAttenuation = 1 / dot(vAttenuation, float3(1, d, d*d));
       fAttenuation *= 1 - pow(angle/theta, g_fSpotLight_AngleExp[i].y);
-      float2 vPhong = Phong(vPos, g_vSpotLight_Position[i] - vPos, vNormal,
+      vPhong = Phong(vPos, g_vSpotLight_Position[i] - vPos, vNormal,
                             vMaterial);
       vDiffuseLight += vPhong.x * g_vSpotLight_Color[i] * fAttenuation;
       vSpecularLight += vPhong.y * g_vSpotLight_Color[i] * fAttenuation; 
@@ -413,11 +418,11 @@ float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In ) : SV_Target
   float fLightDist = vLightSpacePos.z;
   vLightSpacePos.x = 0.5 * vLightSpacePos.x + 0.5;
   vLightSpacePos.y = 1 - (0.5 * vLightSpacePos.y + 0.5);
-  float fShadowMap = g_tPointShadowMap.Load(int4(vLightSpacePos.xy*1023, uiArraySlice, 0));
+  float fShadowMap;
   uint nInShadow = 0;
   for (int x = -1; x <= 1; ++x) {
     for (int y = -1; y <= 1; ++y) {
-      float fShadowMap = g_tPointShadowMap.Load(int4(vLightSpacePos.xy*1023 + float2(x, y), uiArraySlice, 0));
+      fShadowMap = g_tPointShadowMap.Load(int4(vLightSpacePos.xy*1023 + float2(x, y), uiArraySlice, 0));
       if (fShadowMap + 0.001f < fLightDist) nInShadow++;
     }
   }
