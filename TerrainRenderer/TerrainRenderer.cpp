@@ -74,6 +74,7 @@ ShadowedPointLight*         g_pShadowedPointLight = NULL;
 
 bool                        g_bShowSettings = false;
 bool                        g_bWireframe = false;
+bool                        g_bPaused = false;
 ID3D10RasterizerState*      g_pRSWireframe = NULL;
 
 //--------------------------------------------------------------------------------------
@@ -85,10 +86,11 @@ ID3D10RasterizerState*      g_pRSWireframe = NULL;
 #define IDC_NEWTERRAIN              4
 #define IDC_LODSLIDER               5
 #define IDC_LODSLIDER_S             6
-#define IDC_WIREFRAME               7
-#define IDC_DYNAMICMINMAX           8
-#define IDC_WAVENORMALS             9
-#define IDC_TECHNIQUE               10
+#define IDC_PAUSED                  7
+#define IDC_WIREFRAME               8
+#define IDC_DYNAMICMINMAX           9
+#define IDC_WAVENORMALS             10
+#define IDC_TECHNIQUE               11
 
 #define IDC_NEWTERRAIN_LOD          100
 #define IDC_NEWTERRAIN_SIZE         101
@@ -197,13 +199,15 @@ void InitApp() {
   g_SampleUI.SetCallback(OnGUIEvent);
   iY = 10;
   g_SampleUI.AddButton(IDC_NEWTERRAIN, L"New Terrain...", 35, iY, 125,
-                  22, VK_F2);
-  g_SampleUI.AddCheckBox(IDC_WIREFRAME, L"Wireframe (F5)", 35, iY += 24, 125, 22,
-                    g_bWireframe, VK_F5);
-  g_SampleUI.AddCheckBox(IDC_DYNAMICMINMAX, L"Dynamic Min/Max", 35, iY += 24, 125,
-                    22, false);
-  g_SampleUI.AddCheckBox(IDC_WAVENORMALS, L"Wave normals", 35, iY += 24, 125,
-                    22, true);
+                       22, VK_F2);
+  g_SampleUI.AddCheckBox(IDC_WIREFRAME, L"Wireframe (F5)", 35, iY += 24, 125,
+                         22, g_bWireframe, VK_F5);
+  g_SampleUI.AddCheckBox(IDC_PAUSED, L"Paused (F6)", 35, iY += 24, 125, 22,
+                         g_bPaused, VK_F6);
+  g_SampleUI.AddCheckBox(IDC_DYNAMICMINMAX, L"Dynamic Min/Max (F7)", 35,
+                         iY += 24, 125, 22, false, VK_F7);
+  g_SampleUI.AddCheckBox(IDC_WAVENORMALS, L"Wave normals (F8)", 35, iY += 24,
+                         125, 22, true, VK_F8);
 
 
   WCHAR sz[100];
@@ -600,6 +604,7 @@ void CALLBACK OnFrameMove(double fTime, float fElapsedTime,
                           void* pUserContext) {
   // Update the camera's position based on user input
   g_Camera.FrameMove(fElapsedTime);
+  if (g_bPaused) fElapsedTime = 0;
   g_pScene->OnFrameMove(fElapsedTime, *g_Camera.GetEyePt());
   DXUTGetD3D10Device()->IASetInputLayout(g_pVertexLayout);
 }
@@ -695,6 +700,9 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
       break;
     case IDC_WIREFRAME:
       g_bWireframe = g_SampleUI.GetCheckBox(IDC_WIREFRAME)->GetChecked();
+      break;
+    case IDC_PAUSED:
+      g_bPaused = g_SampleUI.GetCheckBox(IDC_PAUSED)->GetChecked();
       break;
     case IDC_DYNAMICMINMAX:
       g_pbDynamicMinMax->SetBool(

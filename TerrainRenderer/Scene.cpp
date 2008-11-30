@@ -6,6 +6,7 @@
 #include "ShadowedDirectionalLight.h"
 #include "Tile.h"
 #include "LODSelector.h"
+#include "DXUTShapes.h"
 
 extern LODSelector *g_pLODSelector;
 

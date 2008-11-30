@@ -14,9 +14,9 @@ ShadowedPointLight::ShadowedPointLight(const D3DXVECTOR3 &position,
     depth_stencil_view_(NULL),
     shader_resource_view_(NULL),
     technique_(NULL),
-    shadowed_idx_(NULL),
-    lst_effect_(NULL),
-    shadow_map_effect_(NULL) {
+    shadowed_idx_ev_(NULL),
+    lst_ev_(NULL),
+    shadow_map_ev_(NULL) {
 }
 
 ShadowedPointLight::~ShadowedPointLight(void) {
@@ -70,21 +70,21 @@ void ShadowedPointLight::OnDestroyDevice(void) {
 
 void ShadowedPointLight::GetShaderHandles(ID3D10Effect *effect) {
   PointLight::GetHandles(effect);
-  shadowed_idx_ =
+  shadowed_idx_ev_ =
       effect->GetVariableByName("g_iShadowedPointLight")->AsScalar();
   technique_ = effect->GetTechniqueByName("PointShadowMap");
-  lst_effect_ = effect->GetVariableByName("g_mPointLightSpaceTransform")->AsMatrix();
-  shadow_map_effect_ =
+  lst_ev_ = effect->GetVariableByName("g_mPointLightSpaceTransform")->AsMatrix();
+  shadow_map_ev_ =
       effect->GetVariableByName("g_tPointShadowMap")->AsShaderResource();
 }
 
 void ShadowedPointLight::SetShaderVariables(void) {
-  assert(shadowed_idx_ != NULL);
-  assert(lst_effect_ != NULL);
-  assert(shadow_map_effect_ != NULL);
-  shadowed_idx_->SetInt(instance_id_);
-  lst_effect_->SetMatrixArray((float *)light_space_transforms_, 0, 6);
-  shadow_map_effect_->SetResource(shader_resource_view_);
+  assert(shadowed_idx_ev_ != NULL);
+  assert(lst_ev_ != NULL);
+  assert(shadow_map_ev_ != NULL);
+  shadowed_idx_ev_->SetInt(instance_id_);
+  lst_ev_->SetMatrixArray((float *)light_space_transforms_, 0, 6);
+  shadow_map_ev_->SetResource(shader_resource_view_);
 }
 
 void ShadowedPointLight::UpdateMatrices(void) {
