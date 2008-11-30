@@ -15,6 +15,9 @@ class LightSource {
    * Führt Per-Frame-Updates an der Lichtquelle aus (Rotation).
    */
   virtual void OnFrameMove(float elapsed_time) = 0;
+  virtual HRESULT OnCreateDevice(ID3D10Device *device) { return S_OK; };
+  virtual void OnDestroyDevice(void) {};
+
  protected:
   D3DXVECTOR3 color_;
   D3DXVECTOR3 rotation_;

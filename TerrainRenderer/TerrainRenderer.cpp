@@ -377,11 +377,9 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
 
   // Szene erstellen
   g_pScene = new Scene();
-  g_pScene->GetShaderHandles(g_pEffect10);
   g_pScene->SetMaterial(0.05f, 0.9f, 0.05f, 50);
   g_pScene->SetCamera(&g_Camera);
   g_pScene->SetLODSelector(g_pLODSelector);
-  g_pScene->OnCreateDevice(pd3dDevice);
   
   // Terrain erzeugen
   g_pScene->CreateTerrain(g_nTerrainN, g_fTerrainR, g_nTerrainLOD);
@@ -419,24 +417,23 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   //                       D3DXVECTOR3(1, 1, 1),
   //                       D3DXVECTOR3(0, 1, 0),
   //                       .5f, 5);
+  g_pScene->AddDirectionalLight(
+      D3DXVECTOR3(1.0f, 0.25f, 0.0f),
+      D3DXVECTOR3(1, 0.75f, 0.5f),
+      D3DXVECTOR3(0, 0.2f, 0),
+      true);
+  g_pScene->AddPointLight(
+      D3DXVECTOR3(-1, 1, 0),
+      D3DXVECTOR3(1, 1, 1),
+      D3DXVECTOR3(0, 1, 0),
+      true);
 
   // Environment erstellen
   g_pEnvironment = new Environment(pd3dDevice);
   g_pEnvironment->GetShaderHandles(g_pEffect10);
 
-  g_pShadowedDirectionalLight = new ShadowedDirectionalLight(
-      D3DXVECTOR3(1.0f, 0.25f, 0.0f),
-      D3DXVECTOR3(1, 0.75f, 0.5f),
-      D3DXVECTOR3(0, 0.2f, 0));
-  V_RETURN(g_pShadowedDirectionalLight->OnCreateDevice(pd3dDevice));
-  g_pShadowedDirectionalLight->GetShaderHandles(g_pEffect10);
-
-  g_pShadowedPointLight = new ShadowedPointLight(
-      D3DXVECTOR3(-1, 1, 0),
-      D3DXVECTOR3(1, 1, 1),
-      D3DXVECTOR3(0, 1, 0));
-  V_RETURN(g_pShadowedPointLight->OnCreateDevice(pd3dDevice));
-  g_pShadowedPointLight->GetShaderHandles(g_pEffect10);
+  g_pScene->OnCreateDevice(pd3dDevice);
+  g_pScene->GetShaderHandles(g_pEffect10);
 
   return S_OK;
 }
@@ -572,10 +569,6 @@ void CALLBACK OnD3D10DestroyDevice(void* pUserContext) {
   SAFE_DELETE(g_pLODSelector);
   SAFE_DELETE(g_pScene);
   SAFE_DELETE(g_pEnvironment);
-  g_pShadowedDirectionalLight->OnDestroyDevice();
-  SAFE_DELETE(g_pShadowedDirectionalLight);
-  g_pShadowedPointLight->OnDestroyDevice();
-  SAFE_DELETE(g_pShadowedPointLight);
 }
 
 
@@ -610,8 +603,6 @@ void CALLBACK OnFrameMove(double fTime, float fElapsedTime,
   g_Camera.FrameMove(fElapsedTime);
   g_pScene->OnFrameMove(fElapsedTime, *g_Camera.GetEyePt());
   DXUTGetD3D10Device()->IASetInputLayout(g_pVertexLayout);
-  g_pShadowedDirectionalLight->OnFrameMove(fElapsedTime, g_pScene);
-  g_pShadowedPointLight->OnFrameMove(fElapsedTime, g_pScene);
 }
 
 

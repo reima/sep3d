@@ -2,6 +2,8 @@
 #include "PointLight.h"
 #include "DirectionalLight.h"
 #include "SpotLight.h"
+#include "ShadowedPointLight.h"
+#include "ShadowedDirectionalLight.h"
 #include "Tile.h"
 #include "LODSelector.h"
 
@@ -9,14 +11,19 @@ extern LODSelector *g_pLODSelector;
 
 Scene::Scene(void)
     : cam_pos_(D3DXVECTOR3(0, 0, 0)),
+      camera_(NULL),
       tile_(NULL),
       lod_selector_(NULL),
       device_(NULL),
+      effect_(NULL),
       pMaterialParameters(NULL),
-      pCameraPosition(NULL) {
+      pCameraPosition(NULL),
+      pShadowedPointLight(NULL),
+      pShadowedDirectionalLight(NULL) {
 }
 
 Scene::~Scene(void) {
+  OnDestroyDevice();
   std::vector<LightSource *>::iterator it;
   for (it = light_sources_.begin(); it != light_sources_.end(); ++it) {
     delete (*it);
@@ -33,14 +40,44 @@ void Scene::SetMaterial(float ambient, float diffuse, float specular,
 
 void Scene::AddPointLight(const D3DXVECTOR3 &position,
                           const D3DXVECTOR3 &color,
-                          const D3DXVECTOR3 &rotation) {
-  light_sources_.push_back(new PointLight(position, color, rotation));
+                          const D3DXVECTOR3 &rotation,
+                          bool shadowed) {
+  if (shadowed) {
+    SAFE_DELETE(shadowed_point_light_);
+    shadowed_point_light_ = new ShadowedPointLight(position,
+                                                   color,
+                                                   rotation,
+                                                   this);
+    if (device_)
+      shadowed_point_light_->OnCreateDevice(device_);
+    if (effect_) {
+      shadowed_point_light_->GetShaderHandles(effect_);
+      pShadowedPointLight->SetBool(true);
+    }
+    light_sources_.push_back(shadowed_point_light_);
+  } else {
+    light_sources_.push_back(new PointLight(position, color, rotation));
+  }
 }
 
 void Scene::AddDirectionalLight(const D3DXVECTOR3 &direction,
                                 const D3DXVECTOR3 &color,
-                                const D3DXVECTOR3 &rotation) {
-  light_sources_.push_back(new DirectionalLight(direction, color, rotation));
+                                const D3DXVECTOR3 &rotation,
+                                bool shadowed) {
+  if (shadowed) {
+    SAFE_DELETE(shadowed_directional_light_);
+    shadowed_directional_light_ =
+        new ShadowedDirectionalLight(direction, color, rotation, this);
+    if (device_)
+      shadowed_directional_light_->OnCreateDevice(device_);
+    if (effect_) {
+      shadowed_directional_light_->GetShaderHandles(effect_);
+      pShadowedDirectionalLight->SetBool(true);
+    }
+    light_sources_.push_back(shadowed_directional_light_);
+  } else {
+    light_sources_.push_back(new DirectionalLight(direction, color, rotation));
+  }
 }
 
 void Scene::AddSpotLight(const D3DXVECTOR3 &position,
@@ -62,19 +99,42 @@ void Scene::OnFrameMove(float elapsed_time, const D3DXVECTOR3 &cam_pos) {
   }
 }
 
-void Scene::OnCreateDevice(ID3D10Device *device) {
+HRESULT Scene::OnCreateDevice(ID3D10Device *device) {
+  HRESULT hr;
   device_ = device;
+  std::vector<LightSource *>::iterator it;
+  for (it = light_sources_.begin(); it != light_sources_.end(); ++it) {
+    V_RETURN((*it)->OnCreateDevice(device));
+  }
+  return S_OK;
 }
 
 void Scene::GetShaderHandles(ID3D10Effect* effect) {
-  assert(effect != NULL);
+  effect_ = effect;
   PointLight::GetHandles(effect);
   DirectionalLight::GetHandles(effect);
   SpotLight::GetHandles(effect);
+  if (shadowed_point_light_)
+    shadowed_point_light_->GetShaderHandles(effect);
+  if (shadowed_directional_light_)
+    shadowed_directional_light_->GetShaderHandles(effect);
   pMaterialParameters =
       effect->GetVariableByName("g_vMaterialParameters")->AsVector();  
   pCameraPosition =
       effect->GetVariableByName("g_vCamPos")->AsVector();
+  pShadowedPointLight =
+      effect->GetVariableByName("g_bShadowedPointLight")->AsScalar();
+  pShadowedPointLight->SetBool(shadowed_point_light_ != NULL);
+  pShadowedDirectionalLight =
+      effect->GetVariableByName("g_bShadowedDirectionalLight")->AsScalar();
+  pShadowedDirectionalLight->SetBool(shadowed_directional_light_ != NULL);
+}
+
+void Scene::OnDestroyDevice(void) {
+  std::vector<LightSource *>::iterator it;
+  for (it = light_sources_.begin(); it != light_sources_.end(); ++it) {
+    (*it)->OnDestroyDevice();
+  }
 }
 
 void Scene::CreateTerrain(int n, float roughness, int num_lod) {

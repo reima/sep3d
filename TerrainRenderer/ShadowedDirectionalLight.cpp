@@ -6,12 +6,18 @@
 ShadowedDirectionalLight::ShadowedDirectionalLight(
     const D3DXVECTOR3 &direction,
     const D3DXVECTOR3 &color,
-    const D3DXVECTOR3 &rotation)
+    const D3DXVECTOR3 &rotation,
+    Scene *scene)
   : DirectionalLight(direction, color, rotation),
+    scene_(scene),
     device_(NULL),
     shadow_map_(NULL),
     depth_stencil_view_(NULL),
-    shader_resource_view_(NULL) {
+    shader_resource_view_(NULL),
+    technique_(NULL),
+    shadowed_idx_(NULL),
+    lst_effect_(NULL),
+    shadow_map_effect_(NULL) {
 }
 
 ShadowedDirectionalLight::~ShadowedDirectionalLight(void) {
@@ -61,6 +67,8 @@ void ShadowedDirectionalLight::OnDestroyDevice(void) {
 
 void ShadowedDirectionalLight::GetShaderHandles(ID3D10Effect *effect) {
   DirectionalLight::GetHandles(effect);
+  shadowed_idx_ =
+      effect->GetVariableByName("g_iShadowedDirectionalLight")->AsScalar();
   lst_effect_ =
       effect->GetVariableByName("g_mDirectionalLightSpaceTransform")->AsMatrix();
   shadow_map_effect_ =
@@ -69,17 +77,19 @@ void ShadowedDirectionalLight::GetShaderHandles(ID3D10Effect *effect) {
 }
 
 void ShadowedDirectionalLight::SetShaderVariables(void) {
+  assert(shadowed_idx_ != NULL);
   assert(lst_effect_ != NULL);
   assert(shadow_map_effect_ != NULL);
+  shadowed_idx_->SetInt(instance_id_);
   lst_effect_->SetMatrix(light_space_transform_);
   shadow_map_effect_->SetResource(shader_resource_view_);
 }
 
-void ShadowedDirectionalLight::UpdateMatrices(Scene *scene) {
+void ShadowedDirectionalLight::UpdateMatrices(void) {
   D3DXVECTOR3 box[8];
   D3DXVECTOR3 mid;
 
-  scene->GetBoundingBox(box, &mid);
+  scene_->GetBoundingBox(box, &mid);
   D3DXMATRIX view;
 
   D3DXVECTOR3 lookat = mid - direction_;
@@ -111,13 +121,14 @@ void ShadowedDirectionalLight::UpdateMatrices(Scene *scene) {
   light_space_transform_ = view * proj;
 }
 
-void ShadowedDirectionalLight::OnFrameMove(float elapsed_time, Scene *scene) {
+void ShadowedDirectionalLight::OnFrameMove(float elapsed_time) {
   assert(technique_ != NULL);
   assert(depth_stencil_view_ != NULL);
   assert(device_ != NULL);
+  assert(scene_ != NULL);
 
   DirectionalLight::OnFrameMove(elapsed_time);
-  UpdateMatrices(scene);
+  UpdateMatrices();
   SetShaderVariables();
 
   // Render Targets sichern
@@ -147,7 +158,7 @@ void ShadowedDirectionalLight::OnFrameMove(float elapsed_time, Scene *scene) {
   device_->RSSetViewports(1, &viewport);
 
   technique_->GetPassByIndex(0)->Apply(0);
-  scene->Draw();
+  scene_->Draw();
 
   // Alte Render Targets wieder setzen
   device_->OMSetRenderTargets(D3D10_SIMULTANEOUS_RENDER_TARGET_COUNT,

@@ -6,6 +6,8 @@
 class CFirstPersonCamera;
 class Tile;
 class LODSelector;
+class ShadowedDirectionalLight;
+class ShadowedPointLight;
 
 class Scene {
  public:
@@ -32,13 +34,14 @@ class Scene {
    * Erzeugt eine neue Punkt-Lichtquelle in der Szene.
    */
   void AddPointLight(const D3DXVECTOR3 &position, const D3DXVECTOR3 &color,
-                     const D3DXVECTOR3 &rotation);
+                     const D3DXVECTOR3 &rotation, bool shadowed = false);
   /**
    * Erzeugt eine neue gerichtete Lichtquelle in der Szene.
    */
   void AddDirectionalLight(const D3DXVECTOR3 &direction,
                            const D3DXVECTOR3 &color,
-                           const D3DXVECTOR3 &rotation);
+                           const D3DXVECTOR3 &rotation,
+                           bool shadowed = false);
   /**
    * Erzeugt eine neue Scheinwerfer-Lichtquelle in der Szene.
    */
@@ -60,8 +63,9 @@ class Scene {
    */
   void OnFrameMove(float elapsed_time, const D3DXVECTOR3 &cam_pos);
 
-  void OnCreateDevice(ID3D10Device *device);
+  HRESULT OnCreateDevice(ID3D10Device *device);
   void GetShaderHandles(ID3D10Effect* effect);
+  void OnDestroyDevice(void);
 
   void Draw(void);
 
@@ -70,6 +74,8 @@ class Scene {
    * Sämtliche Lichtquellen in der Szene
    */
   std::vector<LightSource *> light_sources_;
+  ShadowedPointLight *shadowed_point_light_;
+  ShadowedDirectionalLight *shadowed_directional_light_;
   /**
    * Kameraposition
    */
@@ -80,7 +86,10 @@ class Scene {
   LODSelector *lod_selector_;
 
   ID3D10Device *device_;
+  ID3D10Effect *effect_;
 
   ID3D10EffectVectorVariable *pMaterialParameters;
   ID3D10EffectVectorVariable *pCameraPosition;
+  ID3D10EffectScalarVariable *pShadowedPointLight;
+  ID3D10EffectScalarVariable *pShadowedDirectionalLight;
 };

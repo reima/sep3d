@@ -5,12 +5,18 @@
 
 ShadowedPointLight::ShadowedPointLight(const D3DXVECTOR3 &position,
                                        const D3DXVECTOR3 &color,
-                                       const D3DXVECTOR3 &rotation)
+                                       const D3DXVECTOR3 &rotation,
+                                       Scene *scene)
   : PointLight(position, color, rotation),
+    scene_(scene),
     device_(NULL),
     shadow_map_(NULL),
     depth_stencil_view_(NULL),
-    shader_resource_view_(NULL) {
+    shader_resource_view_(NULL),
+    technique_(NULL),
+    shadowed_idx_(NULL),
+    lst_effect_(NULL),
+    shadow_map_effect_(NULL) {
 }
 
 ShadowedPointLight::~ShadowedPointLight(void) {
@@ -64,6 +70,8 @@ void ShadowedPointLight::OnDestroyDevice(void) {
 
 void ShadowedPointLight::GetShaderHandles(ID3D10Effect *effect) {
   PointLight::GetHandles(effect);
+  shadowed_idx_ =
+      effect->GetVariableByName("g_iShadowedPointLight")->AsScalar();
   technique_ = effect->GetTechniqueByName("PointShadowMap");
   lst_effect_ = effect->GetVariableByName("g_mPointLightSpaceTransform")->AsMatrix();
   shadow_map_effect_ =
@@ -71,13 +79,15 @@ void ShadowedPointLight::GetShaderHandles(ID3D10Effect *effect) {
 }
 
 void ShadowedPointLight::SetShaderVariables(void) {
+  assert(shadowed_idx_ != NULL);
   assert(lst_effect_ != NULL);
   assert(shadow_map_effect_ != NULL);
+  shadowed_idx_->SetInt(instance_id_);
   lst_effect_->SetMatrixArray((float *)light_space_transforms_, 0, 6);
   shadow_map_effect_->SetResource(shader_resource_view_);
 }
 
-void ShadowedPointLight::UpdateMatrices(Scene *scene) {
+void ShadowedPointLight::UpdateMatrices(void) {
   D3DXVECTOR3 upvec = D3DXVECTOR3(0, 1, 0);
 
   D3DXVECTOR3 lookat = position_+ D3DXVECTOR3(-1,0,0);
@@ -108,13 +118,14 @@ void ShadowedPointLight::UpdateMatrices(Scene *scene) {
     light_space_transforms_[i] *= proj;
 }
 
-void ShadowedPointLight::OnFrameMove(float elapsed_time, Scene *scene) {
+void ShadowedPointLight::OnFrameMove(float elapsed_time) {
   assert(technique_ != NULL);
   assert(depth_stencil_view_ != NULL);
   assert(device_ != NULL);
+  assert(scene_ != NULL);
 
   PointLight::OnFrameMove(elapsed_time);
-  UpdateMatrices(scene);
+  UpdateMatrices();
   SetShaderVariables();
 
   // Render Targets sichern
@@ -144,7 +155,7 @@ void ShadowedPointLight::OnFrameMove(float elapsed_time, Scene *scene) {
   device_->RSSetViewports(1, &viewport);
 
   technique_->GetPassByIndex(0)->Apply(0);
-  scene->Draw();
+  scene_->Draw();
 
   // Alte Render Targets wieder setzen
   device_->OMSetRenderTargets(D3D10_SIMULTANEOUS_RENDER_TARGET_COUNT,

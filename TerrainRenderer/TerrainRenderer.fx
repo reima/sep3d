@@ -31,10 +31,15 @@ cbuffer cbStaticLightParams
   uint g_nPointLights;
   uint g_nDirectionalLights;
   uint g_nSpotLights;
+  uint g_iShadowedPointLight;
+  uint g_iShadowedDirectionalLight;
+  bool g_bShadowedPointLight;
+  bool g_bShadowedDirectionalLight;
   float3 g_vPointLight_Color[8];
   float3 g_vDirectionalLight_Color[8];
   float3 g_vSpotLight_Color[8];
   float2 g_fSpotLight_AngleExp[8];
+  float3 g_vSpotLight_Direction[8]; // Guaranteed to be normalized
   float4 g_vMaterialParameters; // = { k_a, k_d, k_s, n }
 }
 
@@ -43,7 +48,6 @@ cbuffer cbLightsOnFrameMove
   float3 g_vPointLight_Position[8];
   float3 g_vDirectionalLight_Direction[8]; // Guaranteed to be normalized
   float3 g_vSpotLight_Position[8];
-  float3 g_vSpotLight_Direction[8]; // Guaranteed to be normalized
   float4x4 g_mDirectionalLightSpaceTransform;
   float4x4 g_mPointLightSpaceTransform[6];
 }
@@ -205,6 +209,8 @@ PHONG PhongLighting(float3 vPos, float3 vNormal, float4 vMaterial)
   float fAttenuation;
   float2 vPhong;
   for (i = 0; i < g_nPointLights; i++) {
+    // Defer shadowed lighting
+    if (i == g_iShadowedPointLight) continue;
     d = length(vPos - g_vPointLight_Position[i]);
     fAttenuation = 1 / dot(vAttenuation, float3(1, d, d*d));
     vPhong = Phong(vPos, g_vPointLight_Position[i] - vPos, vNormal,
@@ -214,12 +220,14 @@ PHONG PhongLighting(float3 vPos, float3 vNormal, float4 vMaterial)
   }
 
   // Directional lights
-  //for (i = 0; i < g_nDirectionalLights; i++) {
-  //  vPhong = Phong(vPos, g_vDirectionalLight_Direction[i], vNormal,
-  //                        vMaterial);
-  //  vDiffuseLight += vPhong.x * g_vDirectionalLight_Color[i];
-  //  vSpecularLight += vPhong.y * g_vDirectionalLight_Color[i];
-  //}
+  for (i = 0; i < g_nDirectionalLights; i++) {
+    // Defer shadowed lighting
+    if (i == g_iShadowedDirectionalLight) continue;
+    vPhong = Phong(vPos, g_vDirectionalLight_Direction[i], vNormal,
+                          vMaterial);
+    vDiffuseLight += vPhong.x * g_vDirectionalLight_Color[i];
+    vSpecularLight += vPhong.y * g_vDirectionalLight_Color[i];
+  }
 
   // Spot lights
   float3 I;
@@ -346,6 +354,8 @@ float4 GouraudShading_PS( VS_GOURAUD_SHADING_OUTPUT In ) : SV_Target
     float4(In.SpecularLight, 1);
 }
 
+
+
 float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In ) : SV_Target
 {
   float3 N = 0;
@@ -382,48 +392,93 @@ float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In ) : SV_Target
     N = normalize(In.Normal);
   }
 
-  //float3 vLightSpacePos = In.LightSpacePos.xyz / In.LightSpacePos.w;
-  //float fLightDist = vLightSpacePos.z;
-  //vLightSpacePos.x = 0.5 * vLightSpacePos.x + 0.5;
-  //vLightSpacePos.y = 1 - (0.5 * vLightSpacePos.y + 0.5);
+  PHONG phong = PhongLighting(In.WorldPosition, N, In.Material);
 
-  //uint nInShadow = 0;
-  //for (int x = -1; x <= 1; ++x) {
-  //  for (int y = -1; y <= 1; ++y) {
-  //    float fShadowMap = g_tDirectionalShadowMap.Load(int3(vLightSpacePos.xy*1023 + float2(x, y), 0));
-  //    if (fShadowMap + 0.01f < fLightDist) nInShadow++;
-  //  }
-  //}
-
-  //return g_tPointShadowMap.Load(int4(In.Position.xy, 2, 0));
-
-  float3 vLightDir = In.WorldPosition - g_vPointLight_Position[0];
-  float3 vLightDirAbs = abs(vLightDir);
-  float fMaxCoord = max(vLightDirAbs.x, max(vLightDirAbs.y, vLightDirAbs.z));
-  uint uiArraySlice;
-  if (vLightDirAbs.x == fMaxCoord) {
-    if (vLightDir.x < 0) uiArraySlice = 0;
-    else uiArraySlice = 1;
-  } else if (vLightDirAbs.y == fMaxCoord) {
-    if (vLightDir.y < 0) uiArraySlice = 2;
-    else uiArraySlice = 3;
-  } else if (vLightDirAbs.z == fMaxCoord) {
-    if (vLightDir.z < 0) uiArraySlice = 4;
-    else uiArraySlice = 5;
-  }
-  // Transform in light space
-  float4 vLightSpacePos = mul(float4(In.WorldPosition, 1), g_mPointLightSpaceTransform[uiArraySlice]);
-  // Dehomogenize
-  vLightSpacePos /= vLightSpacePos.w;
-  float fLightDist = vLightSpacePos.z;
-  vLightSpacePos.x = 0.5 * vLightSpacePos.x + 0.5;
-  vLightSpacePos.y = 1 - (0.5 * vLightSpacePos.y + 0.5);
   float fShadowMap;
-  uint nInShadow = 0;
-  for (int x = -1; x <= 1; ++x) {
-    for (int y = -1; y <= 1; ++y) {
-      fShadowMap = g_tPointShadowMap.Load(int4(vLightSpacePos.xy*1023 + float2(x, y), uiArraySlice, 0));
-      if (fShadowMap + 0.001f < fLightDist) nInShadow++;
+  uint nInShadow;
+  float fLightDist;
+  float4 vLightSpacePos;
+  float2 vPhong;
+  float fLightScale;
+
+  //
+  // Shadowed directional light
+  //
+  if (g_bShadowedDirectionalLight) {
+    vLightSpacePos = In.LightSpacePos / In.LightSpacePos.w;
+    fLightDist = vLightSpacePos.z;
+    vLightSpacePos.x = 0.5 * vLightSpacePos.x + 0.5;
+    vLightSpacePos.y = 1 - (0.5 * vLightSpacePos.y + 0.5);
+    vLightSpacePos.xy *= 1023;
+
+    nInShadow = 0;
+    [unroll] for (int x = -1; x <= 1; ++x) {
+      [unroll] for (int y = -1; y <= 1; ++y) {
+        fShadowMap = g_tDirectionalShadowMap.Load(int3(vLightSpacePos.xy + float2(x, y), 0));
+        if (fShadowMap + 0.01f < fLightDist) nInShadow++;
+      }
+    }
+
+    if (nInShadow != 9) {
+      uint i = g_iShadowedDirectionalLight;
+      vPhong = Phong(In.WorldPosition,
+                     g_vDirectionalLight_Direction[i],
+                     In.Normal, In.Material);
+      fLightScale = nInShadow / 9.0f;
+      phong.DiffuseLight +=
+          fLightScale * vPhong.x * g_vDirectionalLight_Color[i];
+      phong.SpecularLight +=
+          fLightScale * vPhong.y * g_vDirectionalLight_Color[i];
+    }
+  }
+
+  //
+  // Shadowed point light
+  //
+  if (g_bShadowedPointLight) {
+    float3 vLightDir = In.WorldPosition - g_vPointLight_Position[0];
+    float3 vLightDirAbs = abs(vLightDir);
+    float fMaxCoord = max(vLightDirAbs.x, max(vLightDirAbs.y, vLightDirAbs.z));
+    uint uiArraySlice;
+    if (vLightDirAbs.x == fMaxCoord) {
+      if (vLightDir.x < 0) uiArraySlice = 0;
+      else uiArraySlice = 1;
+    } else if (vLightDirAbs.y == fMaxCoord) {
+      if (vLightDir.y < 0) uiArraySlice = 2;
+      else uiArraySlice = 3;
+    } else if (vLightDirAbs.z == fMaxCoord) {
+      if (vLightDir.z < 0) uiArraySlice = 4;
+      else uiArraySlice = 5;
+    }
+    // Transform in light space
+    vLightSpacePos = mul(float4(In.WorldPosition, 1), g_mPointLightSpaceTransform[uiArraySlice]);
+    // Dehomogenize
+    vLightSpacePos /= vLightSpacePos.w;
+    fLightDist = vLightSpacePos.z;
+    vLightSpacePos.x = 0.5 * vLightSpacePos.x + 0.5;
+    vLightSpacePos.y = 1 - (0.5 * vLightSpacePos.y + 0.5);
+    vLightSpacePos.xy *= 1023;
+    nInShadow = 0;
+    [unroll] for (int x = -1; x <= 1; ++x) {
+      [unroll] for (int y = -1; y <= 1; ++y) {
+        fShadowMap = g_tPointShadowMap.Load(int4(vLightSpacePos.xy + float2(x, y), uiArraySlice, 0));
+        if (fShadowMap + 0.001f < fLightDist) nInShadow++;
+      }
+    }
+
+    if (nInShadow != 9) {
+      uint i = g_iShadowedPointLight;
+      fLightScale = nInShadow / 9.0f;
+      float d = length(In.WorldPosition - g_vPointLight_Position[i]);
+      float fAttenuation = 1 / dot(vAttenuation, float3(1, d, d*d));
+      vPhong = Phong(In.WorldPosition,
+                     g_vPointLight_Position[i] - In.WorldPosition,
+                     In.Normal,
+                     In.Material);
+      phong.DiffuseLight +=
+          fLightScale * vPhong.x * g_vPointLight_Color[i] * fAttenuation;
+      phong.SpecularLight +=
+          fLightScale * vPhong.y * g_vPointLight_Color[i] * fAttenuation;
     }
   }
 
@@ -434,7 +489,7 @@ float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In ) : SV_Target
     float fLightScale = 1.0f - nInShadow / 9.0f;
     return vTerrainColor * In.Material.x + fLightScale * (
       vTerrainColor * float4(phong.DiffuseLight, 1) +
-      float4(phong.SpecularLight, 1) + In.Material.z * vReflect);
+      float4(phong.SpecularLight, 1)) + In.Material.z * vReflect;
   }
 }
 
