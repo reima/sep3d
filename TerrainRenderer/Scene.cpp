@@ -16,6 +16,8 @@ Scene::Scene(void)
       lod_selector_(NULL),
       device_(NULL),
       effect_(NULL),
+      shadowed_point_light_(NULL),
+      shadowed_directional_light_(NULL),
       pMaterialParameters(NULL),
       pCameraPosition(NULL),
       pShadowedPointLight(NULL),

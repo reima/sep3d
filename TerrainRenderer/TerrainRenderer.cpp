@@ -377,12 +377,14 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
 
   // Szene erstellen
   g_pScene = new Scene();
+  g_pScene->OnCreateDevice(pd3dDevice);
+  g_pScene->GetShaderHandles(g_pEffect10);
   g_pScene->SetMaterial(0.05f, 0.9f, 0.05f, 50);
   g_pScene->SetCamera(&g_Camera);
   g_pScene->SetLODSelector(g_pLODSelector);
   
   // Terrain erzeugen
-  g_pScene->CreateTerrain(g_nTerrainN, g_fTerrainR, g_nTerrainLOD);
+  g_pScene->CreateTerrain(g_nTerrainN, g_fTerrainR, g_nTerrainLOD);  
   Tile *terrain = g_pScene->GetTerrain();
   g_pfMinHeight->SetFloat(terrain->GetMinHeight());
   g_pfMaxHeight->SetFloat(terrain->GetMaxHeight());
@@ -424,16 +426,13 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
       true);
   g_pScene->AddPointLight(
       D3DXVECTOR3(-1, 1, 0),
-      D3DXVECTOR3(1, 1, 1),
+      D3DXVECTOR3(1, 0, 0),
       D3DXVECTOR3(0, 1, 0),
       true);
 
   // Environment erstellen
   g_pEnvironment = new Environment(pd3dDevice);
-  g_pEnvironment->GetShaderHandles(g_pEffect10);
-
-  g_pScene->OnCreateDevice(pd3dDevice);
-  g_pScene->GetShaderHandles(g_pEffect10);
+  g_pEnvironment->GetShaderHandles(g_pEffect10);  
 
   return S_OK;
 }

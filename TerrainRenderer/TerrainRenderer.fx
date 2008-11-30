@@ -105,7 +105,7 @@ const float4 g_Colors[NUM_SPOTS] = {
 const float3 vAttenuation = { 1, 0, 0 }; // Constant, linear, quadratic
 
 const float4 g_vWaterColor = float4(0, 0.25, 0.5, 1.0);
-const float4 g_vMaterMaterial = float4(0.05, 0.45, 0.5, 200);
+const float4 g_vMaterMaterial = float4(0.05, 0.7, 0.25, 200);
 
 //--------------------------------------------------------------------------------------
 // Vertex shader input structures
@@ -213,8 +213,7 @@ PHONG PhongLighting(float3 vPos, float3 vNormal, float4 vMaterial)
     if (i == g_iShadowedPointLight) continue;
     d = length(vPos - g_vPointLight_Position[i]);
     fAttenuation = 1 / dot(vAttenuation, float3(1, d, d*d));
-    vPhong = Phong(vPos, g_vPointLight_Position[i] - vPos, vNormal,
-                          vMaterial);
+    vPhong = Phong(vPos, g_vPointLight_Position[i] - vPos, vNormal, vMaterial);
     vDiffuseLight += vPhong.x * g_vPointLight_Color[i] * fAttenuation;
     vSpecularLight += vPhong.y * g_vPointLight_Color[i] * fAttenuation;
   }
@@ -241,8 +240,7 @@ PHONG PhongLighting(float3 vPos, float3 vNormal, float4 vMaterial)
     if (angle < theta) {
       fAttenuation = 1 / dot(vAttenuation, float3(1, d, d*d));
       fAttenuation *= 1 - pow(angle/theta, g_fSpotLight_AngleExp[i].y);
-      vPhong = Phong(vPos, g_vSpotLight_Position[i] - vPos, vNormal,
-                            vMaterial);
+      vPhong = Phong(vPos, g_vSpotLight_Position[i] - vPos, vNormal, vMaterial);
       vDiffuseLight += vPhong.x * g_vSpotLight_Color[i] * fAttenuation;
       vSpecularLight += vPhong.y * g_vSpotLight_Color[i] * fAttenuation; 
     }
@@ -268,7 +266,7 @@ VS_GOURAUD_SHADING_OUTPUT GouraudShading_VS( VS_INPUT In )
   }
   // Transform the position from object space to homogeneous projection space
   Output.Position = mul(vPos, g_mWorldViewProjection);
-  PHONG phong = PhongLighting(In.Position, normalize(In.Normal),
+  PHONG phong = PhongLighting(In.Position, In.Normal,
                               g_vMaterialParameters);
   Output.DiffuseLight = phong.DiffuseLight;
   Output.SpecularLight = phong.SpecularLight;
@@ -354,8 +352,6 @@ float4 GouraudShading_PS( VS_GOURAUD_SHADING_OUTPUT In ) : SV_Target
     float4(In.SpecularLight, 1);
 }
 
-
-
 float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In ) : SV_Target
 {
   float3 N = 0;
@@ -423,8 +419,8 @@ float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In ) : SV_Target
       uint i = g_iShadowedDirectionalLight;
       vPhong = Phong(In.WorldPosition,
                      g_vDirectionalLight_Direction[i],
-                     In.Normal, In.Material);
-      fLightScale = nInShadow / 9.0f;
+                     N, In.Material);
+      fLightScale = 1 - nInShadow / 9.0f;     
       phong.DiffuseLight +=
           fLightScale * vPhong.x * g_vDirectionalLight_Color[i];
       phong.SpecularLight +=
@@ -468,7 +464,7 @@ float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In ) : SV_Target
 
     if (nInShadow != 9) {
       uint i = g_iShadowedPointLight;
-      fLightScale = nInShadow / 9.0f;
+      fLightScale = 1 - nInShadow / 9.0f;
       float d = length(In.WorldPosition - g_vPointLight_Position[i]);
       float fAttenuation = 1 / dot(vAttenuation, float3(1, d, d*d));
       vPhong = Phong(In.WorldPosition,
@@ -482,15 +478,10 @@ float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In ) : SV_Target
     }
   }
 
-  if (nInShadow == 9) {
-    return vTerrainColor * In.Material.x;
-  } else {
-    PHONG phong = PhongLighting(In.WorldPosition, N, In.Material);
-    float fLightScale = 1.0f - nInShadow / 9.0f;
-    return vTerrainColor * In.Material.x + fLightScale * (
+  return vTerrainColor * In.Material.x + 
       vTerrainColor * float4(phong.DiffuseLight, 1) +
-      float4(phong.SpecularLight, 1)) + In.Material.z * vReflect;
-  }
+      float4(phong.SpecularLight, 1) +
+      In.Material.z * vReflect;  
 }
 
 float4 Environment_PS( float4 vPos : SV_Position ) : SV_Target
@@ -522,22 +513,14 @@ float PointShadow_PS( GS_POINTSHADOW_OUTPUT In ) : SV_Depth
 //--------------------------------------------------------------------------------------
 // States
 //--------------------------------------------------------------------------------------
-BlendState SrcColorBlendingAdd
-{
-  BlendEnable[0] = TRUE;
-  BlendOp = ADD;
-  SrcBlend = SRC_ALPHA;
-  DestBlend = INV_SRC_ALPHA;
-};
-
-DepthStencilState EnableDepth
+DepthStencilState dssEnableDepth
 {
   DepthEnable = TRUE;
   DepthWriteMask = ALL;
   DepthFunc = LESS;
 };
 
-BlendState NoColorWrite
+BlendState bsNoColorWrite
 {
   RenderTargetWriteMask[0] = 0;
   RenderTargetWriteMask[1] = 0;
@@ -598,9 +581,9 @@ technique10 DirectionalShadowMap
     SetVertexShader( CompileShader( vs_4_0, DirectionalShadow_VS() ) );
     SetGeometryShader( NULL );
     SetPixelShader( CompileShader( ps_4_0, DirectionalShadow_PS() ) );
-    SetDepthStencilState( EnableDepth, 0 );
+    SetDepthStencilState( dssEnableDepth, 0 );
     SetRasterizerState( rsCullNone );
-    SetBlendState( NoColorWrite, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
+    SetBlendState( bsNoColorWrite, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
   }
 }
 
@@ -611,8 +594,8 @@ technique10 PointShadowMap
     SetVertexShader( CompileShader( vs_4_0, PointShadow_VS() ) );
     SetGeometryShader( CompileShader( gs_4_0, PointShadow_GS() ) );
     SetPixelShader( CompileShader( ps_4_0, PointShadow_PS() ) );
-    SetDepthStencilState( EnableDepth, 0 );
+    SetDepthStencilState( dssEnableDepth, 0 );
     SetRasterizerState( rsCullNone );
-    SetBlendState( NoColorWrite, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
+    SetBlendState( bsNoColorWrite, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
   }
 }
