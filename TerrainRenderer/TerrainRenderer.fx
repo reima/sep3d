@@ -2,6 +2,7 @@
 // File: TerrainRenderer.fx
 //--------------------------------------------------------------------------------------
 
+#define Z_EPSILON (0.01f)
 
 //--------------------------------------------------------------------------------------
 // Global variables
@@ -92,7 +93,7 @@ const float4 g_Colors[NUM_SPOTS] = {
   float4(1, 1, 1, 1)
 };
 
-const float3 vAttenuation = { 1, 0, 0 }; // Constant, linear, quadratic
+const float3 vAttenuation = { 0, 0, 1 }; // Constant, linear, quadratic
 
 const float4 g_vWaterColor = float4(0, 0.25, 0.5, 1.0);
 const float4 g_vMaterMaterial = float4(0.05, 0.7, 0.25, 200);
@@ -143,7 +144,7 @@ struct VS_PLAIN_COLOR_PHONG_OUTPUT
 
 struct GS_POINTSHADOW_INPUT
 {
-  float4 Position   : POSITION;
+  float4 Position   : SV_Position;
 };
 
 struct GS_POINTSHADOW_OUTPUT
@@ -155,7 +156,7 @@ struct GS_POINTSHADOW_OUTPUT
 
 struct PHONG
 {
-  float3 DiffuseLight : DIFFUSE;
+  float3 DiffuseLight  : DIFFUSE;
   float3 SpecularLight : SPECULAR;
 };
 
@@ -279,7 +280,7 @@ float3 FullLighting(float3 vColor,
     [unroll] for (int x = -1; x <= 1; ++x) {
       [unroll] for (int y = -1; y <= 1; ++y) {
         fShadowMap = g_tDirectionalShadowMap.Load(int3(vLightSpacePos.xy + float2(x, y), 0));
-        if (fShadowMap + 0.01f < fLightDist) nInShadow++;
+        if (fShadowMap + Z_EPSILON < fLightDist) nInShadow++;
       }
     }
 
@@ -326,7 +327,7 @@ float3 FullLighting(float3 vColor,
     [unroll] for (int x = -1; x <= 1; ++x) {
       [unroll] for (int y = -1; y <= 1; ++y) {
         fShadowMap = g_tPointShadowMap.Load(int4(vLightSpacePos.xy + float2(x, y), uiArraySlice, 0));
-        if (fShadowMap + 0.001f < fLightDist) nInShadow++;
+        if (fShadowMap + Z_EPSILON < fLightDist) nInShadow++;
       }
     }
 
@@ -416,8 +417,9 @@ float4 DirectionalShadow_VS( VS_INPUT In ) : SV_Position
   return mul(vPos, g_mDirectionalLightSpaceTransform);
 }
 
-float4 PointShadow_VS( VS_INPUT In ) : POSITION
+float4 PointShadow_VS( VS_INPUT In ) : SV_Position
 {
+  In.Position.y = max(0, In.Position.y);
   return float4(In.Position, 1);
 }
 
