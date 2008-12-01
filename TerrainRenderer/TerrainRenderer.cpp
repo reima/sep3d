@@ -208,12 +208,12 @@ void InitApp() {
   iY = 10;
   g_SampleUI.AddButton(IDC_NEWTERRAIN, L"New Terrain...", 35, iY, 125,
                        22, VK_F2);
-  g_SampleUI.AddCheckBox(IDC_WIREFRAME, L"Wireframe (F5)", 35, iY += 24, 125,
-                         22, g_bWireframe, VK_F5);
+  //g_SampleUI.AddCheckBox(IDC_WIREFRAME, L"Wireframe (F5)", 35, iY += 24, 125,
+  //                       22, g_bWireframe, VK_F5);
   g_SampleUI.AddCheckBox(IDC_PAUSED, L"Paused (F6)", 35, iY += 24, 125, 22,
                          g_bPaused, VK_F6);
-  g_SampleUI.AddCheckBox(IDC_DYNAMICMINMAX, L"Dynamic Min/Max (F7)", 35,
-                         iY += 24, 125, 22, false, VK_F7);
+  //g_SampleUI.AddCheckBox(IDC_DYNAMICMINMAX, L"Dynamic Min/Max (F7)", 35,
+  //                       iY += 24, 125, 22, false, VK_F7);
   g_SampleUI.AddCheckBox(IDC_WAVENORMALS, L"Wave normals (F8)", 35, iY += 24,
                          125, 22, true, VK_F8);
 
@@ -230,7 +230,7 @@ void InitApp() {
 
   StringCchPrintf(sz, 100, L"SM Res.: %dx%d", 1024, 1024);
   g_SampleUI.AddStatic(IDC_SHADOWMAPS_RESOLUTION_S, sz, 35, iY += 24, 125, 22);
-  g_SampleUI.AddSlider(IDC_SHADOWMAPS_RESOLUTION, 35, iY += 24, 125, 22, 4, 12, 10);
+  g_SampleUI.AddSlider(IDC_SHADOWMAPS_RESOLUTION, 35, iY += 24, 125, 22, 4, 11, 10);
   
   g_SampleUI.AddCheckBox(IDC_SHADOWMAPS_PRECISION, L"High Prec. SM", 35,
                          iY += 24, 125, 22, true);
@@ -369,7 +369,7 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
       g_pEffect10->GetVariableByName("g_bPCF")->AsScalar();
 
   // Flush effect vars/init GUI text
-  OnGUIEvent(0, IDC_DYNAMICMINMAX, NULL, NULL);
+  //OnGUIEvent(0, IDC_DYNAMICMINMAX, NULL, NULL);
   OnGUIEvent(0, IDC_WAVENORMALS, NULL, NULL);
   OnGUIEvent(0, IDC_SHADOWMAPS_ZEPSILON, NULL, NULL);
   OnGUIEvent(0, IDC_SHADOWMAPS_PCF, NULL, NULL);
@@ -423,35 +423,35 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   g_pfMaxHeight->SetFloat(terrain->GetMaxHeight());
 
   // Lichter hinzufügen
-  g_pScene->AddPointLight(D3DXVECTOR3(-2.5f, 0.0f, 0.0f),
-                          D3DXVECTOR3(0, 0, 1),
-                          D3DXVECTOR3(0, 0, 1));
+  //g_pScene->AddPointLight(D3DXVECTOR3(-2.5f, 0.0f, 0.0f),
+  //                        D3DXVECTOR3(0, 0, 1),
+  //                        D3DXVECTOR3(0, 0, 1));
   g_pScene->AddPointLight(D3DXVECTOR3(0.0f, 0.0f, -2.5f),
                           D3DXVECTOR3(0, 1, 0),
                           D3DXVECTOR3(1, 0, 0));
-  g_pScene->AddDirectionalLight(D3DXVECTOR3(1.0f, 1.0f, 0.0f),
-                                D3DXVECTOR3(1, 0.75f, 0.5f),
-                                D3DXVECTOR3(0, 1, 0));
+  //g_pScene->AddDirectionalLight(D3DXVECTOR3(1.0f, 1.0f, 0.0f),
+  //                              D3DXVECTOR3(1, 0.75f, 0.5f),
+  //                              D3DXVECTOR3(0, 1, 0));
   g_pScene->AddSpotLight(D3DXVECTOR3(2.5f, 3.0f, 0.0f),
                          D3DXVECTOR3(0, -1, 0),
                          D3DXVECTOR3(1, 1, 0),
                          D3DXVECTOR3(0, 1, 0),
                          .5f, 5);
-  g_pScene->AddSpotLight(D3DXVECTOR3(-2.5f, 3.0f, 0.0f),
-                         D3DXVECTOR3(0, -1, 0),
-                         D3DXVECTOR3(0, 1, 1),
-                         D3DXVECTOR3(0, 1, 0),
-                         .5f, 5);
-  g_pScene->AddSpotLight(D3DXVECTOR3(0.0f, 3.0f, 2.5f),
-                         D3DXVECTOR3(0, -1, 0),
-                         D3DXVECTOR3(1, 0, 1),
-                         D3DXVECTOR3(0, 1, 0),
-                         .5f, 5);
-  g_pScene->AddSpotLight(D3DXVECTOR3(0.0f, 3.0f, -2.5f),
-                         D3DXVECTOR3(0, -1, 0),
-                         D3DXVECTOR3(1, 1, 1),
-                         D3DXVECTOR3(0, 1, 0),
-                         .5f, 5);
+  //g_pScene->AddSpotLight(D3DXVECTOR3(-2.5f, 3.0f, 0.0f),
+  //                       D3DXVECTOR3(0, -1, 0),
+  //                       D3DXVECTOR3(0, 1, 1),
+  //                       D3DXVECTOR3(0, 1, 0),
+  //                       .5f, 5);
+  //g_pScene->AddSpotLight(D3DXVECTOR3(0.0f, 3.0f, 2.5f),
+  //                       D3DXVECTOR3(0, -1, 0),
+  //                       D3DXVECTOR3(1, 0, 1),
+  //                       D3DXVECTOR3(0, 1, 0),
+  //                       .5f, 5);
+  //g_pScene->AddSpotLight(D3DXVECTOR3(0.0f, 3.0f, -2.5f),
+  //                       D3DXVECTOR3(0, -1, 0),
+  //                       D3DXVECTOR3(1, 1, 1),
+  //                       D3DXVECTOR3(0, 1, 0),
+  //                       .5f, 5);
   g_pScene->AddDirectionalLight(
       D3DXVECTOR3(1.0f, 0.25f, 0.0f),
       D3DXVECTOR3(1, 0.75f, 0.5f),

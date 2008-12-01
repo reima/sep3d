@@ -1,23 +1,31 @@
 Anmerkungen
 ===========
-zu 6.1
-b) Die Screenshots liegen im Verzeichnis ./Screenshots und tragen hoffentlich
-   alle selbsterklärende Namen.
-   Unsere Kreativität haben wir derart ausgelebt, dass wir statt einer
-   einzelnen 2D-Textur eine Volumentextur verwendet haben, wobei jedes Level
-   einer anderen Geländeart entspricht (Strand, 2x Wiese, 2x Gebirge, Schnee).
-   Das für die Texturierung verwendete Level hängt dabei ausschließlich von der
-   Geländehöhe ab. Für das Wasser wurde wieder Normalmapping verwendet. Die
-   Materialparameter von Wasser und Gelände sind unterschiedlich und werden
-   erst im Shader gesetzt.
-
-zu 6.2
-a) Wir haben die spiegelnde Beleuchtung so implementiert, dass zusätzlich zu
-   den spekularen Anteilen der Lichtquellen noch die Spiegelung der Umgebung
-   auf den Farbwert addiert wird. Dies geschieht allerdings nur auf der
-   Wasseroberfläche. Da die Spiegelung mit Normalmapping sehr "diffus" wird,
-   kann man dieses auch über die entsprechende Checkbox ausschalten.
-b) Für das Environment dient die neue Klasse gleichen Namens, die sich um
-   das Setzen der entsprechenden Shadervariablen kümmert und das Screen Aligned
-   Quad zeichnet.
-
+* Unsere Szene enthält standardmäßig eine direktionale, schattenwerfende Licht-
+  quelle (Farbe orange), eine schattenwerfende Punktlichtquelle (Farbe rot),
+  eine normale Punktlichtquelle (Farbe grün) und ein Spotlight (Farbe gelb).
+  Hinzufügen und Entfernen von Lichtquellen klappt nur durch Anpassen des
+  Quellcodes (TerrainRenderer.cpp ab Zeile 425) und neu kompilieren. Schatten-
+  werfende Lichtquellen können zwischen 0 und 1 mal pro Typ (direktional, Punkt)
+  vorkommen. Fügt man der Szene darüberhinaus schattenwerfende Lichtquellen
+  hinzu, so ist das Verhalten undefiniert (insbesondere wird keine Warnung
+  ausgegeben).
+* Neues Killer-Feature: Der Pausen-Modus (F6).
+* Während der Laufzeit kann die Schattenberechnung über die Parameter
+  - Shadow Map Auflösung (SM Res.)
+  - Shadow Map Genauigkeit (High Prec. SM = 32-Bit-Textur, sonst 16-Bit)
+  - Depth Bias (Z epsilon)
+  - Filtering (3x3 PCF oder Point)
+  anpassen. Die Einstellungen wirken sich auf sämtliche schattenwerfende Licht-
+  quellen in der Szene gleichzeitig aus.
+* Die Shader sind ziemlich unoptimiert und enthalten noch einige Redundanzen.
+* Die im Debug-Modus pro Frame ausgegebenen Warnungen
+  
+  D3D10: WARNING: ID3D10Device::OMSetRenderTargets: Resource being set to OM DepthStencil is still bound on input! [ STATE_SETTING WARNING #9: DEVICE_OMSETRENDERTARGETS_HAZARD ]
+  D3D10: WARNING: ID3D10Device::OMSetRenderTargets: Forcing PS shader resource slot 3 to NULL. [ STATE_SETTING WARNING #7: DEVICE_PSSETSHADERRESOURCES_HAZARD ]
+  D3D10: WARNING: ID3D10Device::OMSetRenderTargets: Resource being set to OM DepthStencil is still bound on input! [ STATE_SETTING WARNING #9: DEVICE_OMSETRENDERTARGETS_HAZARD ]
+  D3D10: WARNING: ID3D10Device::OMSetRenderTargets: Forcing PS shader resource slot 4 to NULL. [ STATE_SETTING WARNING #7: DEVICE_PSSETSHADERRESOURCES_HAZARD ]
+  
+  sind uns bekannt. Wie man sie wegbekommt, ohne einen Handstand zu machen,
+  wissen wir hingegen nicht.
+* Der Quellcode ist nicht gerade eine Software-Engineering-Meisterleistung.
+  Aber hey, es läuft (meistens sogar ohne abzustürzen) ;-)
