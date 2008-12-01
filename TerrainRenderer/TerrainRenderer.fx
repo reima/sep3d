@@ -27,6 +27,7 @@ cbuffer cbOptions
 {
   bool     g_bDynamicMinMax;
   bool     g_bWaveNormals;
+  bool     g_bPCF;
   float    g_fZEpsilon;
 }
 
@@ -277,20 +278,26 @@ float3 FullLighting(float3 vColor,
     g_tDirectionalShadowMap.GetDimensions(uiWidth, uiHeight);
     vLightSpacePos.xy *= uint2(uiWidth-1, uiHeight-1);
 
-    nInShadow = 0;
-    [unroll] for (int x = -1; x <= 1; ++x) {
-      [unroll] for (int y = -1; y <= 1; ++y) {
-        fShadowMap = g_tDirectionalShadowMap.Load(int3(vLightSpacePos.xy + int2(x, y), 0));
-        if (fShadowMap + g_fZEpsilon < fLightDist) nInShadow++;
+    if (g_bPCF) {
+      nInShadow = 0;
+      [unroll] for (int x = -1; x <= 1; ++x) {
+        [unroll] for (int y = -1; y <= 1; ++y) {
+          fShadowMap = g_tDirectionalShadowMap.Load(int3(vLightSpacePos.xy + int2(x, y), 0));
+          if (fShadowMap + g_fZEpsilon < fLightDist) nInShadow++;
+        }
       }
+      fLightScale = 1 - nInShadow / 9.0f;
+    } else {
+      fShadowMap = g_tDirectionalShadowMap.Load(int3(vLightSpacePos.xy, 0));
+      if (fShadowMap + g_fZEpsilon < fLightDist) fLightScale = 0.0f;
+      else fLightScale = 1.0f;
     }
 
-    if (nInShadow != 9) {
+    if (fLightScale > 0) {
       uint i = g_iShadowedDirectionalLight;
       vPhong = Phong(vWorldPosition,
                      g_vDirectionalLight_Direction[i],
-                     N, vMaterial);
-      fLightScale = 1 - nInShadow / 9.0f;
+                     N, vMaterial);      
       phong.DiffuseLight +=
           fLightScale * vPhong.x * g_vDirectionalLight_Color[i];
       phong.SpecularLight +=
@@ -302,7 +309,8 @@ float3 FullLighting(float3 vColor,
   // Shadowed point light
   //
   if (g_bShadowedPointLight) {
-    float3 vLightDir = vWorldPosition - g_vPointLight_Position[0];
+    const uint i = g_iShadowedPointLight;
+    float3 vLightDir = vWorldPosition - g_vPointLight_Position[i];
     float3 vLightDirAbs = abs(vLightDir);
     float fMaxCoord = max(vLightDirAbs.x, max(vLightDirAbs.y, vLightDirAbs.z));
     uint uiArraySlice;
@@ -326,17 +334,22 @@ float3 FullLighting(float3 vColor,
     g_tPointShadowMap.GetDimensions(uiWidth, uiHeight, uiElements);
     vLightSpacePos.xy *= uint2(uiWidth-1, uiHeight-1);
 
-    nInShadow = 0;
-    [unroll] for (int x = -1; x <= 1; ++x) {
-      [unroll] for (int y = -1; y <= 1; ++y) {
-        fShadowMap = g_tPointShadowMap.Load(int4(vLightSpacePos.xy + int2(x, y), uiArraySlice, 0));
-        if (fShadowMap + g_fZEpsilon < fLightDist) nInShadow++;
+    if (g_bPCF) {
+      nInShadow = 0;
+      [unroll] for (int x = -1; x <= 1; ++x) {
+        [unroll] for (int y = -1; y <= 1; ++y) {
+          fShadowMap = g_tPointShadowMap.Load(int4(vLightSpacePos.xy + int2(x, y), uiArraySlice, 0));
+          if (fShadowMap + g_fZEpsilon < fLightDist) nInShadow++;
+        }
       }
+      fLightScale = 1 - nInShadow / 9.0f;
+    } else {
+      fShadowMap = g_tPointShadowMap.Load(int4(vLightSpacePos.xy, uiArraySlice, 0));
+      if (fShadowMap + g_fZEpsilon < fLightDist) fLightScale = 0.0f;
+      else fLightScale = 1.0f;
     }
 
-    if (nInShadow != 9) {
-      uint i = g_iShadowedPointLight;
-      fLightScale = 1 - nInShadow / 9.0f;
+    if (fLightScale > 0) {
       float d = length(vWorldPosition - g_vPointLight_Position[i]);
       float fAttenuation = 1 / dot(vAttenuation, float3(1, d, d*d));
       vPhong = Phong(vWorldPosition,

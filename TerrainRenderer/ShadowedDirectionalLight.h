@@ -13,8 +13,8 @@ class ShadowedDirectionalLight : public DirectionalLight {
                            bool high_precision = true);
   virtual ~ShadowedDirectionalLight(void);
 
-  virtual HRESULT OnCreateDevice(ID3D10Device *device);
-  virtual void OnDestroyDevice(void);
+  HRESULT OnCreateDevice(ID3D10Device *device);
+  void OnDestroyDevice(void);
   void GetShaderHandles(ID3D10Effect *effect);
 
   virtual void OnFrameMove(float elapsed_time);

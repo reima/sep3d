@@ -16,9 +16,9 @@ class DirectionalLight : public LightSource {
 
  protected:
   D3DXVECTOR3 direction_;
- 
+
  private:
-  static unsigned int instance_count;  
+  static unsigned int instance_count;
   static ID3D10EffectVectorVariable *pDir;
   static ID3D10EffectVectorVariable *pColor;
   static ID3D10EffectScalarVariable *pNumDL;

@@ -65,6 +65,7 @@ ID3D10EffectShaderResourceVariable* g_ptCubeMap = NULL;
 ID3D10ShaderResourceView*   g_pCubeMapRV = NULL;
 ID3D10EffectScalarVariable* g_pbWaveNormals = NULL;
 ID3D10EffectScalarVariable* g_pfZEpsilon = NULL;
+ID3D10EffectScalarVariable* g_pbPCF = NULL;
 
 LODSelector*                g_pLODSelector = NULL;
 Scene*                      g_pScene = NULL;
@@ -97,6 +98,7 @@ ID3D10RasterizerState*      g_pRSWireframe = NULL;
 #define IDC_SHADOWMAPS_PRECISION    14
 #define IDC_SHADOWMAPS_ZEPSILON     15
 #define IDC_SHADOWMAPS_ZEPSILON_S   16
+#define IDC_SHADOWMAPS_PCF          17
 
 #define IDC_NEWTERRAIN_LOD          100
 #define IDC_NEWTERRAIN_SIZE         101
@@ -237,6 +239,9 @@ void InitApp() {
   g_SampleUI.AddStatic(IDC_SHADOWMAPS_ZEPSILON_S, sz, 35, iY += 24, 125, 22);
   g_SampleUI.AddSlider(IDC_SHADOWMAPS_ZEPSILON, 35, iY += 24, 125, 22, 0, 1000, 100);
 
+  g_SampleUI.AddCheckBox(IDC_SHADOWMAPS_PCF, L"3x3 PCF", 35,
+                         iY += 24, 125, 22, true);
+
 
   /**
    * Terrain UI
@@ -360,11 +365,14 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
       g_pEffect10->GetVariableByName("g_bWaveNormals")->AsScalar();
   g_pfZEpsilon =
       g_pEffect10->GetVariableByName("g_fZEpsilon")->AsScalar();
+  g_pbPCF =
+      g_pEffect10->GetVariableByName("g_bPCF")->AsScalar();
 
   // Flush effect vars/init GUI text
   OnGUIEvent(0, IDC_DYNAMICMINMAX, NULL, NULL);
   OnGUIEvent(0, IDC_WAVENORMALS, NULL, NULL);
   OnGUIEvent(0, IDC_SHADOWMAPS_ZEPSILON, NULL, NULL);
+  OnGUIEvent(0, IDC_SHADOWMAPS_PCF, NULL, NULL);
 
   // Setup the camera's view parameters
   D3DXVECTOR3 vecEye(0.0f, 5.0f, -5.0f);
@@ -416,11 +424,11 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
 
   // Lichter hinzufügen
   //g_pScene->AddPointLight(D3DXVECTOR3(-2.5f, 0.0f, 0.0f),
-  //                        D3DXVECTOR3(1, 0, 0),
-  //                        D3DXVECTOR3(0, 0, 1));
+  //                        D3DXVECTOR3(0, 0, 1),
+  //                        D3DXVECTOR3(0, 0, 0));
   //g_pScene->AddPointLight(D3DXVECTOR3(0.0f, 0.0f, -2.5f),
   //                        D3DXVECTOR3(0, 1, 0),
-  //                        D3DXVECTOR3(1, 0, 0));
+  //                        D3DXVECTOR3(0, 0, 0));
   //g_pScene->AddDirectionalLight(D3DXVECTOR3(1.0f, 1.0f, 0.0f),
   //                              D3DXVECTOR3(1, 0.75f, 0.5f),
   //                              D3DXVECTOR3(0, 1, 0));
@@ -444,20 +452,20 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   //                       D3DXVECTOR3(1, 1, 1),
   //                       D3DXVECTOR3(0, 1, 0),
   //                       .5f, 5);
-  //g_pScene->AddDirectionalLight(
-  //    D3DXVECTOR3(1.0f, 0.25f, 0.0f),
-  //    D3DXVECTOR3(1, 0.75f, 0.5f),
-  //    D3DXVECTOR3(0, 0.2f, 0),
-  //    true);
-  g_pScene->AddPointLight(
-      D3DXVECTOR3(-1, 1, 0),
-      D3DXVECTOR3(1, 0, 0),
-      D3DXVECTOR3(0, 1, 0),
+  g_pScene->AddDirectionalLight(
+      D3DXVECTOR3(1.0f, 0.25f, 0.0f),
+      D3DXVECTOR3(1, 0.75f, 0.5f),
+      D3DXVECTOR3(0, 0.2f, 0),
       true);
+  //g_pScene->AddPointLight(
+  //    D3DXVECTOR3(-1, 1, 0),
+  //    D3DXVECTOR3(1, 0, 0),
+  //    D3DXVECTOR3(0, 1, 0),
+  //    true);
 
   // Environment erstellen
   g_pEnvironment = new Environment(pd3dDevice);
-  g_pEnvironment->GetShaderHandles(g_pEffect10);  
+  g_pEnvironment->GetShaderHandles(g_pEffect10);
 
   return S_OK;
 }
@@ -763,6 +771,9 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
       g_pfZEpsilon->SetFloat(value);
       break;
     }
+    case IDC_SHADOWMAPS_PCF:
+      g_pbPCF->SetBool(g_SampleUI.GetCheckBox(IDC_SHADOWMAPS_PCF)->GetChecked());
+      break;
 
     /**
      * Terrain UI
