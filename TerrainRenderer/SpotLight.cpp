@@ -50,3 +50,12 @@ void SpotLight::OnFrameMove(float elapsed_time) {
   D3DXVec3TransformCoord(&position_, &position_, &rotation_matrix);
   SpotLight::pPos->SetFloatVectorArray(position_, instance_id_, 1);
 }
+
+void SpotLight::OnDestroyDevice(void) {
+  SpotLight::instance_count = 0;
+  SpotLight::pPos = NULL;
+  SpotLight::pDir = NULL;
+  SpotLight::pAngleExp = NULL;
+  SpotLight::pColor = NULL;
+  SpotLight::pNumSL = NULL;
+}

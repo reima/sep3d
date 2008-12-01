@@ -15,6 +15,7 @@ class SpotLight : public LightSource {
   virtual ~SpotLight(void);
   static void GetHandles(ID3D10Effect *effect);
   virtual void OnFrameMove(float elapsed_time);
+  virtual void OnDestroyDevice(void);
 
  private:
   D3DXVECTOR3 position_;

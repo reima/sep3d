@@ -13,6 +13,7 @@ class DirectionalLight : public LightSource {
   virtual ~DirectionalLight(void);
   static void GetHandles(ID3D10Effect *effect);
   virtual void OnFrameMove(float elapsed_time);
+  virtual void OnDestroyDevice(void);
 
  protected:
   D3DXVECTOR3 direction_;

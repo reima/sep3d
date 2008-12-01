@@ -37,3 +37,10 @@ void PointLight::OnFrameMove(float elapsed_time) {
   D3DXVec3TransformCoord(&position_, &position_, &rotation_matrix);
   PointLight::pPos->SetFloatVectorArray(position_, instance_id_, 1);
 }
+
+void PointLight::OnDestroyDevice(void) {
+  PointLight::instance_count = 0;
+  PointLight::pPos = NULL;
+  PointLight::pColor = NULL;
+  PointLight::pNumPL = NULL;
+}

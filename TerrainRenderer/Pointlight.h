@@ -13,6 +13,7 @@ class PointLight : public LightSource {
   virtual ~PointLight(void);
   static void GetHandles(ID3D10Effect *effect);
   virtual void OnFrameMove(float elapsed_time);
+  virtual void OnDestroyDevice(void);
 
  protected:
   D3DXVECTOR3 position_;

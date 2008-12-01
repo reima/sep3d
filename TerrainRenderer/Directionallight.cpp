@@ -41,3 +41,10 @@ void DirectionalLight::OnFrameMove(float elapsed_time) {
   direction_ = static_cast<D3DXVECTOR3>(new_direction);
   DirectionalLight::pDir->SetFloatVectorArray(direction_, instance_id_, 1);
 }
+
+void DirectionalLight::OnDestroyDevice(void) {
+  DirectionalLight::instance_count = 0;
+  DirectionalLight::pDir = NULL;
+  DirectionalLight::pColor = NULL;
+  DirectionalLight::pNumDL = NULL;
+}
