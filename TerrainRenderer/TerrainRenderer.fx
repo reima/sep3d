@@ -2,8 +2,6 @@
 // File: TerrainRenderer.fx
 //--------------------------------------------------------------------------------------
 
-#define Z_EPSILON (0.01f)
-
 //--------------------------------------------------------------------------------------
 // Global variables
 //--------------------------------------------------------------------------------------
@@ -29,6 +27,7 @@ cbuffer cbOptions
 {
   bool     g_bDynamicMinMax;
   bool     g_bWaveNormals;
+  float    g_fZEpsilon;
 }
 
 cbuffer cbStatic
@@ -282,7 +281,7 @@ float3 FullLighting(float3 vColor,
     [unroll] for (int x = -1; x <= 1; ++x) {
       [unroll] for (int y = -1; y <= 1; ++y) {
         fShadowMap = g_tDirectionalShadowMap.Load(int3(vLightSpacePos.xy + int2(x, y), 0));
-        if (fShadowMap + Z_EPSILON < fLightDist) nInShadow++;
+        if (fShadowMap + g_fZEpsilon < fLightDist) nInShadow++;
       }
     }
 
@@ -331,7 +330,7 @@ float3 FullLighting(float3 vColor,
     [unroll] for (int x = -1; x <= 1; ++x) {
       [unroll] for (int y = -1; y <= 1; ++y) {
         fShadowMap = g_tPointShadowMap.Load(int4(vLightSpacePos.xy + int2(x, y), uiArraySlice, 0));
-        if (fShadowMap + Z_EPSILON < fLightDist) nInShadow++;
+        if (fShadowMap + g_fZEpsilon < fLightDist) nInShadow++;
       }
     }
 
@@ -558,17 +557,17 @@ RasterizerState rsCullNone
 //--------------------------------------------------------------------------------------
 // Techniques
 //--------------------------------------------------------------------------------------
-technique10 GouraudShading
-{
-  pass P0
-  {
-    SetVertexShader( CompileShader( vs_4_0, GouraudShading_VS() ) );
-    SetGeometryShader( NULL );
-    SetPixelShader( CompileShader( ps_4_0, GouraudShading_PS() ) );
-    SetRasterizerState( NULL );
-    SetBlendState( NULL, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
-  }
-}
+//technique10 GouraudShading
+//{
+//  pass P0
+//  {
+//    SetVertexShader( CompileShader( vs_4_0, GouraudShading_VS() ) );
+//    SetGeometryShader( NULL );
+//    SetPixelShader( CompileShader( ps_4_0, GouraudShading_PS() ) );
+//    SetRasterizerState( NULL );
+//    SetBlendState( NULL, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
+//  }
+//}
 
 technique10 PhongShading
 {

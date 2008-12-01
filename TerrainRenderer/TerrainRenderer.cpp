@@ -64,6 +64,7 @@ ID3D10ShaderResourceView*   g_pGround3DRV = NULL;
 ID3D10EffectShaderResourceVariable* g_ptCubeMap = NULL;
 ID3D10ShaderResourceView*   g_pCubeMapRV = NULL;
 ID3D10EffectScalarVariable* g_pbWaveNormals = NULL;
+ID3D10EffectScalarVariable* g_pfZEpsilon = NULL;
 
 LODSelector*                g_pLODSelector = NULL;
 Scene*                      g_pScene = NULL;
@@ -94,6 +95,8 @@ ID3D10RasterizerState*      g_pRSWireframe = NULL;
 #define IDC_SHADOWMAPS_RESOLUTION   12
 #define IDC_SHADOWMAPS_RESOLUTION_S 13
 #define IDC_SHADOWMAPS_PRECISION    14
+#define IDC_SHADOWMAPS_ZEPSILON     15
+#define IDC_SHADOWMAPS_ZEPSILON_S   16
 
 #define IDC_NEWTERRAIN_LOD          100
 #define IDC_NEWTERRAIN_SIZE         101
@@ -220,7 +223,7 @@ void InitApp() {
 
   g_SampleUI.AddStatic(0, L"Technique:", 35, iY += 24, 125, 22);
   g_SampleUI.AddComboBox(IDC_TECHNIQUE, 35, iY += 24, 125, 22);
-  g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"GouraudShading", "GouraudShading");
+  //g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"GouraudShading", "GouraudShading");
   g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"PhongShading", "PhongShading");
 
   StringCchPrintf(sz, 100, L"SM Res.: %dx%d", 1024, 1024);
@@ -229,6 +232,11 @@ void InitApp() {
   
   g_SampleUI.AddCheckBox(IDC_SHADOWMAPS_PRECISION, L"High Prec. SM", 35,
                          iY += 24, 125, 22, true);
+
+  StringCchPrintf(sz, 100, L"Z epsilon: %.4f", 0.010f);
+  g_SampleUI.AddStatic(IDC_SHADOWMAPS_ZEPSILON_S, sz, 35, iY += 24, 125, 22);
+  g_SampleUI.AddSlider(IDC_SHADOWMAPS_ZEPSILON, 35, iY += 24, 125, 22, 0, 1000, 100);
+
 
   /**
    * Terrain UI
@@ -350,10 +358,13 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
       g_pEffect10->GetVariableByName("g_bDynamicMinMax")->AsScalar();
   g_pbWaveNormals =
       g_pEffect10->GetVariableByName("g_bWaveNormals")->AsScalar();
+  g_pfZEpsilon =
+      g_pEffect10->GetVariableByName("g_fZEpsilon")->AsScalar();
 
   // Flush effect vars/init GUI text
   OnGUIEvent(0, IDC_DYNAMICMINMAX, NULL, NULL);
   OnGUIEvent(0, IDC_WAVENORMALS, NULL, NULL);
+  OnGUIEvent(0, IDC_SHADOWMAPS_ZEPSILON, NULL, NULL);
 
   // Setup the camera's view parameters
   D3DXVECTOR3 vecEye(0.0f, 5.0f, -5.0f);
@@ -433,11 +444,11 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   //                       D3DXVECTOR3(1, 1, 1),
   //                       D3DXVECTOR3(0, 1, 0),
   //                       .5f, 5);
-  g_pScene->AddDirectionalLight(
-      D3DXVECTOR3(1.0f, 0.25f, 0.0f),
-      D3DXVECTOR3(1, 0.75f, 0.5f),
-      D3DXVECTOR3(0, 0.2f, 0),
-      true);
+  //g_pScene->AddDirectionalLight(
+  //    D3DXVECTOR3(1.0f, 0.25f, 0.0f),
+  //    D3DXVECTOR3(1, 0.75f, 0.5f),
+  //    D3DXVECTOR3(0, 0.2f, 0),
+  //    true);
   g_pScene->AddPointLight(
       D3DXVECTOR3(-1, 1, 0),
       D3DXVECTOR3(1, 0, 0),
@@ -694,6 +705,7 @@ void CALLBACK OnKeyboard(UINT nChar, bool bKeyDown, bool bAltDown,
 //--------------------------------------------------------------------------------------
 void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
                          void* pUserContext) {
+  WCHAR sz[100];
   switch (nControlID) {
     case IDC_TOGGLEFULLSCREEN:
       DXUTToggleFullScreen(); break;
@@ -734,7 +746,6 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
     case IDC_SHADOWMAPS_RESOLUTION: {
       int value =
           (1 << g_SampleUI.GetSlider(IDC_SHADOWMAPS_RESOLUTION)->GetValue());
-      WCHAR sz[100];
       StringCchPrintf(sz, 100, L"SM Res.: %dx%d", value, value);
       g_SampleUI.GetStatic(IDC_SHADOWMAPS_RESOLUTION_S)->SetText(sz);
       g_pScene->SetShadowMapDimensions(value, value);
@@ -744,6 +755,14 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
       g_pScene->SetShadowMapPrecision(
           g_SampleUI.GetCheckBox(IDC_SHADOWMAPS_PRECISION)->GetChecked());
       break;
+    case IDC_SHADOWMAPS_ZEPSILON: {
+      float value =
+          g_SampleUI.GetSlider(IDC_SHADOWMAPS_ZEPSILON)->GetValue() / 10000.0f;
+      StringCchPrintf(sz, 100, L"Z epsilon: %.4f", value);
+      g_SampleUI.GetStatic(IDC_SHADOWMAPS_ZEPSILON_S)->SetText(sz);
+      g_pfZEpsilon->SetFloat(value);
+      break;
+    }
 
     /**
      * Terrain UI
@@ -751,7 +770,6 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
     case IDC_NEWTERRAIN_SIZE: {
       int value =
           (1 << g_TerrainUI.GetSlider(IDC_NEWTERRAIN_SIZE)->GetValue()) + 1;
-      WCHAR sz[100];
       StringCchPrintf(sz, 100, L"Size: %dx%d", value, value);
       g_TerrainUI.GetStatic(IDC_NEWTERRAIN_SIZE_S)->SetText(sz);
       break;
@@ -759,14 +777,12 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
     case IDC_NEWTERRAIN_ROUGHNESS: {
       float value =
           g_TerrainUI.GetSlider(IDC_NEWTERRAIN_ROUGHNESS)->GetValue() / 100.0f;
-      WCHAR sz[100];
       StringCchPrintf(sz, 100, L"Roughness: %.2f", value);
       g_TerrainUI.GetStatic(IDC_NEWTERRAIN_ROUGHNESS_S)->SetText(sz);
       break;
     }
     case IDC_NEWTERRAIN_LOD: {
       int value = g_TerrainUI.GetSlider(IDC_NEWTERRAIN_LOD)->GetValue();
-      WCHAR sz[100];
       StringCchPrintf(sz, 100, L"LOD Levels: %d", value);
       g_TerrainUI.GetStatic(IDC_NEWTERRAIN_LOD_S)->SetText(sz);
       break;

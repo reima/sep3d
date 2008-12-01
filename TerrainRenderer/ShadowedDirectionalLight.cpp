@@ -88,10 +88,8 @@ void ShadowedDirectionalLight::GetShaderHandles(ID3D10Effect *effect) {
 void ShadowedDirectionalLight::SetShaderVariables(void) {
   assert(shadowed_idx_ev_ != NULL);
   assert(lst_ev_ != NULL);
-  assert(shadow_map_ev_ != NULL);
   shadowed_idx_ev_->SetInt(instance_id_);
   lst_ev_->SetMatrix(light_space_transform_);
-  shadow_map_ev_->SetResource(shader_resource_view_);
 }
 
 void ShadowedDirectionalLight::SetShadowMapDimensions(UINT width, UINT height) {
@@ -148,6 +146,7 @@ void ShadowedDirectionalLight::OnFrameMove(float elapsed_time) {
   assert(depth_stencil_view_ != NULL);
   assert(device_ != NULL);
   assert(scene_ != NULL);
+  assert(shadow_map_ev_ != NULL);
 
   DirectionalLight::OnFrameMove(elapsed_time);
   UpdateMatrices();
@@ -163,6 +162,10 @@ void ShadowedDirectionalLight::OnFrameMove(float elapsed_time) {
   D3D10_VIEWPORT viewports_old[D3D10_SIMULTANEOUS_RENDER_TARGET_COUNT];
   UINT num_viewports = D3D10_SIMULTANEOUS_RENDER_TARGET_COUNT;
   device_->RSGetViewports(&num_viewports, viewports_old);
+
+  // Shader Resource ausbinden
+  // DEVICE_OMSETRENDERTARGETS_HAZARD tritt aber trotzdem auf :(
+  shadow_map_ev_->SetResource(NULL);
 
   // Unsere Textur als Depth-Stencil-Target setzen
   device_->OMSetRenderTargets(0, NULL, depth_stencil_view_);
@@ -194,4 +197,6 @@ void ShadowedDirectionalLight::OnFrameMove(float elapsed_time) {
     SAFE_RELEASE(rtv_old[i]);
 
   SAFE_RELEASE(dsv_old);
+
+  shadow_map_ev_->SetResource(shader_resource_view_);
 }
