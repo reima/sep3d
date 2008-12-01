@@ -6,8 +6,14 @@
 ShadowedPointLight::ShadowedPointLight(const D3DXVECTOR3 &position,
                                        const D3DXVECTOR3 &color,
                                        const D3DXVECTOR3 &rotation,
-                                       Scene *scene)
+                                       Scene *scene,
+                                       UINT map_width,
+                                       UINT map_height,
+                                       bool high_precision)
   : PointLight(position, color, rotation),
+    map_width_(map_width),
+    map_height_(map_height),
+    high_precision_(high_precision),
     scene_(scene),
     device_(NULL),
     shadow_map_(NULL),
@@ -28,11 +34,12 @@ HRESULT ShadowedPointLight::OnCreateDevice(ID3D10Device *device) {
   device_ = device;
 
   D3D10_TEXTURE2D_DESC tex2d_desc;
-  tex2d_desc.Width = 1024;
-  tex2d_desc.Height = 1024;
+  tex2d_desc.Width = map_width_;
+  tex2d_desc.Height = map_height_;
   tex2d_desc.MipLevels = 1;
   tex2d_desc.ArraySize = 6;
-  tex2d_desc.Format = DXGI_FORMAT_R32_TYPELESS;
+  tex2d_desc.Format = high_precision_ ? DXGI_FORMAT_R32_TYPELESS
+                                      : DXGI_FORMAT_R16_TYPELESS;
   tex2d_desc.SampleDesc.Count = 1;
   tex2d_desc.SampleDesc.Quality = 0;
   tex2d_desc.Usage = D3D10_USAGE_DEFAULT;
@@ -42,7 +49,8 @@ HRESULT ShadowedPointLight::OnCreateDevice(ID3D10Device *device) {
   V_RETURN(device->CreateTexture2D(&tex2d_desc, NULL, &shadow_map_));
 
   D3D10_DEPTH_STENCIL_VIEW_DESC dsv_desc;
-  dsv_desc.Format = DXGI_FORMAT_D32_FLOAT;
+  dsv_desc.Format = high_precision_ ? DXGI_FORMAT_D32_FLOAT
+                                    : DXGI_FORMAT_D16_UNORM;
   dsv_desc.ViewDimension = D3D10_DSV_DIMENSION_TEXTURE2DARRAY;
   dsv_desc.Texture2DArray.ArraySize = 6;
   dsv_desc.Texture2DArray.FirstArraySlice = 0;
@@ -51,7 +59,8 @@ HRESULT ShadowedPointLight::OnCreateDevice(ID3D10Device *device) {
                                           &depth_stencil_view_));
 
   D3D10_SHADER_RESOURCE_VIEW_DESC srv_desc;
-  srv_desc.Format = DXGI_FORMAT_R32_FLOAT;
+  srv_desc.Format = high_precision_ ? DXGI_FORMAT_R32_FLOAT
+                                    : DXGI_FORMAT_R16_FLOAT;
   srv_desc.ViewDimension = D3D10_SRV_DIMENSION_TEXTURE2DARRAY;
   srv_desc.Texture2DArray.ArraySize = 6;
   srv_desc.Texture2DArray.FirstArraySlice = 0;
@@ -87,6 +96,19 @@ void ShadowedPointLight::SetShaderVariables(void) {
   shadow_map_ev_->SetResource(shader_resource_view_);
 }
 
+void ShadowedPointLight::SetShadowMapDimensions(UINT width, UINT height) {
+  map_width_ = width;
+  map_height_ = height;
+  OnDestroyDevice();
+  OnCreateDevice(device_);
+}
+
+void ShadowedPointLight::SetShadowMapPrecision(bool high_precision) {
+  high_precision_ = high_precision;
+  OnDestroyDevice();
+  OnCreateDevice(device_);
+}
+
 void ShadowedPointLight::UpdateMatrices(void) {
   D3DXVECTOR3 upvec = D3DXVECTOR3(0, 1, 0);
 
@@ -114,7 +136,7 @@ void ShadowedPointLight::UpdateMatrices(void) {
   D3DXMATRIX proj;
   D3DXMatrixPerspectiveFovLH(&proj, D3DX_PI/2, 1, 0.1f, 10);
 
-  for (int i=0; i<6; i++)
+  for (int i = 0; i < 6; ++i)
     light_space_transforms_[i] *= proj;
 }
 
@@ -148,8 +170,8 @@ void ShadowedPointLight::OnFrameMove(float elapsed_time) {
   D3D10_VIEWPORT viewport;
   viewport.TopLeftX = 0;
   viewport.TopLeftY = 0;
-  viewport.Width = 1024;
-  viewport.Height = 1024;
+  viewport.Width = map_width_;
+  viewport.Height = map_height_;
   viewport.MaxDepth = 1.0f;
   viewport.MinDepth = 0.0f;
   device_->RSSetViewports(1, &viewport);

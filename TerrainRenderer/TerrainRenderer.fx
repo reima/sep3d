@@ -265,6 +265,7 @@ float3 FullLighting(float3 vColor,
   float fLightDist;
   float2 vPhong;
   float fLightScale;
+  uint uiWidth, uiHeight, uiElements;
 
   //
   // Shadowed directional light
@@ -274,12 +275,13 @@ float3 FullLighting(float3 vColor,
     fLightDist = vLightSpacePos.z;
     vLightSpacePos.x = 0.5 * vLightSpacePos.x + 0.5;
     vLightSpacePos.y = 1 - (0.5 * vLightSpacePos.y + 0.5);
-    vLightSpacePos.xy *= 1023;
+    g_tDirectionalShadowMap.GetDimensions(uiWidth, uiHeight);
+    vLightSpacePos.xy *= uint2(uiWidth-1, uiHeight-1);
 
     nInShadow = 0;
     [unroll] for (int x = -1; x <= 1; ++x) {
       [unroll] for (int y = -1; y <= 1; ++y) {
-        fShadowMap = g_tDirectionalShadowMap.Load(int3(vLightSpacePos.xy + float2(x, y), 0));
+        fShadowMap = g_tDirectionalShadowMap.Load(int3(vLightSpacePos.xy + int2(x, y), 0));
         if (fShadowMap + Z_EPSILON < fLightDist) nInShadow++;
       }
     }
@@ -322,11 +324,13 @@ float3 FullLighting(float3 vColor,
     fLightDist = vLightSpacePos.z;
     vLightSpacePos.x = 0.5 * vLightSpacePos.x + 0.5;
     vLightSpacePos.y = 1 - (0.5 * vLightSpacePos.y + 0.5);
-    vLightSpacePos.xy *= 1023;
+    g_tPointShadowMap.GetDimensions(uiWidth, uiHeight, uiElements);
+    vLightSpacePos.xy *= uint2(uiWidth-1, uiHeight-1);
+
     nInShadow = 0;
     [unroll] for (int x = -1; x <= 1; ++x) {
       [unroll] for (int y = -1; y <= 1; ++y) {
-        fShadowMap = g_tPointShadowMap.Load(int4(vLightSpacePos.xy + float2(x, y), uiArraySlice, 0));
+        fShadowMap = g_tPointShadowMap.Load(int4(vLightSpacePos.xy + int2(x, y), uiArraySlice, 0));
         if (fShadowMap + Z_EPSILON < fLightDist) nInShadow++;
       }
     }
@@ -458,7 +462,7 @@ float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In ) : SV_Target
   float3 N = 0;
   float4 vReflect = 0;
   float4 vTerrainColor = 0;
-  if (In.Height <= 0) {
+  if (In.Height < 0) {
     if (g_bWaveNormals) {
       // Waves bump map lookups
       float3 vWave0 = g_tWaves.Sample(g_ssLinear, In.Wave0);

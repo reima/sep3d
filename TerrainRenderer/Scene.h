@@ -66,6 +66,8 @@ class Scene {
   HRESULT OnCreateDevice(ID3D10Device *device);
   void GetShaderHandles(ID3D10Effect* effect);
   void OnDestroyDevice(void);
+  void SetShadowMapDimensions(UINT width, UINT height);
+  void SetShadowMapPrecision(bool high_precision);
 
   void Draw(void);
 
@@ -76,6 +78,9 @@ class Scene {
   std::vector<LightSource *> light_sources_;
   ShadowedPointLight *shadowed_point_light_;
   ShadowedDirectionalLight *shadowed_directional_light_;
+  UINT shadow_map_width_;
+  UINT shadow_map_height_;
+  bool shadow_map_high_precision_;
   /**
    * Kameraposition
    */

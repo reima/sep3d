@@ -8,19 +8,27 @@ class ShadowedDirectionalLight : public DirectionalLight {
   ShadowedDirectionalLight(const D3DXVECTOR3 &direction,
                            const D3DXVECTOR3 &color,
                            const D3DXVECTOR3 &rotation,
-                           Scene *scene);
+                           Scene *scene,
+                           UINT map_width = 1024, UINT map_height = 1024,
+                           bool high_precision = true);
   virtual ~ShadowedDirectionalLight(void);
 
   virtual HRESULT OnCreateDevice(ID3D10Device *device);
   virtual void OnDestroyDevice(void);
-
   void GetShaderHandles(ID3D10Effect *effect);
 
   virtual void OnFrameMove(float elapsed_time);
 
+  void SetShadowMapDimensions(UINT width, UINT height);
+  void SetShadowMapPrecision(bool high_precision);
+
  private:
   void SetShaderVariables(void);
   void UpdateMatrices(void);
+
+  UINT map_width_;
+  UINT map_height_;
+  bool high_precision_;
 
   Scene *scene_;
   ID3D10Device *device_;

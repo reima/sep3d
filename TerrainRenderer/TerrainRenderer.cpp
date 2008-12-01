@@ -91,6 +91,9 @@ ID3D10RasterizerState*      g_pRSWireframe = NULL;
 #define IDC_DYNAMICMINMAX           9
 #define IDC_WAVENORMALS             10
 #define IDC_TECHNIQUE               11
+#define IDC_SHADOWMAPS_RESOLUTION   12
+#define IDC_SHADOWMAPS_RESOLUTION_S 13
+#define IDC_SHADOWMAPS_PRECISION    14
 
 #define IDC_NEWTERRAIN_LOD          100
 #define IDC_NEWTERRAIN_SIZE         101
@@ -219,6 +222,13 @@ void InitApp() {
   g_SampleUI.AddComboBox(IDC_TECHNIQUE, 35, iY += 24, 125, 22);
   g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"GouraudShading", "GouraudShading");
   g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"PhongShading", "PhongShading");
+
+  StringCchPrintf(sz, 100, L"SM Res.: %dx%d", 1024, 1024);
+  g_SampleUI.AddStatic(IDC_SHADOWMAPS_RESOLUTION_S, sz, 35, iY += 24, 125, 22);
+  g_SampleUI.AddSlider(IDC_SHADOWMAPS_RESOLUTION, 35, iY += 24, 125, 22, 4, 12, 10);
+  
+  g_SampleUI.AddCheckBox(IDC_SHADOWMAPS_PRECISION, L"High Prec. SM", 35,
+                         iY += 24, 125, 22, true);
 
   /**
    * Terrain UI
@@ -423,11 +433,11 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   //                       D3DXVECTOR3(1, 1, 1),
   //                       D3DXVECTOR3(0, 1, 0),
   //                       .5f, 5);
-  //g_pScene->AddDirectionalLight(
-  //    D3DXVECTOR3(1.0f, 0.25f, 0.0f),
-  //    D3DXVECTOR3(1, 0.75f, 0.5f),
-  //    D3DXVECTOR3(0, 0.2f, 0),
-  //    true);
+  g_pScene->AddDirectionalLight(
+      D3DXVECTOR3(1.0f, 0.25f, 0.0f),
+      D3DXVECTOR3(1, 0.75f, 0.5f),
+      D3DXVECTOR3(0, 0.2f, 0),
+      true);
   g_pScene->AddPointLight(
       D3DXVECTOR3(-1, 1, 0),
       D3DXVECTOR3(1, 0, 0),
@@ -605,8 +615,8 @@ void CALLBACK OnFrameMove(double fTime, float fElapsedTime,
   // Update the camera's position based on user input
   g_Camera.FrameMove(fElapsedTime);
   if (g_bPaused) fElapsedTime = 0;
-  g_pScene->OnFrameMove(fElapsedTime, *g_Camera.GetEyePt());
   DXUTGetD3D10Device()->IASetInputLayout(g_pVertexLayout);
+  g_pScene->OnFrameMove(fElapsedTime, *g_Camera.GetEyePt());  
 }
 
 
@@ -721,6 +731,19 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
       g_pTechnique = g_pEffect10->GetTechniqueByName(tech);
       break;
     }
+    case IDC_SHADOWMAPS_RESOLUTION: {
+      int value =
+          (1 << g_SampleUI.GetSlider(IDC_SHADOWMAPS_RESOLUTION)->GetValue());
+      WCHAR sz[100];
+      StringCchPrintf(sz, 100, L"SM Res.: %dx%d", value, value);
+      g_SampleUI.GetStatic(IDC_SHADOWMAPS_RESOLUTION_S)->SetText(sz);
+      g_pScene->SetShadowMapDimensions(value, value);
+      break;
+    }
+    case IDC_SHADOWMAPS_PRECISION:
+      g_pScene->SetShadowMapPrecision(
+          g_SampleUI.GetCheckBox(IDC_SHADOWMAPS_PRECISION)->GetChecked());
+      break;
 
     /**
      * Terrain UI

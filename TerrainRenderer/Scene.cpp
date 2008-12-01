@@ -19,6 +19,9 @@ Scene::Scene(void)
       effect_(NULL),
       shadowed_point_light_(NULL),
       shadowed_directional_light_(NULL),
+      shadow_map_width_(1024),
+      shadow_map_height_(1024),
+      shadow_map_high_precision_(true),
       pMaterialParameters(NULL),
       pCameraPosition(NULL),
       pShadowedPointLight(NULL),
@@ -50,7 +53,10 @@ void Scene::AddPointLight(const D3DXVECTOR3 &position,
     shadowed_point_light_ = new ShadowedPointLight(position,
                                                    color,
                                                    rotation,
-                                                   this);
+                                                   this,
+                                                   shadow_map_width_,
+                                                   shadow_map_height_,
+                                                   shadow_map_high_precision_);
     if (device_)
       shadowed_point_light_->OnCreateDevice(device_);
     if (effect_) {
@@ -70,7 +76,9 @@ void Scene::AddDirectionalLight(const D3DXVECTOR3 &direction,
   if (shadowed) {
     SAFE_DELETE(shadowed_directional_light_);
     shadowed_directional_light_ =
-        new ShadowedDirectionalLight(direction, color, rotation, this);
+        new ShadowedDirectionalLight(direction, color, rotation, this,
+                                     shadow_map_width_, shadow_map_height_,
+                                     shadow_map_high_precision_);
     if (device_)
       shadowed_directional_light_->OnCreateDevice(device_);
     if (effect_) {
@@ -138,6 +146,23 @@ void Scene::OnDestroyDevice(void) {
   for (it = light_sources_.begin(); it != light_sources_.end(); ++it) {
     (*it)->OnDestroyDevice();
   }
+}
+
+void Scene::SetShadowMapDimensions(UINT width, UINT height) {
+  shadow_map_width_ = width;
+  shadow_map_height_ = height;
+  if (shadowed_point_light_)
+    shadowed_point_light_->SetShadowMapDimensions(width, height);
+  if (shadowed_directional_light_)
+    shadowed_directional_light_->SetShadowMapDimensions(width, height);
+}
+
+void Scene::SetShadowMapPrecision(bool high_precision) {
+  shadow_map_high_precision_ = high_precision;
+  if (shadowed_point_light_)
+    shadowed_point_light_->SetShadowMapPrecision(high_precision);
+  if (shadowed_directional_light_)
+    shadowed_directional_light_->SetShadowMapPrecision(high_precision);
 }
 
 void Scene::CreateTerrain(int n, float roughness, int num_lod) {
