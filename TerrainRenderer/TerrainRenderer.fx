@@ -407,7 +407,7 @@ VS_PHONG_SHADING_OUTPUT PhongShading_VS( VS_INPUT In )
   Output.Normal = normalize(In.Normal);
   Output.WorldPosition = vPos;
   Output.LightSpacePos = mul(vPos, g_mDirectionalLightSpaceTransform);
-  Output.TexCoord = vPos.xz * 2;
+  Output.TexCoord = vPos.xz * 5;
 
   if (g_bWaveNormals) {
     float2 vTexCoord = vPos.xz * 0.5;

@@ -375,9 +375,10 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   OnGUIEvent(0, IDC_SHADOWMAPS_PCF, NULL, NULL);
 
   // Setup the camera's view parameters
-  D3DXVECTOR3 vecEye(0.0f, 5.0f, -5.0f);
-  D3DXVECTOR3 vecAt (0.0f, 0.0f, -0.0f);
+  D3DXVECTOR3 vecEye(0.0f, 0.1f, 0.0f);
+  D3DXVECTOR3 vecAt (0.0f, 0.0f, 1.0f);
   g_Camera.SetViewParams(&vecEye, &vecAt);
+  g_Camera.SetScalers(0.01f, 0.1f);
 
   // Vertex Layout festlegen
   D3D10_INPUT_ELEMENT_DESC layout[] = {

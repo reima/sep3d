@@ -179,7 +179,6 @@ class Tile {
    */
   void ReleaseBuffers(void);
 
-
   void CalculateHeights(void);
 
   /**
@@ -237,6 +236,8 @@ class Tile {
 
   float max_height_;
   float min_height_;
+  float scale_;
+  D3DXVECTOR3 translation_;
 };
 
 #endif

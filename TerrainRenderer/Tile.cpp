@@ -39,7 +39,11 @@ Tile::Tile(int n, float roughness, int num_lod)
       parent_(NULL),
       vertex_buffer_(NULL),
       normal_buffer_(NULL),
-      index_buffer_(NULL) {
+      index_buffer_(NULL),
+      min_height_(0),
+      max_height_(0),
+      scale_(1.0f),
+      translation_(D3DXVECTOR3(0, 0, 0)) {
   vertices_ = new D3DXVECTOR3[size_*size_];
   Init(roughness);
   InitChildren(roughness, NULL, NULL);
@@ -57,7 +61,17 @@ Tile::Tile(Tile *parent, Tile::Direction direction, float roughness,
       parent_(parent),
       vertex_buffer_(NULL),
       normal_buffer_(NULL),
-      index_buffer_(NULL) {
+      index_buffer_(NULL),
+      min_height_(0),
+      max_height_(0),
+      scale_(parent->scale_*0.5f),
+      translation_(parent->translation_) {
+  switch (direction) {
+    case NW: translation_ += D3DXVECTOR3(-scale_*0.5f, 0,  scale_*0.5f); break;
+    case NE: translation_ += D3DXVECTOR3( scale_*0.5f, 0,  scale_*0.5f); break;
+    case SE: translation_ += D3DXVECTOR3( scale_*0.5f, 0, -scale_*0.5f); break;
+    case SW: translation_ += D3DXVECTOR3(-scale_*0.5f, 0, -scale_*0.5f); break;
+  }
   vertices_ = new D3DXVECTOR3[size_*size_];
   InitFromParent();
   Refine(2, roughness);
