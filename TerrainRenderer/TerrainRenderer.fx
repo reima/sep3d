@@ -5,6 +5,12 @@
 //--------------------------------------------------------------------------------------
 // Global variables
 //--------------------------------------------------------------------------------------
+cbuffer cbPerTilePass
+{
+  float    g_fTileScale;
+  float2   g_vTileTranslate;
+}
+
 cbuffer cbPerFrame
 {
   // Misc
@@ -20,7 +26,7 @@ cbuffer cbPerFrame
   float4x4 g_mPointLightSpaceTransform[6];
   // Environment
   float4x4 g_mWorldViewInv;
-  float    g_fCameraFOV;
+  float    g_fCameraFOV;  
 }
 
 cbuffer cbOptions
@@ -36,6 +42,7 @@ cbuffer cbStatic
   // Terrain
   float  g_fMinHeight;
   float  g_fMaxHeight;
+  uint   g_uiTerrainSize;
   // Lights
   uint   g_nPointLights;
   uint   g_nDirectionalLights;
@@ -56,6 +63,7 @@ cbuffer cbStatic
 
 Texture2D g_tWaves;
 Texture2D g_tGround;
+Texture2D g_tTerrain; // Terrain heights
 Texture3D g_tGround3D;
 TextureCube g_tCubeMap;
 Texture2D g_tDirectionalShadowMap;
@@ -96,7 +104,7 @@ const float4 g_Colors[NUM_SPOTS] = {
 const float3 vAttenuation = { 0, 0, 1 }; // Constant, linear, quadratic
 
 const float4 g_vWaterColor = float4(0, 0.25, 0.5, 1.0);
-const float4 g_vMaterMaterial = float4(0.05, 0.7, 0.25, 200);
+const float4 g_vWaterMaterial = float4(0.05, 0.7, 0.25, 200);
 
 //--------------------------------------------------------------------------------------
 // Vertex shader input structures
@@ -210,7 +218,7 @@ PHONG PhongLighting(float3 vPos, float3 vNormal, float4 vMaterial)
   float2 vPhong;
   for (i = 0; i < g_nPointLights; i++) {
     // Defer shadowed lighting
-    if (i == g_iShadowedPointLight) continue;
+    if (g_bShadowedPointLight && i == g_iShadowedPointLight) continue;
     d = length(vPos - g_vPointLight_Position[i]);
     fAttenuation = 1 / dot(vAttenuation, float3(1, d, d*d));
     vPhong = Phong(vPos, g_vPointLight_Position[i] - vPos, vNormal, vMaterial);
@@ -221,7 +229,7 @@ PHONG PhongLighting(float3 vPos, float3 vNormal, float4 vMaterial)
   // Directional lights
   for (i = 0; i < g_nDirectionalLights; i++) {
     // Defer shadowed lighting
-    if (i == g_iShadowedDirectionalLight) continue;
+    if (g_bShadowedDirectionalLight &&i == g_iShadowedDirectionalLight) continue;
     vPhong = Phong(vPos, g_vDirectionalLight_Direction[i], vNormal,
                           vMaterial);
     vDiffuseLight += vPhong.x * g_vDirectionalLight_Color[i];
@@ -368,6 +376,14 @@ float3 FullLighting(float3 vColor,
       phong.SpecularLight;
 }
 
+float4 GetTileVertex(float2 vPosition)
+{
+  float fHeight = g_tTerrain.Load(float3(vPosition.x, 1-vPosition.y, 0) * (g_uiTerrainSize-1));
+  vPosition *= g_fTileScale;
+  vPosition += g_vTileTranslate;
+  return float4(vPosition.x, fHeight, vPosition.y, 1);
+}
+
 //--------------------------------------------------------------------------------------
 // Vertex Shaders
 //--------------------------------------------------------------------------------------
@@ -390,15 +406,17 @@ VS_GOURAUD_SHADING_OUTPUT GouraudShading_VS( VS_INPUT In )
   return Output;
 }
 
-VS_PHONG_SHADING_OUTPUT PhongShading_VS( VS_INPUT In )
+VS_PHONG_SHADING_OUTPUT PhongShading_VS( float2 vPosition : POSITION )
 {
   VS_PHONG_SHADING_OUTPUT Output;
-  float4 vPos = float4(In.Position, 1);
+  VS_INPUT In;
+  In.Normal = float3(0, 1, 0);
+  float4 vPos = GetTileVertex(vPosition);
   Output.Height = vPos.y;
   if (vPos.y < 0) {
     vPos.y = 0;
     In.Normal = float3(0, 1, 0);
-    Output.Material = g_vMaterMaterial;
+    Output.Material = g_vWaterMaterial;
   } else {
     Output.Material = g_vMaterialParameters;
   }
@@ -421,22 +439,20 @@ VS_PHONG_SHADING_OUTPUT PhongShading_VS( VS_INPUT In )
   return Output;
 }
 
-float4 Environment_VS( VS_INPUT In ) : SV_Position
+float4 Environment_VS( float3 vPosition : POSITION ) : SV_Position
 {
-  return float4(In.Position, 1);
+  return float4(vPosition, 1);
 }
 
-float4 DirectionalShadow_VS( VS_INPUT In ) : SV_Position
+float4 DirectionalShadow_VS( float2 vPosition : POSITION ) : SV_Position
 {
-  float4 vPos = float4(In.Position, 1);
-  vPos.y = max(0, vPos.y);
+  float4 vPos = GetTileVertex(vPosition);
   return mul(vPos, g_mDirectionalLightSpaceTransform);
 }
 
-float4 PointShadow_VS( VS_INPUT In ) : SV_Position
+float4 PointShadow_VS( float2 vPosition : POSITION ) : SV_Position
 {
-  In.Position.y = max(0, In.Position.y);
-  return float4(In.Position, 1);
+  return GetTileVertex(vPosition);
 }
 
 //--------------------------------------------------------------------------------------
@@ -485,7 +501,7 @@ float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In ) : SV_Target
       float3 vNormalPertubation = normalize(vWave0 + vWave1 +
                                             vWave2 + vWave3 - 2);
       vNormalPertubation = vNormalPertubation.xzy;
-      N = normalize(float3(0, 1, 0) + vNormalPertubation);
+      N = normalize(float3(0, 1, 0) + vNormalPertubation * 0.1f);
     } else {
       N = float3(0, 1, 0);
     }

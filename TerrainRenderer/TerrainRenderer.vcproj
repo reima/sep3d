@@ -759,6 +759,38 @@
 				>
 			</File>
 		</Filter>
+		<Filter
+			Name="Terrain"
+			>
+			<File
+				RelativePath=".\FixedLODSelector.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\FixedLODSelector.h"
+				>
+			</File>
+			<File
+				RelativePath=".\LODSelector.h"
+				>
+			</File>
+			<File
+				RelativePath=".\Terrain.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\Terrain.h"
+				>
+			</File>
+			<File
+				RelativePath=".\Tile.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\Tile.h"
+				>
+			</File>
+		</Filter>
 		<File
 			RelativePath=".\Environment.cpp"
 			>
@@ -768,19 +800,7 @@
 			>
 		</File>
 		<File
-			RelativePath=".\FixedLODSelector.cpp"
-			>
-		</File>
-		<File
-			RelativePath=".\FixedLODSelector.h"
-			>
-		</File>
-		<File
 			RelativePath=".\LoadEffect.cpp"
-			>
-		</File>
-		<File
-			RelativePath=".\LODSelector.h"
 			>
 		</File>
 		<File
@@ -801,14 +821,6 @@
 		</File>
 		<File
 			RelativePath=".\TerrainRenderer.fx"
-			>
-		</File>
-		<File
-			RelativePath=".\Tile.cpp"
-			>
-		</File>
-		<File
-			RelativePath=".\Tile.h"
 			>
 		</File>
 	</Files>

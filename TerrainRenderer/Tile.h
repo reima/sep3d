@@ -5,20 +5,24 @@
 #include "DXUT.h"
 
 class LODSelector;
+class Terrain;
 
 /**
  * Höhenfeld-Tile
  */
 class Tile {
+ friend class Terrain;
+
  public:
   /**
    * Konstruktor.
+   * @param terrain Das Terrain, zu dem das Tile gehört
    * @param n Detaillevel, legt die Größe des Tiles (2^n - 1) fest
    * @param roughness Rauheits-Faktor (je höher desto größer die
    *                  Höhenunterschiede)
    * @param num_lod Anzahl zusätzlicher LOD-Ebenen
    */
-  Tile(int n, float roughness, int num_lod);
+  Tile(Terrain *terrain, int n, float roughness, int num_lod);
   ~Tile(void);
 
   /**
@@ -42,21 +46,6 @@ class Tile {
   float GetMaxHeight(void) const;
 
   /**
-   * Trianguliert streifenweise.
-   */
-  void TriangulateLines(void);
-
-  /**
-   * Trianguliert mit Z-Order.
-   */
-  void TriangulateZOrder(void);
-
-  /**
-   * Speichert Terrain-Mesh für jedes Tile im OBJ-Dateiformat.
-   */
-  void SaveObjs(const std::wstring &filename) const;
-
-  /**
    * Erzeugt Vertex-, Normalen- und Index-Buffer lädt das Dreieckgitter des
    * Tiles in diese hoch. Wird ggf. rekursiv für alle Kinder des Tiles
    * aufgerufen.
@@ -64,11 +53,10 @@ class Tile {
    *          Tile::TriangulateLines oder Tile::TriangulateZOrder).
    * @see Tile::ReleaseBuffers
    */
-  HRESULT CreateBuffers(ID3D10Device *pd3dDevice);
+  HRESULT CreateBuffers(ID3D10Device *device);
 
   /**
-   * Gibt das Tile auf dem D3D10-Gerät aus.
-   * @param pd3dDevice Das D3D10-Gerät.
+   * Rendert das Tile.
    * @param lod_selector Ein LODSelector, der bestimmt, ob die LOD-Stufe des
    *                     Tiles ausreicht. Wenn nicht, werden rekursiv die
    *                     Kinder des Tiles gezeichnet.
@@ -76,8 +64,7 @@ class Tile {
    * @warning Vor dem Aufruf müssen die D3D10-Buffer mit Tile::CreateBuffers
    *          erzeugt werden.
    */
-  void Draw(ID3D10Device *pd3dDevice, LODSelector *lod_selector,
-            const D3DXVECTOR3 *cam_pos) const;
+  void Draw(LODSelector *lod_selector, const D3DXVECTOR3 *cam_pos);
 
   /**
    * Gibt den für die interne Darstellung reservierten Speicher frei (auch
@@ -93,9 +80,9 @@ class Tile {
   /**
    * Berechnet die Normalen des Terrains.
    */
-  void CalculateNormals(void);
+  void CalculateNormals(unsigned int *indices);
 
-  void GetBoundingBox(D3DXVECTOR3 *out, D3DXVECTOR3 *mid);
+  void GetBoundingBox(D3DXVECTOR3 *out, D3DXVECTOR3 *mid) const;
 
  private:
   /**
@@ -115,14 +102,8 @@ class Tile {
    * @param north Zeiger auf nördlichen Nachbarn (oder NULL)
    * @param west Zeiger auf westlichen Nachbarn (oder NULL)
    */
-  Tile(Tile *parent, Direction direction, float roughness, Tile *north,
-       Tile *west);
-
-  /**
-   * Rekursive Implementierung von SaveObjs
-   */
-  void SaveObjs0(const std::wstring &basename,
-                 const std::wstring &extension) const;
+  Tile(Tile *parent, Direction direction, float roughness,
+       Tile *north, Tile *west);
 
   /**
    * Initialisierungsfunktion für das Wurzel-Tile. Setzt die anfänglichen
@@ -154,25 +135,16 @@ class Tile {
    */
   void FixEdges(Tile *north, Tile *west);
 
+  inline D3DXVECTOR3 GetVectorFromIndex(int index);
   /**
    * Rekursive Implementierung von CalculateNormals
    */
-  void CalculateNormals0(Tile *north, Tile *west);
+  void CalculateNormals0(Tile *north, Tile *west, unsigned int *indices);
 
   /**
    * Normalisiert alle Vertex-Normalen.
    */
   void NormalizeNormals(void);
-
-  /**
-   * Reserviert Speicher für den Index Buffer.
-   */
-  void InitIndexBuffer(void);
-
-  /**
-   * Rekursive Implementierung der Z-Order-Triangulierung.
-   */
-  void TriangulateZOrder0(int x1, int y1, int x2, int y2, int &i);
 
   /**
    * Gibt die von CreateBuffers erzeugten Buffer wieder frei (nicht rekursiv).
@@ -181,6 +153,10 @@ class Tile {
 
   void CalculateHeights(void);
 
+  /**
+   * Terrain, zu der dieses Tile gehört
+   */
+  Terrain *terrain_;
   /**
    * LOD-Stufe des Tiles
    */
@@ -195,15 +171,10 @@ class Tile {
   const int num_lod_;
 
   /**
-   * Feld der Vertices dieses Tiles
+   * Feld der Höhen dieses Tiles
    */
-  D3DXVECTOR3 *vertices_;
-  /**
-   * Indizes für die Triangulierung des Höhenfeldes
-   * @see Tile::TriangulateLines
-   * @see Tile::TriangulateZOrder
-   */
-  unsigned int *indices_;
+  float *heights_;
+
   /**
    * Feld der Per-Vertex-Normalen dieses Tiles
    */
@@ -221,23 +192,13 @@ class Tile {
    */
   Tile *children_[4];
 
-  /**
-   * Zeiger auf den D3D10-Vertex-Buffer.
-   */
-  ID3D10Buffer *vertex_buffer_;
-  /**
-   * Zeiger auf den D3D10-Normalen-Buffer.
-   */
-  ID3D10Buffer *normal_buffer_;
-  /**
-   * Zeiger auf den D3D10-Index-Buffer.
-   */
-  ID3D10Buffer *index_buffer_;
-
   float max_height_;
   float min_height_;
   float scale_;
-  D3DXVECTOR3 translation_;
+  D3DXVECTOR2 translation_;
+
+  ID3D10Texture2D *height_map_;
+  ID3D10ShaderResourceView *shader_resource_view_;
 };
 
 #endif

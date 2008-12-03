@@ -179,8 +179,7 @@ void ShadowedPointLight::OnFrameMove(float elapsed_time) {
   viewport.MinDepth = 0.0f;
   device_->RSSetViewports(1, &viewport);
 
-  technique_->GetPassByIndex(0)->Apply(0);
-  scene_->Draw();
+  scene_->Draw(technique_);
 
   // Alte Render Targets wieder setzen
   device_->OMSetRenderTargets(D3D10_SIMULTANEOUS_RENDER_TARGET_COUNT,

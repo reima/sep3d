@@ -16,7 +16,7 @@
 #include "SDKmesh.h"
 #include "resource.h"
 
-#include "Tile.h"
+#include "Terrain.h"
 #include "LODSelector.h"
 #include "FixedLODSelector.h"
 #include "Scene.h"
@@ -48,7 +48,6 @@ ID3DX10Font*                g_pFont10 = NULL;
 ID3DX10Sprite*              g_pSprite10 = NULL;
 ID3D10Effect*               g_pEffect10 = NULL;
 ID3D10EffectTechnique*      g_pTechnique = NULL;
-ID3D10InputLayout*          g_pVertexLayout = NULL;
 ID3D10EffectMatrixVariable* g_pmWorldViewProj = NULL;
 ID3D10EffectMatrixVariable* g_pmWorld = NULL;
 ID3D10EffectScalarVariable* g_pfTime = NULL;
@@ -378,27 +377,10 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   D3DXVECTOR3 vecEye(0.0f, 0.1f, 0.0f);
   D3DXVECTOR3 vecAt (0.0f, 0.0f, 1.0f);
   g_Camera.SetViewParams(&vecEye, &vecAt);
-  g_Camera.SetScalers(0.01f, 0.1f);
-
-  // Vertex Layout festlegen
-  D3D10_INPUT_ELEMENT_DESC layout[] = {
-    { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
-      D3D10_INPUT_PER_VERTEX_DATA, 0 },
-    { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 1, 0,
-      D3D10_INPUT_PER_VERTEX_DATA, 0 },
-  };
-  UINT num_elements = sizeof(layout) / sizeof(layout[0]);
-  D3D10_PASS_DESC pass_desc;
-  g_pTechnique->GetPassByIndex(0)->GetDesc(&pass_desc);
-  V_RETURN(pd3dDevice->CreateInputLayout(layout, num_elements,
-                                         pass_desc.pIAInputSignature,
-                                         pass_desc.IAInputSignatureSize,
-                                         &g_pVertexLayout));
-
-  pd3dDevice->IASetInputLayout(g_pVertexLayout);
+  //g_Camera.SetScalers(0.01f, 0.5f);
 
   // FixedLODSelector mit LOD-Stufe 0
-  g_pLODSelector = new FixedLODSelector(0);
+  g_pLODSelector = new FixedLODSelector(1);
 
   // RasterizerState für Wireframe erzeugen
   D3D10_RASTERIZER_DESC rast_desc = {
@@ -419,7 +401,7 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   
   // Terrain erzeugen
   g_pScene->CreateTerrain(g_nTerrainN, g_fTerrainR, g_nTerrainLOD);  
-  Tile *terrain = g_pScene->GetTerrain();
+  Terrain *terrain = g_pScene->GetTerrain();
   g_pfMinHeight->SetFloat(terrain->GetMinHeight());
   g_pfMaxHeight->SetFloat(terrain->GetMaxHeight());
 
@@ -458,11 +440,11 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
       D3DXVECTOR3(1, 0.75f, 0.5f),
       D3DXVECTOR3(0, 0.2f, 0),
       true);
-  g_pScene->AddPointLight(
-      D3DXVECTOR3(-1, 1, 0),
-      D3DXVECTOR3(1, 0, 0),
-      D3DXVECTOR3(0, 1, 0),
-      true);
+  //g_pScene->AddPointLight(
+  //    D3DXVECTOR3(-1, 1, 0),
+  //    D3DXVECTOR3(1, 0, 0),
+  //    D3DXVECTOR3(0, 1, 0),
+  //    true);
 
   // Environment erstellen
   g_pEnvironment = new Environment(pd3dDevice);
@@ -547,22 +529,19 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   //
   // Render the scene.
   //
-
-  pd3dDevice->IASetInputLayout(g_pVertexLayout);
   if (g_bWireframe) pd3dDevice->RSSetState(g_pRSWireframe);
 
-  D3D10_TECHNIQUE_DESC tech_desc;
-  g_pTechnique->GetDesc(&tech_desc);
-  for (UINT p = 0; p < tech_desc.Passes; ++p) {
-    g_pTechnique->GetPassByIndex(p)->Apply(0);
-    g_pScene->Draw();
-  }
+  DXUT_BeginPerfEvent(DXUT_PERFEVENTCOLOR, L"Scene");
+  g_pScene->Draw(g_pTechnique);  
+  DXUT_EndPerfEvent();
 
   //
   // Render the environment
   //
+  DXUT_BeginPerfEvent(DXUT_PERFEVENTCOLOR, L"Environment");
   g_pEnvironment->OnFrameMove(&mView, D3DX_PI / 4);
-  g_pEnvironment->Draw(pd3dDevice);
+  g_pEnvironment->Draw();
+  DXUT_EndPerfEvent();
 
   if (g_bWireframe) pd3dDevice->RSSetState(NULL);
 
@@ -591,7 +570,7 @@ void CALLBACK OnD3D10DestroyDevice(void* pUserContext) {
   g_SettingsDlg.OnD3D10DestroyDevice();
   SAFE_RELEASE(g_pFont10);
   SAFE_RELEASE(g_pEffect10);
-  SAFE_RELEASE(g_pVertexLayout);
+
   SAFE_RELEASE(g_pSprite10);
   SAFE_RELEASE(g_pRSWireframe);
   SAFE_RELEASE(g_pGroundRV);
@@ -635,7 +614,6 @@ void CALLBACK OnFrameMove(double fTime, float fElapsedTime,
   // Update the camera's position based on user input
   g_Camera.FrameMove(fElapsedTime);
   if (g_bPaused) fElapsedTime = 0;
-  DXUTGetD3D10Device()->IASetInputLayout(g_pVertexLayout);
   g_pScene->OnFrameMove(fElapsedTime, *g_Camera.GetEyePt());  
 }
 
@@ -808,7 +786,7 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
       g_nTerrainLOD = g_TerrainUI.GetSlider(IDC_NEWTERRAIN_LOD)->GetValue();
 
       g_pScene->CreateTerrain(g_nTerrainN, g_fTerrainR, g_nTerrainLOD);
-      Tile *terrain = g_pScene->GetTerrain();
+      Terrain *terrain = g_pScene->GetTerrain();
       g_pfMinHeight->SetFloat(terrain->GetMinHeight());
       g_pfMaxHeight->SetFloat(terrain->GetMaxHeight());
 

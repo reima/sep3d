@@ -1,12 +1,8 @@
-#include <algorithm>
 #include <ctime>
-#include <cstdlib>
-#include <fstream>
 #include <limits>
-#include <sstream>
-#include <string>
 #include "Tile.h"
 #include "LODSelector.h"
+#include "Terrain.h"
 
 #include <D3DX10Math.h>
 
@@ -30,49 +26,47 @@ inline float randf(void) {
 
 }
 
-Tile::Tile(int n, float roughness, int num_lod)
+Tile::Tile(Terrain *terrain, int n, float roughness, int num_lod)
     : lod_(0),
       size_((1 << n) + 1),
       num_lod_(num_lod),
-      indices_(NULL),
       vertex_normals_(NULL),
+      terrain_(terrain),
       parent_(NULL),
-      vertex_buffer_(NULL),
-      normal_buffer_(NULL),
-      index_buffer_(NULL),
       min_height_(0),
       max_height_(0),
-      scale_(1.0f),
-      translation_(D3DXVECTOR3(0, 0, 0)) {
-  vertices_ = new D3DXVECTOR3[size_*size_];
+      scale_(5.0f),
+      translation_(D3DXVECTOR2(-2.5f, -2.5f)),
+      height_map_(NULL),
+      shader_resource_view_(NULL) {
+  heights_ = new float[size_*size_];
   Init(roughness);
   InitChildren(roughness, NULL, NULL);
   CalculateHeights();
 }
 
-Tile::Tile(Tile *parent, Tile::Direction direction, float roughness,
-           Tile *north, Tile *west)
+Tile::Tile(Tile *parent, Tile::Direction direction,
+           float roughness, Tile *north, Tile *west)
     : lod_(parent->lod_ + 1),
       size_(parent->size_),
       num_lod_(parent->num_lod_ - 1),
-      indices_(NULL),
       vertex_normals_(NULL),
       direction_(direction),
+      terrain_(parent->terrain_),
       parent_(parent),
-      vertex_buffer_(NULL),
-      normal_buffer_(NULL),
-      index_buffer_(NULL),
       min_height_(0),
       max_height_(0),
       scale_(parent->scale_*0.5f),
-      translation_(parent->translation_) {
+      translation_(parent->translation_),
+      height_map_(NULL),
+      shader_resource_view_(NULL){
   switch (direction) {
-    case NW: translation_ += D3DXVECTOR3(-scale_*0.5f, 0,  scale_*0.5f); break;
-    case NE: translation_ += D3DXVECTOR3( scale_*0.5f, 0,  scale_*0.5f); break;
-    case SE: translation_ += D3DXVECTOR3( scale_*0.5f, 0, -scale_*0.5f); break;
-    case SW: translation_ += D3DXVECTOR3(-scale_*0.5f, 0, -scale_*0.5f); break;
+    case NW: translation_ += D3DXVECTOR2(     0, scale_); break;
+    case NE: translation_ += D3DXVECTOR2(scale_, scale_); break;
+    case SE: translation_ += D3DXVECTOR2(scale_,      0); break;
+    case SW: translation_ += D3DXVECTOR2(     0,      0); break;
   }
-  vertices_ = new D3DXVECTOR3[size_*size_];
+  heights_ = new float[size_*size_];
   InitFromParent();
   Refine(2, roughness);
   FixEdges(north, west);
@@ -80,8 +74,7 @@ Tile::Tile(Tile *parent, Tile::Direction direction, float roughness,
 }
 
 Tile::~Tile(void) {
-  SAFE_DELETE_ARRAY(vertices_);
-  SAFE_DELETE_ARRAY(indices_);
+  SAFE_DELETE_ARRAY(heights_);
   SAFE_DELETE_ARRAY(vertex_normals_);
   if (num_lod_ > 0) {
     for (int dir = 0; dir < 4; ++dir) {
@@ -95,23 +88,12 @@ void Tile::Init(float roughness) {
   // Zufallsgenerator initialisieren
   srand(static_cast<unsigned int>(time(0)));
 
-  // x- und z-Koordinaten berechnen.
-  // Das Wurzel-Tile ersteckt sich entlang der x- und z-Achse immer im Bereich
-  // [-2.5, 2.5]
-  int i = 0;
-  for (int y = 0; y < size_; ++y) {
-    for (int x = 0; x < size_; ++x, ++i) {
-      vertices_[i].x = x * 5.0f / (size_ - 1) - 2.5f;
-      vertices_[i].z = y * 5.0f / (size_ - 1) - 2.5f;
-    }
-  }
-
   // Ecken mit Zufallshöhenwerten initialisieren
   int block_size = size_ - 1;
-  vertices_[I(0, 0)].y = randf();
-  vertices_[I(0, block_size)].y = randf();
-  vertices_[I(block_size, 0)].y = randf();
-  vertices_[I(block_size, block_size)].y = randf();
+  heights_[I(0, 0)] = randf();
+  heights_[I(0, block_size)]= randf();
+  heights_[I(block_size, 0)] = randf();
+  heights_[I(block_size, block_size)] = randf();
 
   // Verfeinerungsschritte durchführen bis sämtliche Werte berechnet sind
   while (block_size > 1) {
@@ -132,18 +114,7 @@ void Tile::InitFromParent(void) {
   // y-Werte aus dem entsprechenden Quadranten des Eltern-Tiles übernehmen
   for (int y = 0; y < size_; y += 2) {
     for (int x = 0; x < size_; x += 2) {
-      vertices_[I(x,y)].y = parent_->vertices_[I(x/2+x1,y/2+y1)].y;
-    }
-  }
-
-  // x- und z-Koordinaten berechnen
-  D3DXVECTOR3 &v_min = parent_->vertices_[I(x1, y1)];
-  D3DXVECTOR3 &v_max = parent_->vertices_[I(x1 + size_ / 2, y1 + size_ / 2)];
-  int i = 0;
-  for (int y = 0; y < size_; ++y) {
-    for (int x = 0; x < size_; ++x, ++i) {
-      vertices_[i].x = x * (v_max.x - v_min.x) / (size_ - 1) + v_min.x;
-      vertices_[i].z = y * (v_max.z - v_min.z) / (size_ - 1) + v_min.z;
+      heights_[I(x,y)] = parent_->heights_[I(x/2+x1,y/2+y1)];
     }
   }
 }
@@ -158,46 +129,46 @@ void Tile::Refine(int block_size, float roughness) {
       // -   -
       //   o
       // -   -
-      float nw = vertices_[I(x - block_size_h, y - block_size_h)].y;
-      float ne = vertices_[I(x + block_size_h, y - block_size_h)].y;
-      float sw = vertices_[I(x - block_size_h, y + block_size_h)].y;
-      float se = vertices_[I(x + block_size_h, y + block_size_h)].y;
+      float nw = heights_[I(x - block_size_h, y - block_size_h)];
+      float ne = heights_[I(x + block_size_h, y - block_size_h)];
+      float sw = heights_[I(x - block_size_h, y + block_size_h)];
+      float se = heights_[I(x + block_size_h, y + block_size_h)];
 
       // Berechnung der neuen Höhenwerte (+)
       // - + -
       // + +
       // -   -
       float center = (nw + ne + sw + se) / 4 + offset_factor * randf();
-      vertices_[I(x, y)].y = center;
+      heights_[I(x, y)] = center;
 
       float n = nw + ne + center;
       if (y > block_size_h) {
-        n += vertices_[I(x, y - block_size)].y;
+        n += heights_[I(x, y - block_size)];
         n /= 4;
       } else {
         n /= 3;
       }
-      vertices_[I(x, y - block_size_h)].y = n + offset_factor * randf();
+      heights_[I(x, y - block_size_h)] = n + offset_factor * randf();
 
       float w = nw + sw + center;
       if (x > block_size_h) {
-        w += vertices_[I(x - block_size, y)].y;
+        w += heights_[I(x - block_size, y)];
         w /= 4;
       } else {
         w /= 3;
       }
-      vertices_[I(x - block_size_h, y)].y = w + offset_factor * randf();
+      heights_[I(x - block_size_h, y)] = w + offset_factor * randf();
 
       // Edge cases: Berechnung neuer Höhenwerte am rechten bzw. unteren Rand
       // -   -
       //     +
       // - + -
       if (x == size_ - 1 - block_size_h) {
-        vertices_[I(x + block_size_h, y)].y =
+        heights_[I(x + block_size_h, y)] =
             (ne + se + center) / 3 + offset_factor * randf();
       }
       if (y == size_ - 1 - block_size_h) {
-        vertices_[I(x, y + block_size_h)].y =
+        heights_[I(x, y + block_size_h)] =
             (sw + se + center) / 3 + offset_factor * randf();
       }
     }
@@ -241,18 +212,18 @@ void Tile::InitChildren(float roughness, Tile *north, Tile *west) {
 void Tile::FixEdges(Tile *north, Tile *west) {
   if (north) {
     for (int x = 1; x < size_; x += 2) {
-      vertices_[I(x,0)].y = north->vertices_[I(x,size_-1)].y;
+      heights_[I(x,0)] = north->heights_[I(x,size_-1)];
     }
   }
   if (west) {
     for (int y = 1; y < size_; y += 2) {
-      vertices_[I(0,y)].y = west->vertices_[I(size_-1,y)].y;
+      heights_[I(0,y)] = west->heights_[I(size_-1,y)];
     }
   }
 }
 
-void Tile::CalculateHeights(){
-  assert(vertices_ != NULL);
+void Tile::CalculateHeights() {
+  assert(heights_ != NULL);
   float min = std::numeric_limits<float>::max();
   float max = std::numeric_limits<float>::min();
   if (num_lod_ > 0) {
@@ -264,8 +235,8 @@ void Tile::CalculateHeights(){
   } else {
     const int res = GetResolution();
     for (int i = 0; i < res; ++i) {
-      min = std::min(min, vertices_[i].y);
-      max = std::max(max, vertices_[i].y);
+      min = std::min(min, heights_[i]);
+      max = std::max(max, heights_[i]);
     }
   }
 
@@ -282,168 +253,45 @@ float Tile::GetMaxHeight(void) const {
   return max_height_;
 }
 
-void Tile::InitIndexBuffer(void) {
-  if (indices_ == NULL) {
-    // (size_-1)^2 Blöcke, pro Block 2 Dreiecke, pro Dreieck 3 Indizes
-    indices_ = new unsigned int[(size_-1)*(size_-1)*2*3];
-  }
-}
-
-void Tile::TriangulateLines(void) {
-  InitIndexBuffer();
-  // Dreieck 1 links oben, Dreieck 2 rechts unten
-  int i = 0;
-  for (int y = 0; y < size_ - 1; y++) {
-    for (int x = 0; x < size_ - 1; x++) {
-      indices_[i++] = I(x, y);     // 1. Dreieck links oben
-      indices_[i++] = I(x, y+1);   // 1. Dreieck links unten
-      indices_[i++] = I(x+1, y);   // 1. Dreieck rechts oben
-      indices_[i++] = I(x+1, y);   // 2. Dreieck rechts oben
-      indices_[i++] = I(x, y+1);   // 2. Dreieck links unten
-      indices_[i++] = I(x+1, y+1); // 2. Dreieck rechts unten
-    }
-  }
-  if (num_lod_ > 0) {
-    for (int dir = 0; dir < 4; ++dir) {
-      children_[dir]->TriangulateLines();
-    }
-  }
-}
-
-void Tile::TriangulateZOrder(void) {
-  InitIndexBuffer();
-  int i = 0;
-  TriangulateZOrder0(0, 0, size_-1, size_-1, i);
-  if (num_lod_ > 0) {
-    for (int dir = 0; dir < 4; ++dir) {
-      children_[dir]->TriangulateZOrder();
-    }
-  }
-}
-
-void Tile::TriangulateZOrder0(int x1, int y1, int x2, int y2, int &i){
-  if (x1 + 1 == x2) {
-    // Rekursionsabbruch, Dreiecke erzeugen
-    indices_[i++] = I(x1, y1);     // 1. Dreieck links oben
-    indices_[i++] = I(x1, y1+1);   // 1. Dreieck links unten
-    indices_[i++] = I(x1+1, y1);   // 1. Dreieck rechts oben
-    indices_[i++] = I(x1+1, y1);   // 2. Dreieck rechts oben
-    indices_[i++] = I(x1, y1+1);   // 2. Dreieck links unten
-    indices_[i++] = I(x1+1, y1+1); // 2. Dreieck rechts unten
-  } else {
-    int x12 = (x1+x2)/2;
-    int y12 = (y1+y2)/2;
-
-    TriangulateZOrder0(x1, y1, x12, y12, i);
-    TriangulateZOrder0(x12, y1, x2, y12, i);
-    TriangulateZOrder0(x1, y12, x12, y2, i);
-    TriangulateZOrder0(x12, y12, x2, y2, i);
-  }
-}
-
-void Tile::SaveObjs(const std::wstring &filename) const {
-  std::wstring basename(filename);
-  basename.erase(basename.rfind('.'), basename.size());
-  std::wstring extension(filename, filename.rfind('.'));
-  SaveObjs0(basename, extension);
-}
-
-void Tile::SaveObjs0(const std::wstring &basename,
-                     const std::wstring &extension) const {
-  assert(vertices_ != NULL);
-  std::wstring filename(basename);
-  filename.append(extension);
-
-  std::ofstream ofs(filename.c_str());
-  ofs << "# Terrain file" << std::endl;
-  // Vertices
-  for (int y = 0; y < size_; ++y) {
-    for (int x = 0; x < size_; ++x) {
-      D3DXVECTOR3 &v = vertices_[I(x,y)];
-      ofs << "v ";
-      ofs << v.x << " ";
-      // Alle Höhenwerte < 0 sind Wasser, das Terrain darunter ist für die
-      // gewünschte Darstellung uninteressant
-      ofs << std::max(0.0f, v.y) << " ";
-      ofs << v.z << std::endl;
-    }
-  }
-  // Faces (Dreiecke)
-  if (indices_) {
-    const int num_triangles = 2 * (size_ - 1) * (size_ - 1);
-    for (int i = 0; i < num_triangles; ++i) {
-      ofs << "f ";
-      ofs << (indices_[3*i]+1) << " ";
-      ofs << (indices_[3*i+1]+1) << " ";
-      ofs << (indices_[3*i+2]+1) << std::endl;
-    }
-  }
-
-  if (num_lod_ > 0) {
-    std::wstring filename;
-    filename = basename;
-    filename.append(L"0");
-    children_[NW]->SaveObjs0(filename, extension);
-    filename = basename;
-    filename.append(L"1");
-    children_[NE]->SaveObjs0(filename, extension);
-    filename = basename;
-    filename.append(L"2");
-    children_[SW]->SaveObjs0(filename, extension);
-    filename = basename;
-    filename.append(L"3");
-    children_[SE]->SaveObjs0(filename, extension);
-  }
-}
-
-HRESULT Tile::CreateBuffers(ID3D10Device *pd3dDevice) {
-  assert(vertices_ != NULL);
-  assert(indices_ != NULL);
-
+HRESULT Tile::CreateBuffers(ID3D10Device *device) {
+  assert(heights_ != NULL);
   HRESULT hr;
 
   // Evtl. bereits vorhandene Buffer freigeben
   ReleaseBuffers();
 
-  // Vertex Buffer anlegen
-  D3D10_BUFFER_DESC buffer_desc;
-  buffer_desc.Usage = D3D10_USAGE_DEFAULT;
-  buffer_desc.ByteWidth = sizeof(D3DXVECTOR3) * GetResolution();
-  buffer_desc.BindFlags = D3D10_BIND_VERTEX_BUFFER;
-  buffer_desc.CPUAccessFlags = 0;
-  buffer_desc.MiscFlags = 0;
-
+  // Textur anlegen
+  D3D10_TEXTURE2D_DESC tex2d_desc;
+  tex2d_desc.Width = size_;
+  tex2d_desc.Height = size_;
+  tex2d_desc.MipLevels = 1;
+  tex2d_desc.ArraySize = 1;
+  tex2d_desc.Format = DXGI_FORMAT_R32_FLOAT;
+  tex2d_desc.SampleDesc.Count = 1;
+  tex2d_desc.SampleDesc.Quality = 0;
+  tex2d_desc.Usage = D3D10_USAGE_IMMUTABLE;
+  tex2d_desc.BindFlags = D3D10_BIND_SHADER_RESOURCE;
+  tex2d_desc.CPUAccessFlags = 0;
+  tex2d_desc.MiscFlags = 0;
   D3D10_SUBRESOURCE_DATA init_data;
-  init_data.pSysMem = vertices_;
-  init_data.SysMemPitch = 0;
+  init_data.pSysMem = heights_;
+  init_data.SysMemPitch = sizeof(heights_[0]) * size_;
   init_data.SysMemSlicePitch = 0;
+  V_RETURN(device->CreateTexture2D(&tex2d_desc, &init_data, &height_map_));
 
-  V_RETURN(pd3dDevice->CreateBuffer(&buffer_desc,
-                                    &init_data,
-                                    &vertex_buffer_));
-
-  // Normal Buffer anlegen
-  if (vertex_normals_) {
-    init_data.pSysMem = vertex_normals_;
-    V_RETURN(pd3dDevice->CreateBuffer(&buffer_desc,
-                                      &init_data,
-                                      &normal_buffer_));
-  }
-
-  // Index Buffer anlegen
-  buffer_desc.ByteWidth = sizeof(unsigned int) * (size_ - 1)*(size_ - 1)*2*3;
-  buffer_desc.BindFlags = D3D10_BIND_INDEX_BUFFER;
-
-  init_data.pSysMem = indices_;
-
-  V_RETURN(pd3dDevice->CreateBuffer(&buffer_desc,
-                                    &init_data,
-                                    &index_buffer_));
+  // Shader Resource View anlegen
+  D3D10_SHADER_RESOURCE_VIEW_DESC srv_desc;
+  srv_desc.Format = DXGI_FORMAT_R32_FLOAT;
+  srv_desc.ViewDimension = D3D10_SRV_DIMENSION_TEXTURE2D;
+  srv_desc.Texture2D.MipLevels = 1;
+  srv_desc.Texture2D.MostDetailedMip = 0;
+  V_RETURN(device->CreateShaderResourceView(height_map_, &srv_desc,
+                                            &shader_resource_view_));
 
   // Rekursiver Aufruf über alle Kinder
   if (num_lod_ > 0) {
     for (int dir = 0; dir < 4; ++dir) {
-      V_RETURN(children_[dir]->CreateBuffers(pd3dDevice));
+      V_RETURN(children_[dir]->CreateBuffers(device));
     }
   }
 
@@ -451,14 +299,12 @@ HRESULT Tile::CreateBuffers(ID3D10Device *pd3dDevice) {
 }
 
 void Tile::ReleaseBuffers(void) {
-  SAFE_RELEASE(vertex_buffer_);
-  SAFE_RELEASE(index_buffer_);
-  SAFE_RELEASE(normal_buffer_);
+  SAFE_RELEASE(height_map_);
+  SAFE_RELEASE(shader_resource_view_);
 }
 
 void Tile::FreeMemory(void) {
-  SAFE_DELETE_ARRAY(vertices_);
-  SAFE_DELETE_ARRAY(indices_);
+  SAFE_DELETE_ARRAY(heights_);  
   SAFE_DELETE_ARRAY(vertex_normals_);
   if (num_lod_ > 0) {
     for (int dir = 0; dir < 4; ++dir) {
@@ -467,40 +313,31 @@ void Tile::FreeMemory(void) {
   }
 }
 
-void Tile::Draw(ID3D10Device *pd3dDevice, LODSelector *lod_selector,
-                const D3DXVECTOR3 *cam_pos) const {
-  assert(vertex_buffer_ != NULL);
-  assert(index_buffer_ != NULL);
+void Tile::Draw(LODSelector *lod_selector, const D3DXVECTOR3 *cam_pos) {
+  assert(terrain_ != NULL);
+  assert(shader_resource_view_ != NULL);
   if (lod_selector->IsLODSufficient(this, cam_pos) || num_lod_ == 0) {
-    // Vertex & Normal Buffer setzen
-    UINT stride = sizeof(D3DXVECTOR3);
-    UINT offset = 0;
-    pd3dDevice->IASetVertexBuffers(0, 1, &vertex_buffer_, &stride, &offset);
-    if (normal_buffer_) {
-      pd3dDevice->IASetVertexBuffers(1, 1, &normal_buffer_, &stride, &offset);
-    }
-
-    // Index Buffer setzen
-    pd3dDevice->IASetIndexBuffer(index_buffer_, DXGI_FORMAT_R32_UINT, 0);
-
-    // Rendern
-    pd3dDevice->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    pd3dDevice->DrawIndexed((size_-1)*(size_-1)*2*3, 0, 0);
+    terrain_->DrawTile(scale_, translation_, shader_resource_view_);
   } else {
     for (int dir = 0; dir < 4; ++dir) {
-      children_[dir]->Draw(pd3dDevice, lod_selector, cam_pos);
+      children_[dir]->Draw(lod_selector, cam_pos);
     }
   }
 }
 
-void Tile::CalculateNormals(void) {
-  CalculateNormals0(NULL, NULL);
+void Tile::CalculateNormals(unsigned int *indices) {
+  CalculateNormals0(NULL, NULL, indices);
   NormalizeNormals();
 }
 
-void Tile::CalculateNormals0(Tile *north, Tile *west) {
-  assert(vertices_ != NULL);
-  assert(indices_ != NULL);
+D3DXVECTOR3 Tile::GetVectorFromIndex(int index) {
+  float x = (float)(index % size_) / (size_ - 1) * scale_ + translation_.x;
+  float z = (float)(index / size_) / (size_ - 1) * scale_ + translation_.y;
+  return D3DXVECTOR3(x, heights_[index], z);
+}
+
+void Tile::CalculateNormals0(Tile *north, Tile *west, unsigned int *indices) {
+  assert(heights_ != NULL);
   SAFE_DELETE_ARRAY(vertex_normals_);
   const int num_vertices = GetResolution();
   vertex_normals_ = new D3DXVECTOR3[num_vertices];
@@ -523,17 +360,17 @@ void Tile::CalculateNormals0(Tile *north, Tile *west) {
   // aufaddieren
   int num_triangles = (size_-1)*(size_-1) * 2;
   for (int i = 0; i < num_triangles; ++i) {
-    D3DXVECTOR3 &v1 = vertices_[indices_[3*i]];
-    D3DXVECTOR3 &v2 = vertices_[indices_[3*i+1]];
-    D3DXVECTOR3 &v3 = vertices_[indices_[3*i+2]];
+    D3DXVECTOR3 v1 = GetVectorFromIndex(3*i);
+    D3DXVECTOR3 v2 = GetVectorFromIndex(3*i+1);
+    D3DXVECTOR3 v3 = GetVectorFromIndex(3*i+2);
     D3DXVECTOR3 e1 = v2 - v1;
     D3DXVECTOR3 e2 = v3 - v2;
     D3DXVECTOR3 face_normal;
     D3DXVec3Cross(&face_normal, &e1, &e2);
     D3DXVec3Normalize(&face_normal, &face_normal);
-    vertex_normals_[indices_[3*i]] += face_normal;
-    vertex_normals_[indices_[3*i+1]] += face_normal;
-    vertex_normals_[indices_[3*i+2]] += face_normal;
+    vertex_normals_[indices[3*i]] += face_normal;
+    vertex_normals_[indices[3*i+1]] += face_normal;
+    vertex_normals_[indices[3*i+2]] += face_normal;
   }
   // Normalen ggf. an Nachbarn zurückgeben
   if (north) {
@@ -570,10 +407,10 @@ void Tile::CalculateNormals0(Tile *north, Tile *west) {
   } else {
     child_NWW = child_SWW = NULL;
   }
-  children_[NW]->CalculateNormals0(child_NNW, child_NWW);
-  children_[NE]->CalculateNormals0(child_NNE, children_[NW]);
-  children_[SW]->CalculateNormals0(children_[NW], child_SWW);
-  children_[SE]->CalculateNormals0(children_[NE], children_[SW]);
+  children_[NW]->CalculateNormals0(child_NNW, child_NWW, indices);
+  children_[NE]->CalculateNormals0(child_NNE, children_[NW], indices);
+  children_[SW]->CalculateNormals0(children_[NW], child_SWW, indices);
+  children_[SE]->CalculateNormals0(children_[NE], children_[SW], indices);
 }
 
 void Tile::NormalizeNormals(void) {
@@ -589,14 +426,19 @@ void Tile::NormalizeNormals(void) {
   }
 }
 
-void Tile::GetBoundingBox(D3DXVECTOR3 *box, D3DXVECTOR3 *mid) {
-  *(box++) = D3DXVECTOR3(-2.5f, min_height_, -2.5f);
-  *(box++) = D3DXVECTOR3(-2.5f, min_height_,  2.5f);
-  *(box++) = D3DXVECTOR3( 2.5f, min_height_, -2.5f);
-  *(box++) = D3DXVECTOR3( 2.5f, min_height_,  2.5f);
-  *(box++) = D3DXVECTOR3(-2.5f, max_height_, -2.5f);
-  *(box++) = D3DXVECTOR3(-2.5f, max_height_,  2.5f);
-  *(box++) = D3DXVECTOR3( 2.5f, max_height_, -2.5f);
-  *(box++) = D3DXVECTOR3( 2.5f, max_height_,  2.5f);
-  *mid = D3DXVECTOR3(0.0f, 0.5f*(min_height_ + max_height_), 0.0f);
+void Tile::GetBoundingBox(D3DXVECTOR3 *box, D3DXVECTOR3 *mid) const {
+  box[0] = D3DXVECTOR3(0, min_height_, 0);
+  box[1] = D3DXVECTOR3(0, min_height_, 1);
+  box[2] = D3DXVECTOR3(1, min_height_, 0);
+  box[3] = D3DXVECTOR3(1, min_height_, 1);
+  box[4] = D3DXVECTOR3(0, max_height_, 0);
+  box[5] = D3DXVECTOR3(0, max_height_, 1);
+  box[6] = D3DXVECTOR3(1, max_height_, 0);
+  box[7] = D3DXVECTOR3(1, max_height_, 1);
+  for (int i = 0; i < 8; ++i) {
+    box[i] *= scale_;
+    box[i].x += translation_.x;
+    box[i].z += translation_.y;
+  }
+  *mid = 0.5f * (box[0] + box[7]);
 }

@@ -5,15 +5,19 @@ Environment::Environment(ID3D10Device *device)
       world_view_inverse_mat_(NULL),
       back_buffer_size_(NULL),
       camera_fov_(NULL),
-      effect_(NULL) {
-  Init(device);
+      technique_(NULL),
+      device_(device) {
+  Init();
 }
 
 Environment::~Environment(void) {
   SAFE_RELEASE(vertex_buffer_);
+  SAFE_RELEASE(vertex_layout_);
 }
 
-void Environment::Init(ID3D10Device *device) {
+void Environment::Init(void) {
+  assert(device_ != NULL);
+
   // Vertex Buffer anlegen
   D3D10_BUFFER_DESC buffer_desc;
   buffer_desc.Usage = D3D10_USAGE_DEFAULT;
@@ -33,17 +37,29 @@ void Environment::Init(ID3D10Device *device) {
   init_data.SysMemPitch = 0;
   init_data.SysMemSlicePitch = 0;
 
-  device->CreateBuffer(&buffer_desc, &init_data, &vertex_buffer_);
+  device_->CreateBuffer(&buffer_desc, &init_data, &vertex_buffer_);
 }
 
-void Environment::GetShaderHandles(ID3D10Effect *effect) {  
+void Environment::GetShaderHandles(ID3D10Effect *effect) {
+  technique_ = effect->GetTechniqueByName("Environment");
+
+  // Vertex Layout festlegen
+  D3D10_INPUT_ELEMENT_DESC layout[] = {
+    { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
+      D3D10_INPUT_PER_VERTEX_DATA, 0 },
+  };
+  UINT num_elements = sizeof(layout) / sizeof(layout[0]);
+  D3D10_PASS_DESC pass_desc;
+  technique_->GetPassByIndex(0)->GetDesc(&pass_desc);
+  device_->CreateInputLayout(layout, num_elements, pass_desc.pIAInputSignature,
+                             pass_desc.IAInputSignatureSize, &vertex_layout_);
+
   world_view_inverse_mat_ =
       effect->GetVariableByName("g_mWorldViewInv")->AsMatrix();
   back_buffer_size_ =
       effect->GetVariableByName("g_vBackBufferSize")->AsVector();
   camera_fov_ =
-      effect->GetVariableByName("g_fCameraFOV")->AsScalar();
-  effect_ = effect;
+      effect->GetVariableByName("g_fCameraFOV")->AsScalar();  
 }
 
 void Environment::SetBackBufferSize(UINT width, UINT height) {
@@ -62,18 +78,20 @@ void Environment::OnFrameMove(const D3DXMATRIX *world_view_matrix,
   camera_fov_->SetFloat(camera_fov);
 }
 
-void Environment::Draw(ID3D10Device *device) {
+void Environment::Draw(void) {
   assert(vertex_buffer_ != NULL);
-  assert(effect_ != NULL);
+  assert(vertex_layout_ != NULL);
+  assert(device_ != NULL);
+  assert(technique_ != NULL);
   UINT stride = sizeof(D3DXVECTOR3);
   UINT offset = 0;
-  device->IASetVertexBuffers(0, 1, &vertex_buffer_, &stride, &offset);
-  device->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-  ID3D10EffectTechnique *tech = effect_->GetTechniqueByName("Environment");
+  device_->IASetVertexBuffers(0, 1, &vertex_buffer_, &stride, &offset);
+  device_->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+  device_->IASetInputLayout(vertex_layout_);
   D3D10_TECHNIQUE_DESC tech_desc;
-  tech->GetDesc(&tech_desc);
+  technique_->GetDesc(&tech_desc);
   for (UINT p = 0; p < tech_desc.Passes; ++p) {
-    tech->GetPassByIndex(p)->Apply(0);
-    device->Draw(4, 0);
+    technique_->GetPassByIndex(p)->Apply(0);
+    device_->Draw(4, 0);
   }
 }

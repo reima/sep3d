@@ -4,7 +4,7 @@
 #include "LightSource.h"
 
 class CFirstPersonCamera;
-class Tile;
+class Terrain;
 class LODSelector;
 class ShadowedDirectionalLight;
 class ShadowedPointLight;
@@ -54,7 +54,7 @@ class Scene {
    * das Rendering vor.
    */
   void CreateTerrain(int n, float roughness, int num_lod);
-  Tile *GetTerrain(void) { return tile_; }
+  Terrain *GetTerrain(void) { return terrain_; }
 
   void GetBoundingBox(D3DXVECTOR3 *box, D3DXVECTOR3 *mid);
 
@@ -69,7 +69,7 @@ class Scene {
   void SetShadowMapDimensions(UINT width, UINT height);
   void SetShadowMapPrecision(bool high_precision);
 
-  void Draw(void);
+  void Draw(ID3D10EffectTechnique *technique);
 
  private:
    /**
@@ -87,7 +87,7 @@ class Scene {
   D3DXVECTOR3 cam_pos_;
 
   CFirstPersonCamera *camera_;
-  Tile *tile_;
+  Terrain *terrain_;
   LODSelector *lod_selector_;
 
   ID3D10Device *device_;

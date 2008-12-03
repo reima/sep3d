@@ -4,16 +4,14 @@
 #include "SpotLight.h"
 #include "ShadowedPointLight.h"
 #include "ShadowedDirectionalLight.h"
-#include "Tile.h"
+#include "Terrain.h"
 #include "LODSelector.h"
 #include "DXUTShapes.h"
-
-extern LODSelector *g_pLODSelector;
 
 Scene::Scene(void)
     : cam_pos_(D3DXVECTOR3(0, 0, 0)),
       camera_(NULL),
-      tile_(NULL),
+      terrain_(NULL),
       lod_selector_(NULL),
       device_(NULL),
       effect_(NULL),
@@ -34,7 +32,7 @@ Scene::~Scene(void) {
   for (it = light_sources_.begin(); it != light_sources_.end(); ++it) {
     delete (*it);
   }
-  SAFE_DELETE(tile_);
+  SAFE_DELETE(terrain_);
 }
 
 void Scene::SetMaterial(float ambient, float diffuse, float specular,
@@ -117,6 +115,9 @@ HRESULT Scene::OnCreateDevice(ID3D10Device *device) {
   for (it = light_sources_.begin(); it != light_sources_.end(); ++it) {
     V_RETURN((*it)->OnCreateDevice(device));
   }
+  if (terrain_) {
+    V_RETURN(terrain_->CreateBuffers(device_));
+  }
   return S_OK;
 }
 
@@ -129,6 +130,8 @@ void Scene::GetShaderHandles(ID3D10Effect* effect) {
     shadowed_point_light_->GetShaderHandles(effect);
   if (shadowed_directional_light_)
     shadowed_directional_light_->GetShaderHandles(effect);
+  if (terrain_)
+    terrain_->GetShaderHandles(effect);
   pMaterialParameters =
       effect->GetVariableByName("g_vMaterialParameters")->AsVector();  
   pCameraPosition =
@@ -146,6 +149,7 @@ void Scene::OnDestroyDevice(void) {
   for (it = light_sources_.begin(); it != light_sources_.end(); ++it) {
     (*it)->OnDestroyDevice();
   }
+  device_ = NULL;
 }
 
 void Scene::SetShadowMapDimensions(UINT width, UINT height) {
@@ -166,19 +170,19 @@ void Scene::SetShadowMapPrecision(bool high_precision) {
 }
 
 void Scene::CreateTerrain(int n, float roughness, int num_lod) {
-  assert(device_ != NULL);
-  HRESULT hr;
-  SAFE_DELETE(tile_);
-  tile_ = new Tile(n, roughness, num_lod);
-  tile_->TriangulateZOrder();
-  tile_->CalculateNormals();
-  V(tile_->CreateBuffers(device_));
-  tile_->FreeMemory();
+  SAFE_DELETE(terrain_);
+  terrain_ = new Terrain(n, roughness, num_lod);
+  terrain_->TriangulateZOrder();  
+  if (device_)
+    terrain_->CreateBuffers(device_);
+  if (effect_)
+    terrain_->GetShaderHandles(effect_);
+  //terrain_->FreeMemory();
 }
 
 void Scene::GetBoundingBox(D3DXVECTOR3 *box, D3DXVECTOR3 *mid) {
-  if (tile_) {
-    tile_->GetBoundingBox(box, mid);
+  if (terrain_) {
+    terrain_->GetBoundingBox(box, mid);
   } else {
     for (int i = 0; i < 8; ++i) {
       box[i] = D3DXVECTOR3(0, 0, 0);      
@@ -187,10 +191,10 @@ void Scene::GetBoundingBox(D3DXVECTOR3 *box, D3DXVECTOR3 *mid) {
   }
 }
 
-void Scene::Draw(void) {
-  assert(device_ != NULL);  
-  if (tile_) {
+void Scene::Draw(ID3D10EffectTechnique *technique) {
+  assert(device_ != NULL);
+  if (terrain_) {
     assert(lod_selector_ != NULL);
-    tile_->Draw(device_, lod_selector_, &cam_pos_);
+    terrain_->Draw(technique, lod_selector_, &cam_pos_);
   }
 }
