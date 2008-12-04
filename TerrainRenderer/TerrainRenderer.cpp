@@ -473,7 +473,7 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain(ID3D10Device* pd3dDevice,
   // Setup the camera's projection parameters
   float fAspectRatio = pBackBufferSurfaceDesc->Width /
       (FLOAT)pBackBufferSurfaceDesc->Height;
-  g_Camera.SetProjParams(D3DX_PI / 4, fAspectRatio, 0.1f, 1000.0f);
+  g_Camera.SetProjParams(D3DX_PI / 4, fAspectRatio, 0.1f, 100.0f);
 
   g_HUD.SetLocation(pBackBufferSurfaceDesc->Width - 170, 0);
   g_HUD.SetSize(170, 170);
