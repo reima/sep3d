@@ -195,3 +195,7 @@ float Terrain::GetMinHeight() const {
 float Terrain::GetMaxHeight() const {
   return tile_->GetMaxHeight();
 }
+
+float Terrain::GetHeightAt(const D3DXVECTOR3 &pos) const {
+  return tile_->GetHeightAt(pos);
+}

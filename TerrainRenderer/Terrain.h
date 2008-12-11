@@ -58,6 +58,8 @@ class Terrain {
    */
   float GetMaxHeight(void) const;
 
+  float GetHeightAt(const D3DXVECTOR3 &pos) const;
+
  private:
   // Kopierkonstruktor und Zuweisungsoperator verbieten.
   Terrain(const Terrain &t);

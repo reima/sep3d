@@ -253,6 +253,14 @@ float Tile::GetMaxHeight(void) const {
   return max_height_;
 }
 
+float Tile::GetHeightAt(const D3DXVECTOR3 &pos) const {
+  if (num_lod_ > 0) {
+    // TODO: Kind finden, in dem der Punkt liegt + rekursiver Aufruf
+  } else {
+
+  }
+}
+
 HRESULT Tile::CreateBuffers(ID3D10Device *device) {
   assert(heights_ != NULL);
   assert(vertex_normals_ != NULL);

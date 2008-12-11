@@ -45,6 +45,8 @@ class Tile {
    */
   float GetMaxHeight(void) const;
 
+  float GetHeightAt(const D3DXVECTOR3 &pos) const;
+
   /**
    * Erzeugt Vertex-, Normalen- und Index-Buffer lädt das Dreieckgitter des
    * Tiles in diese hoch. Wird ggf. rekursiv für alle Kinder des Tiles
