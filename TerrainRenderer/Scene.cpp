@@ -172,7 +172,7 @@ void Scene::SetShadowMapPrecision(bool high_precision) {
 void Scene::CreateTerrain(int n, float roughness, int num_lod) {
   SAFE_DELETE(terrain_);
   terrain_ = new Terrain(n, roughness, num_lod);
-  terrain_->TriangulateZOrder();  
+  terrain_->TriangulateZOrder();
   if (device_)
     terrain_->CreateBuffers(device_);
   if (effect_)

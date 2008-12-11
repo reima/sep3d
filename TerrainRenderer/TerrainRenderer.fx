@@ -129,7 +129,7 @@ struct VS_GOURAUD_SHADING_OUTPUT
 struct VS_PHONG_SHADING_OUTPUT
 {
   float4 Position       : SV_Position;
-  float3 WorldPosition  : POSITION;
+  float3 WorldPosition  : WORLDPOS;
   float4 LightSpacePos  : LIGHTSPACEPOS;
   float  Height         : HEIGHT;
   float3 Normal         : NORMAL;
@@ -144,7 +144,7 @@ struct VS_PHONG_SHADING_OUTPUT
 struct VS_PLAIN_COLOR_PHONG_OUTPUT
 {
   float4 Position       : SV_Position;
-  float3 WorldPosition  : POSITION;
+  float3 WorldPosition  : WORLDPOS;
   float4 LightSpacePos  : LIGHTSPACEPOS;
   float  Height         : HEIGHT;
   float3 Normal         : NORMAL;
@@ -243,7 +243,7 @@ PHONG PhongLighting(float3 vPos, float3 vNormal, float4 vMaterial)
     d = length(vPos - g_vSpotLight_Position[i]);
     I = (g_vSpotLight_Position[i] - vPos) / d;
     IdotL = dot(-I, g_vSpotLight_Direction[i]);
-    theta = g_fSpotLight_AngleExp[i].x;
+    theta = abs(g_fSpotLight_AngleExp[i].x);
     angle = acos(IdotL);
     if (angle < theta) {
       fAttenuation = 1 / dot(vAttenuation, float3(1, d, d*d));
@@ -280,7 +280,7 @@ float3 FullLighting(float3 vColor,
   //
   if (g_bShadowedDirectionalLight) {
     vLightSpacePos /= vLightSpacePos.w;
-    fLightDist = vLightSpacePos.z;
+    fLightDist = vLightSpacePos.z - g_fZEpsilon;
     vLightSpacePos.x = 0.5 * vLightSpacePos.x + 0.5;
     vLightSpacePos.y = 1 - (0.5 * vLightSpacePos.y + 0.5);
     g_tDirectionalShadowMap.GetDimensions(uiWidth, uiHeight);
@@ -291,13 +291,13 @@ float3 FullLighting(float3 vColor,
       [unroll] for (int x = -1; x <= 1; ++x) {
         [unroll] for (int y = -1; y <= 1; ++y) {
           fShadowMap = g_tDirectionalShadowMap.Load(int3(vLightSpacePos.xy + int2(x, y), 0));
-          if (fShadowMap + g_fZEpsilon < fLightDist) nInShadow++;
+          if (fShadowMap < fLightDist) nInShadow++;
         }
       }
       fLightScale = 1 - nInShadow / 9.0f;
     } else {
       fShadowMap = g_tDirectionalShadowMap.Load(int3(vLightSpacePos.xy, 0));
-      if (fShadowMap + g_fZEpsilon < fLightDist) fLightScale = 0.0f;
+      if (fShadowMap < fLightDist) fLightScale = 0.0f;
       else fLightScale = 1.0f;
     }
 
@@ -336,7 +336,7 @@ float3 FullLighting(float3 vColor,
     vLightSpacePos = mul(float4(vWorldPosition, 1), g_mPointLightSpaceTransform[uiArraySlice]);
     // Dehomogenize
     vLightSpacePos /= vLightSpacePos.w;
-    fLightDist = vLightSpacePos.z;
+    fLightDist = vLightSpacePos.z - g_fZEpsilon;
     vLightSpacePos.x = 0.5 * vLightSpacePos.x + 0.5;
     vLightSpacePos.y = 1 - (0.5 * vLightSpacePos.y + 0.5);
     g_tPointShadowMap.GetDimensions(uiWidth, uiHeight, uiElements);
@@ -347,13 +347,13 @@ float3 FullLighting(float3 vColor,
       [unroll] for (int x = -1; x <= 1; ++x) {
         [unroll] for (int y = -1; y <= 1; ++y) {
           fShadowMap = g_tPointShadowMap.Load(int4(vLightSpacePos.xy + int2(x, y), uiArraySlice, 0));
-          if (fShadowMap + g_fZEpsilon < fLightDist) nInShadow++;
+          if (fShadowMap < fLightDist) nInShadow++;
         }
       }
       fLightScale = 1 - nInShadow / 9.0f;
     } else {
       fShadowMap = g_tPointShadowMap.Load(int4(vLightSpacePos.xy, uiArraySlice, 0));
-      if (fShadowMap + g_fZEpsilon < fLightDist) fLightScale = 0.0f;
+      if (fShadowMap < fLightDist) fLightScale = 0.0f;
       else fLightScale = 1.0f;
     }
 
@@ -378,10 +378,16 @@ float3 FullLighting(float3 vColor,
 
 float4 GetTileVertex(float2 vPosition)
 {
-  float fHeight = g_tTerrain.Load(float3(vPosition.x, 1-vPosition.y, 0) * (g_uiTerrainSize-1));
+  float4 vVertexData = g_tTerrain.Load(float3(vPosition.x, vPosition.y, 0) * (g_uiTerrainSize-1));
   vPosition *= g_fTileScale;
   vPosition += g_vTileTranslate;
-  return float4(vPosition.x, fHeight, vPosition.y, 1);
+  return float4(vPosition.x, vVertexData.w, vPosition.y, 1);
+}
+
+float4 GetTileNormal(float2 vPosition)
+{
+  float4 vVertexData = g_tTerrain.Load(float3(vPosition.x, vPosition.y, 0) * (g_uiTerrainSize-1));
+  return float4(vVertexData.xyz, 0);
 }
 
 //--------------------------------------------------------------------------------------
@@ -409,20 +415,19 @@ VS_GOURAUD_SHADING_OUTPUT GouraudShading_VS( VS_INPUT In )
 VS_PHONG_SHADING_OUTPUT PhongShading_VS( float2 vPosition : POSITION )
 {
   VS_PHONG_SHADING_OUTPUT Output;
-  VS_INPUT In;
-  In.Normal = float3(0, 1, 0);
   float4 vPos = GetTileVertex(vPosition);
+  float4 vNormal = GetTileNormal(vPosition);
   Output.Height = vPos.y;
   if (vPos.y < 0) {
     vPos.y = 0;
-    In.Normal = float3(0, 1, 0);
+    vNormal = float4(0, 1, 0, 0);
     Output.Material = g_vWaterMaterial;
   } else {
     Output.Material = g_vMaterialParameters;
   }
   // Transform the position from object space to homogeneous projection space
   Output.Position = mul(vPos, g_mWorldViewProjection);
-  Output.Normal = normalize(In.Normal);
+  Output.Normal = vNormal;
   Output.WorldPosition = vPos;
   Output.LightSpacePos = mul(vPos, g_mDirectionalLightSpaceTransform);
   Output.TexCoord = vPos.xz * 5;
@@ -463,9 +468,9 @@ void PointShadow_GS( triangle GS_POINTSHADOW_INPUT In[3],
                      inout TriangleStream<GS_POINTSHADOW_OUTPUT> MeshStream )
 {
   GS_POINTSHADOW_OUTPUT Output;
-  for (uint i = 0; i < 6; ++i) {
+  [unroll] for (uint i = 0; i < 6; ++i) {
     Output.RTI = i;
-    for (uint j = 0; j < 3; ++j) {
+    [unroll] for (uint j = 0; j < 3; ++j) {
       Output.Position = mul(In[j].Position, g_mPointLightSpaceTransform[i]);
       Output.Depth = Output.Position.zw;
       MeshStream.Append(Output);
@@ -488,7 +493,6 @@ float4 GouraudShading_PS( VS_GOURAUD_SHADING_OUTPUT In ) : SV_Target
 float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In ) : SV_Target
 {
   float3 N = 0;
-  float4 vReflect = 0;
   float4 vTerrainColor = 0;
   if (In.Height < 0) {
     if (g_bWaveNormals) {
@@ -505,10 +509,7 @@ float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In ) : SV_Target
     } else {
       N = float3(0, 1, 0);
     }
-    float3 I = normalize(In.WorldPosition - g_vCamPos);
-    float3 R = reflect(I, N);
     vTerrainColor = g_vWaterColor;
-    vReflect = g_tCubeMap.Sample(g_ssLinear, R);
   } else {
     //vTerrainColor = GetColorFromHeight(In.Height);
     //vTerrainColor = g_tDirectionalShadowMap.Sample(g_ssLinear, In.TexCoord);
@@ -527,7 +528,11 @@ float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In ) : SV_Target
                                N,
                                In.Material);
 
-   return float4(vColor, 1) + In.Material.z * vReflect;
+  float3 I = normalize(In.WorldPosition - g_vCamPos);
+  float3 R = reflect(I, N);
+  float4 vReflect = g_tCubeMap.Sample(g_ssLinear, R);
+
+  return float4(vColor, 1) + In.Material.z * vReflect;
 }
 
 float4 Environment_PS( float4 vPos : SV_Position ) : SV_Target

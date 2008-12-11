@@ -24,7 +24,6 @@
 #include "ShadowedDirectionalLight.h"
 #include "ShadowedPointLight.h"
 
-
 //#define DEBUG_VS   // Uncomment this line to debug D3D9 vertex shaders
 //#define DEBUG_PS   // Uncomment this line to debug D3D9 pixel shaders
 
@@ -323,7 +322,7 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   g_pTxtHelper = new CDXUTTextHelper(NULL, NULL, g_pFont10, g_pSprite10, 15);
 
   // Read the D3DX effect file
-  g_pEffect10 = LoadEffect(pd3dDevice, L"TerrainRenderer.fx");
+  g_pEffect10 = LoadEffect(pd3dDevice, L"TerrainRenderer.fx", NULL, false);
   g_pTechnique = g_pEffect10->GetTechniqueByIndex(0);
 
   // Load wave normal map
@@ -380,7 +379,7 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   //g_Camera.SetScalers(0.01f, 0.5f);
 
   // FixedLODSelector mit LOD-Stufe 0
-  g_pLODSelector = new FixedLODSelector(1);
+  g_pLODSelector = new FixedLODSelector(0);
 
   // RasterizerState für Wireframe erzeugen
   D3D10_RASTERIZER_DESC rast_desc = {
@@ -409,17 +408,17 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   //g_pScene->AddPointLight(D3DXVECTOR3(-2.5f, 0.0f, 0.0f),
   //                        D3DXVECTOR3(0, 0, 1),
   //                        D3DXVECTOR3(0, 0, 1));
-  g_pScene->AddPointLight(D3DXVECTOR3(0.0f, 0.0f, -2.5f),
-                          D3DXVECTOR3(0, 1, 0),
-                          D3DXVECTOR3(1, 0, 0));
+  //g_pScene->AddPointLight(D3DXVECTOR3(0.0f, 0.0f, -2.5f),
+  //                        D3DXVECTOR3(0, 1, 0),
+  //                        D3DXVECTOR3(1, 0, 0));
   //g_pScene->AddDirectionalLight(D3DXVECTOR3(1.0f, 1.0f, 0.0f),
   //                              D3DXVECTOR3(1, 0.75f, 0.5f),
   //                              D3DXVECTOR3(0, 1, 0));
-  g_pScene->AddSpotLight(D3DXVECTOR3(2.5f, 3.0f, 0.0f),
-                         D3DXVECTOR3(0, -1, 0),
-                         D3DXVECTOR3(1, 1, 0),
-                         D3DXVECTOR3(0, 1, 0),
-                         .5f, 5);
+  //g_pScene->AddSpotLight(D3DXVECTOR3(2.5f, 3.0f, 0.0f),
+  //                       D3DXVECTOR3(0, -1, 0),
+  //                       D3DXVECTOR3(1, 1, 0),
+  //                       D3DXVECTOR3(0, 1, 0),
+  //                       .5f, 5);
   //g_pScene->AddSpotLight(D3DXVECTOR3(-2.5f, 3.0f, 0.0f),
   //                       D3DXVECTOR3(0, -1, 0),
   //                       D3DXVECTOR3(0, 1, 1),
@@ -440,11 +439,11 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
       D3DXVECTOR3(1, 0.75f, 0.5f),
       D3DXVECTOR3(0, 0.2f, 0),
       true);
-  //g_pScene->AddPointLight(
-  //    D3DXVECTOR3(-1, 1, 0),
-  //    D3DXVECTOR3(1, 0, 0),
-  //    D3DXVECTOR3(0, 1, 0),
-  //    true);
+  g_pScene->AddPointLight(
+      D3DXVECTOR3(-1, 1, 0),
+      D3DXVECTOR3(1, 0, 0),
+      D3DXVECTOR3(0, 1, 0),
+      true);
 
   // Environment erstellen
   g_pEnvironment = new Environment(pd3dDevice);

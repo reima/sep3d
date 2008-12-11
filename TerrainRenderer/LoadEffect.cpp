@@ -34,5 +34,14 @@ ID3D10Effect* LoadEffect(ID3D10Device* pd3dDevice,
             return NULL;
       }
 
+#if defined( DEBUG ) || defined( _DEBUG )
+      if (errors != NULL) {
+            std::wstringstream s;
+            s << L"Warnings loading shader \"" << filename << "\"\n " << (CHAR*)errors->GetBufferPointer();    
+            OutputDebugStringW(s.str().c_str());
+            MessageBoxW(NULL, s.str().c_str(), L"Shader Load Warnings", MB_OK);
+      }
+#endif
+
       return pEffect10;
 }

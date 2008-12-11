@@ -109,6 +109,7 @@ HRESULT Terrain::CreateBuffers(ID3D10Device *device) {
   init_data.pSysMem = indices_;
   V_RETURN(device->CreateBuffer(&buffer_desc, &init_data, &index_buffer_));
 
+  tile_->CalculateNormals(indices_);
   V_RETURN(tile_->CreateBuffers(device));
 
   return S_OK;

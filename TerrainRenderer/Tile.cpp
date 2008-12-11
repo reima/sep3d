@@ -61,10 +61,10 @@ Tile::Tile(Tile *parent, Tile::Direction direction,
       height_map_(NULL),
       shader_resource_view_(NULL){
   switch (direction) {
-    case NW: translation_ += D3DXVECTOR2(     0, scale_); break;
-    case NE: translation_ += D3DXVECTOR2(scale_, scale_); break;
-    case SE: translation_ += D3DXVECTOR2(scale_,      0); break;
-    case SW: translation_ += D3DXVECTOR2(     0,      0); break;
+    case NW: translation_ += D3DXVECTOR2(     0,      0); break;
+    case NE: translation_ += D3DXVECTOR2(scale_,      0); break;
+    case SE: translation_ += D3DXVECTOR2(scale_, scale_); break;
+    case SW: translation_ += D3DXVECTOR2(     0, scale_); break;
   }
   heights_ = new float[size_*size_];
   InitFromParent();
@@ -255,10 +255,17 @@ float Tile::GetMaxHeight(void) const {
 
 HRESULT Tile::CreateBuffers(ID3D10Device *device) {
   assert(heights_ != NULL);
+  assert(vertex_normals_ != NULL);
   HRESULT hr;
 
   // Evtl. bereits vorhandene Buffer freigeben
   ReleaseBuffers();
+
+  const int resolution = GetResolution();
+  D3DXVECTOR4 *normals_heights = new D3DXVECTOR4[resolution];
+  for (int i = 0; i < resolution; ++i) {
+    normals_heights[i] = D3DXVECTOR4(vertex_normals_[i], heights_[i]);
+  }
 
   // Textur anlegen
   D3D10_TEXTURE2D_DESC tex2d_desc;
@@ -266,7 +273,7 @@ HRESULT Tile::CreateBuffers(ID3D10Device *device) {
   tex2d_desc.Height = size_;
   tex2d_desc.MipLevels = 1;
   tex2d_desc.ArraySize = 1;
-  tex2d_desc.Format = DXGI_FORMAT_R32_FLOAT;
+  tex2d_desc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
   tex2d_desc.SampleDesc.Count = 1;
   tex2d_desc.SampleDesc.Quality = 0;
   tex2d_desc.Usage = D3D10_USAGE_IMMUTABLE;
@@ -274,14 +281,16 @@ HRESULT Tile::CreateBuffers(ID3D10Device *device) {
   tex2d_desc.CPUAccessFlags = 0;
   tex2d_desc.MiscFlags = 0;
   D3D10_SUBRESOURCE_DATA init_data;
-  init_data.pSysMem = heights_;
-  init_data.SysMemPitch = sizeof(heights_[0]) * size_;
+  init_data.pSysMem = normals_heights;
+  init_data.SysMemPitch = sizeof(normals_heights[0]) * size_;
   init_data.SysMemSlicePitch = 0;
   V_RETURN(device->CreateTexture2D(&tex2d_desc, &init_data, &height_map_));
 
+  delete[] normals_heights;
+
   // Shader Resource View anlegen
   D3D10_SHADER_RESOURCE_VIEW_DESC srv_desc;
-  srv_desc.Format = DXGI_FORMAT_R32_FLOAT;
+  srv_desc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
   srv_desc.ViewDimension = D3D10_SRV_DIMENSION_TEXTURE2D;
   srv_desc.Texture2D.MipLevels = 1;
   srv_desc.Texture2D.MostDetailedMip = 0;
@@ -331,6 +340,7 @@ void Tile::CalculateNormals(unsigned int *indices) {
 }
 
 D3DXVECTOR3 Tile::GetVectorFromIndex(int index) {
+  assert(heights_ != NULL);
   float x = (float)(index % size_) / (size_ - 1) * scale_ + translation_.x;
   float z = (float)(index / size_) / (size_ - 1) * scale_ + translation_.y;
   return D3DXVECTOR3(x, heights_[index], z);
@@ -360,11 +370,11 @@ void Tile::CalculateNormals0(Tile *north, Tile *west, unsigned int *indices) {
   // aufaddieren
   int num_triangles = (size_-1)*(size_-1) * 2;
   for (int i = 0; i < num_triangles; ++i) {
-    D3DXVECTOR3 v1 = GetVectorFromIndex(3*i);
-    D3DXVECTOR3 v2 = GetVectorFromIndex(3*i+1);
-    D3DXVECTOR3 v3 = GetVectorFromIndex(3*i+2);
+    D3DXVECTOR3 v1 = GetVectorFromIndex(indices[3*i]);
+    D3DXVECTOR3 v2 = GetVectorFromIndex(indices[3*i+1]);
+    D3DXVECTOR3 v3 = GetVectorFromIndex(indices[3*i+2]);
     D3DXVECTOR3 e1 = v2 - v1;
-    D3DXVECTOR3 e2 = v3 - v2;
+    D3DXVECTOR3 e2 = v3 - v1;
     D3DXVECTOR3 face_normal;
     D3DXVec3Cross(&face_normal, &e1, &e2);
     D3DXVec3Normalize(&face_normal, &face_normal);
