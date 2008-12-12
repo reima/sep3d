@@ -3,6 +3,7 @@
 #define TILE_H
 #include <string>
 #include "DXUT.h"
+#include "DXUTCamera.h"
 
 class LODSelector;
 class Terrain;
@@ -66,7 +67,7 @@ class Tile {
    * @warning Vor dem Aufruf müssen die D3D10-Buffer mit Tile::CreateBuffers
    *          erzeugt werden.
    */
-  void Draw(LODSelector *lod_selector, const D3DXVECTOR3 *cam_pos);
+  void Draw(LODSelector *lod_selector, const CBaseCamera *camera);
 
   /**
    * Gibt den für die interne Darstellung reservierten Speicher frei (auch
@@ -85,6 +86,8 @@ class Tile {
   void CalculateNormals(unsigned int *indices);
 
   void GetBoundingBox(D3DXVECTOR3 *out, D3DXVECTOR3 *mid) const;
+
+  float GetWorldError(void) const;
 
  private:
   /**

@@ -763,18 +763,6 @@
 			Name="Terrain"
 			>
 			<File
-				RelativePath=".\FixedLODSelector.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\FixedLODSelector.h"
-				>
-			</File>
-			<File
-				RelativePath=".\LODSelector.h"
-				>
-			</File>
-			<File
 				RelativePath=".\Terrain.cpp"
 				>
 			</File>
@@ -788,6 +776,30 @@
 			</File>
 			<File
 				RelativePath=".\Tile.h"
+				>
+			</File>
+		</Filter>
+		<Filter
+			Name="LOD Selectors"
+			>
+			<File
+				RelativePath=".\DynamicLODSelector.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\DynamicLODSelector.h"
+				>
+			</File>
+			<File
+				RelativePath=".\FixedLODSelector.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\FixedLODSelector.h"
+				>
+			</File>
+			<File
+				RelativePath=".\LODSelector.h"
 				>
 			</File>
 		</Filter>

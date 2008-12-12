@@ -101,7 +101,7 @@ const float4 g_Colors[NUM_SPOTS] = {
   float4(1, 1, 1, 1)
 };
 
-const float3 vAttenuation = { 0, 0, 1 }; // Constant, linear, quadratic
+const float3 vAttenuation = float3(0, 0, 1); // Constant, linear, quadratic
 
 const float4 g_vWaterColor = float4(0, 0.25, 0.5, 1.0);
 const float4 g_vWaterMaterial = float4(0.05, 0.7, 0.25, 200);
@@ -376,9 +376,10 @@ float3 FullLighting(float3 vColor,
       phong.SpecularLight;
 }
 
+// TODO: Nur noch ein Lookup pro Vertex
 float4 GetTileVertex(float2 vPosition)
 {
-  float4 vVertexData = g_tTerrain.Load(float3(vPosition.x, vPosition.y, 0) * (g_uiTerrainSize-1));
+  float4 vVertexData = g_tTerrain.Load(float3(vPosition.xy, 0) * (g_uiTerrainSize - 1));
   vPosition *= g_fTileScale;
   vPosition += g_vTileTranslate;
   return float4(vPosition.x, vVertexData.w, vPosition.y, 1);
@@ -386,7 +387,7 @@ float4 GetTileVertex(float2 vPosition)
 
 float4 GetTileNormal(float2 vPosition)
 {
-  float4 vVertexData = g_tTerrain.Load(float3(vPosition.x, vPosition.y, 0) * (g_uiTerrainSize-1));
+  float4 vVertexData = g_tTerrain.Load(float3(vPosition.xy, 0) * (g_uiTerrainSize - 1));
   return float4(vVertexData.xyz, 0);
 }
 
@@ -518,7 +519,7 @@ float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In ) : SV_Target
     vTerrainColor = g_tGround3D.SampleLevel(g_ssLinear,
                                             float3(In.TexCoord,
                                                    fHeightNormalized),
-                                            0);
+                                            1);
     N = normalize(In.Normal);
   }
 

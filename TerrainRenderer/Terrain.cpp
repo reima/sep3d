@@ -148,7 +148,7 @@ void Terrain::GetBoundingBox(D3DXVECTOR3 *out, D3DXVECTOR3 *mid) const {
 }
 
 void Terrain::Draw(ID3D10EffectTechnique *technique, LODSelector *lod_selector,
-                   const D3DXVECTOR3 *cam_pos) {
+                   const CBaseCamera *camera) {
   assert(vertex_buffer_ != NULL);
   assert(index_buffer_ != NULL);
   assert(vertex_layout_ != NULL);
@@ -166,7 +166,7 @@ void Terrain::Draw(ID3D10EffectTechnique *technique, LODSelector *lod_selector,
   device_->IASetInputLayout(vertex_layout_);
 
   technique_ = technique;
-  tile_->Draw(lod_selector, cam_pos);
+  tile_->Draw(lod_selector, camera);
   technique_ = NULL;
 }
 

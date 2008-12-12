@@ -36,8 +36,8 @@ Tile::Tile(Terrain *terrain, int n, float roughness, int num_lod)
       parent_(NULL),
       min_height_(0),
       max_height_(0),
-      scale_(5.0f),
-      translation_(D3DXVECTOR2(-2.5f, -2.5f)),
+      scale_(50.0f),
+      translation_(D3DXVECTOR2(-25.f, -25.f)),
       height_map_(NULL),
       shader_resource_view_(NULL) {
   heights_ = new float[size_*size_];
@@ -122,7 +122,7 @@ void Tile::InitFromParent(void) {
 
 void Tile::Refine(int block_size, float roughness) {
   int block_size_h = block_size/2;
-  float offset_factor = roughness * block_size / size_;
+  float offset_factor = (0.2f * scale_) * roughness * block_size / (size_ - 1);
 
   for (int y = block_size_h; y < size_; y += block_size) {
     for (int x = block_size_h; x < size_; x += block_size) {
@@ -202,7 +202,7 @@ void Tile::InitChildren(float roughness, Tile *north, Tile *west) {
   }
 
   // Erzeugen der Kind-Tiles mit Übergabe der Nachbarschaftsinformationen
-  roughness /= 2; // Halbiere Rauheits-Faktor, um die geänderten
+  //roughness /= 2; // Halbiere Rauheits-Faktor, um die geänderten
                   // Größenverhältnisse zu transportieren
   children_[NW] = new Tile(this, NW, roughness, child_NNW, child_NWW);
   children_[NE] = new Tile(this, NE, roughness, child_NNE, children_[NW]);
@@ -271,6 +271,7 @@ float Tile::GetHeightAt(const D3DXVECTOR3 &pos) const {
     // NW--NC----NE \
     // |   |      |  } yfactor
     // +---o------+ /
+    // |   |      |
     // |   |      |
     // SW--SC----SE
     // \_ _/
@@ -363,14 +364,14 @@ void Tile::FreeMemory(void) {
   }
 }
 
-void Tile::Draw(LODSelector *lod_selector, const D3DXVECTOR3 *cam_pos) {
+void Tile::Draw(LODSelector *lod_selector, const CBaseCamera *camera) {
   assert(terrain_ != NULL);
   assert(shader_resource_view_ != NULL);
-  if (lod_selector->IsLODSufficient(this, cam_pos) || num_lod_ == 0) {
+  if (lod_selector->IsLODSufficient(this, camera) || num_lod_ == 0) {
     terrain_->DrawTile(scale_, translation_, shader_resource_view_);
   } else {
     for (int dir = 0; dir < 4; ++dir) {
-      children_[dir]->Draw(lod_selector, cam_pos);
+      children_[dir]->Draw(lod_selector, camera);
     }
   }
 }
@@ -491,5 +492,9 @@ void Tile::GetBoundingBox(D3DXVECTOR3 *box, D3DXVECTOR3 *mid) const {
     box[i].x += translation_.x;
     box[i].z += translation_.y;
   }
-  *mid = 0.5f * (box[0] + box[7]);
+  if (mid != NULL) *mid = 0.5f * (box[0] + box[7]);
+}
+
+float Tile::GetWorldError(void) const {
+  return scale_ / (size_ - 1);
 }

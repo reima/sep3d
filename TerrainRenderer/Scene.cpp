@@ -106,12 +106,14 @@ void Scene::OnFrameMove(float elapsed_time) {
   assert(pCameraPosition != NULL);
 
   cam_pos_ = *camera_->GetEyePt();
-  // TODO: Hack CFirstPersonCamera to prevent "look up/down error"
-  D3DXVECTOR3 lookat = *camera_->GetLookAtPt();
-  D3DXVECTOR3 view_dir = lookat - cam_pos_;
-  cam_pos_.y = std::max(terrain_->GetHeightAt(cam_pos_), 0.0f) + 0.1f;
-  lookat = cam_pos_ + view_dir;
-  camera_->SetViewParams(&cam_pos_, &lookat);
+  float terrain_height = std::max(terrain_->GetHeightAt(cam_pos_), 0.0f) + 0.1f;
+  if (cam_pos_.y < terrain_height) {
+    D3DXVECTOR3 lookat = *camera_->GetLookAtPt();
+    D3DXVECTOR3 view_dir = lookat - cam_pos_;
+    cam_pos_.y = terrain_height;
+    lookat = cam_pos_ + view_dir;
+    camera_->SetViewParams(&cam_pos_, &lookat);
+  }
 
   pCameraPosition->SetFloatVector(cam_pos_);
   std::vector<LightSource *>::iterator it;
@@ -207,6 +209,6 @@ void Scene::Draw(ID3D10EffectTechnique *technique) {
   assert(device_ != NULL);
   if (terrain_) {
     assert(lod_selector_ != NULL);
-    terrain_->Draw(technique, lod_selector_, &cam_pos_);
+    terrain_->Draw(technique, lod_selector_, camera_);
   }
 }

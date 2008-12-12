@@ -2,7 +2,7 @@
 #include "Tile.h"
 
 bool FixedLODSelector::IsLODSufficient(const Tile *tile,
-                                       const D3DXVECTOR3 *) const {
+                                       const CBaseCamera *camera) const {
   return tile->GetLOD() == lod_;
 }
 

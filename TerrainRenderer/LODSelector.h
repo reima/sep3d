@@ -1,5 +1,6 @@
 #pragma once
 #include "DXUT.h"
+#include "DXUTCamera.h"
 
 class Tile;
 
@@ -13,5 +14,5 @@ class LODSelector {
    * bestimmten Kameraposition aus betrachtet wird, ausreichend ist.
    */
   virtual bool IsLODSufficient(const Tile *tile,
-                               const D3DXVECTOR3 *cam_pos) const = 0;
+                               const CBaseCamera *camera) const = 0;
 };

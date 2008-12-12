@@ -762,8 +762,8 @@ VOID CFirstPersonCamera::FrameMove( FLOAT fElapsedTime )
         m_fCameraYawAngle += fYawDelta;
 
         // Limit pitch to straight up or straight down
-        m_fCameraPitchAngle = __max( -D3DX_PI / 2.0f, m_fCameraPitchAngle );
-        m_fCameraPitchAngle = __min( +D3DX_PI / 2.0f, m_fCameraPitchAngle );
+        m_fCameraPitchAngle = __max( -D3DX_PI / 2.01f, m_fCameraPitchAngle );
+        m_fCameraPitchAngle = __min( +D3DX_PI / 2.01f, m_fCameraPitchAngle );
     }
 
     // Make a rotation matrix based on the camera's yaw & pitch

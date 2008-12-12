@@ -1,5 +1,6 @@
 #pragma once
 #include "DXUT.h"
+#include "DXUTCamera.h"
 
 class Tile;
 class LODSelector;
@@ -46,7 +47,7 @@ class Terrain {
 
   void GetBoundingBox(D3DXVECTOR3 *out, D3DXVECTOR3 *mid) const;
   void Draw(ID3D10EffectTechnique *technique, LODSelector *lod_selector,
-            const D3DXVECTOR3 *cam_pos);
+            const CBaseCamera *camera);
 
   /**
    * Ermittelt die minimale Höhe im Terrain und gibt sie zurück.

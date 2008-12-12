@@ -13,12 +13,11 @@
 #include "DXUTCamera.h"
 #include "DXUTSettingsDlg.h"
 #include "SDKmisc.h"
-#include "SDKmesh.h"
 #include "resource.h"
 
 #include "Terrain.h"
 #include "LODSelector.h"
-#include "FixedLODSelector.h"
+#include "DynamicLODSelector.h"
 #include "Scene.h"
 #include "Environment.h"
 #include "ShadowedDirectionalLight.h"
@@ -30,9 +29,9 @@
 //--------------------------------------------------------------------------------------
 // Global variables
 //--------------------------------------------------------------------------------------
-int g_nTerrainN = 7;
+int g_nTerrainN = 3;
 float g_fTerrainR = 1.0f;
-int g_nTerrainLOD = 3;
+int g_nTerrainLOD = 5;
 
 CFirstPersonCamera          g_Camera;               // A first person camera
 CDXUTDialogResourceManager  g_DialogResourceManager; // manager for shared resources of dialogs
@@ -97,6 +96,8 @@ ID3D10RasterizerState*      g_pRSWireframe = NULL;
 #define IDC_SHADOWMAPS_ZEPSILON     15
 #define IDC_SHADOWMAPS_ZEPSILON_S   16
 #define IDC_SHADOWMAPS_PCF          17
+#define IDC_CAMERA_SPEED            18
+#define IDC_CAMERA_SPEED_S          19
 
 #define IDC_NEWTERRAIN_LOD          100
 #define IDC_NEWTERRAIN_SIZE         101
@@ -240,6 +241,9 @@ void InitApp() {
   g_SampleUI.AddCheckBox(IDC_SHADOWMAPS_PCF, L"3x3 PCF", 35,
                          iY += 24, 125, 22, true);
 
+  StringCchPrintf(sz, 100, L"Camera speed: %.2f", 0.25f);
+  g_SampleUI.AddStatic(IDC_CAMERA_SPEED_S, sz, 35, iY += 24, 125, 22);
+  g_SampleUI.AddSlider(IDC_CAMERA_SPEED, 35, iY += 24, 125, 22, 0, 10000, 25);
 
   /**
    * Terrain UI
@@ -379,7 +383,7 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   g_Camera.SetScalers(0.01f, 0.25f);
 
   // FixedLODSelector mit LOD-Stufe 0
-  g_pLODSelector = new FixedLODSelector(0);
+  g_pLODSelector = new DynamicLODSelector(D3DX_PI / 4 * (3 / 4), 600, 10.0f);
 
   // RasterizerState für Wireframe erzeugen
   D3D10_RASTERIZER_DESC rast_desc = {
@@ -394,7 +398,7 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   g_pScene = new Scene();
   g_pScene->OnCreateDevice(pd3dDevice);
   g_pScene->GetShaderHandles(g_pEffect10);
-  g_pScene->SetMaterial(0.05f, 0.9f, 0.05f, 50);
+  g_pScene->SetMaterial(0.05f, 0.9f, 0.0f, 50);
   g_pScene->SetCamera(&g_Camera);
   g_pScene->SetLODSelector(g_pLODSelector);
 
@@ -439,11 +443,11 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
       D3DXVECTOR3(1, 0.75f, 0.5f),
       D3DXVECTOR3(0, 0.2f, 0),
       true);
-  g_pScene->AddPointLight(
-      D3DXVECTOR3(-1, 1, 0),
-      D3DXVECTOR3(1, 0, 0),
-      D3DXVECTOR3(0, 1, 0),
-      true);
+  //g_pScene->AddPointLight(
+  //    D3DXVECTOR3(-1, 1, 0),
+  //    D3DXVECTOR3(1, 0, 0),
+  //    D3DXVECTOR3(0, 1, 0),
+  //    true);
 
   // Environment erstellen
   g_pEnvironment = new Environment(pd3dDevice);
@@ -653,31 +657,13 @@ LRESULT CALLBACK MsgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
   return 0;
 }
 
-void SetLOD(int lod) {
-  g_SampleUI.GetSlider(IDC_LODSLIDER)->SetValue(lod);
-  // Wert neu auslesen, da er evtl. auf den gültigen Bereich geclampt wurde
-  lod = g_SampleUI.GetSlider(IDC_LODSLIDER)->GetValue();
-  SAFE_DELETE(g_pLODSelector);
-  g_pLODSelector = new FixedLODSelector(lod);
-  g_pScene->SetLODSelector(g_pLODSelector);
-  WCHAR sz[100];
-  StringCchPrintf(sz, 100, L"LOD (+/-): %d", lod);
-  g_SampleUI.GetStatic(IDC_LODSLIDER_S)->SetText(sz);
-}
-
 //--------------------------------------------------------------------------------------
 // Handle key presses
 //--------------------------------------------------------------------------------------
 void CALLBACK OnKeyboard(UINT nChar, bool bKeyDown, bool bAltDown,
                          void* pUserContext) {
   if (!bKeyDown) return;
-  switch (nChar) {
-    case VK_ADD:
-      SetLOD(g_SampleUI.GetSlider(IDC_LODSLIDER)->GetValue() + 1);
-      break;
-    case VK_SUBTRACT:
-      SetLOD(g_SampleUI.GetSlider(IDC_LODSLIDER)->GetValue() - 1);
-      break;
+  switch (nChar) {    
     case 'H':
     case 'h':
       g_bShowSettings = !g_bShowSettings;
@@ -703,9 +689,6 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
     /**
      * Sample UI
      */
-    case IDC_LODSLIDER:
-      SetLOD(g_SampleUI.GetSlider(IDC_LODSLIDER)->GetValue());
-      break;
     case IDC_WIREFRAME:
       g_bWireframe = g_SampleUI.GetCheckBox(IDC_WIREFRAME)->GetChecked();
       break;
@@ -752,6 +735,14 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
     case IDC_SHADOWMAPS_PCF:
       g_pbPCF->SetBool(g_SampleUI.GetCheckBox(IDC_SHADOWMAPS_PCF)->GetChecked());
       break;
+    case IDC_CAMERA_SPEED: {
+      float value =
+          g_SampleUI.GetSlider(IDC_CAMERA_SPEED)->GetValue() / 1000.0f;
+      StringCchPrintf(sz, 100, L"Camera speed: %.2f", value);
+      g_SampleUI.GetStatic(IDC_CAMERA_SPEED_S)->SetText(sz);
+      g_Camera.SetScalers(0.01f, value);
+      break;
+    }
 
     /**
      * Terrain UI
@@ -789,11 +780,6 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
       g_pfMinHeight->SetFloat(terrain->GetMinHeight());
       g_pfMaxHeight->SetFloat(terrain->GetMaxHeight());
 
-      g_SampleUI.GetSlider(IDC_LODSLIDER)->SetValue(0);
-      g_SampleUI.GetSlider(IDC_LODSLIDER)->SetRange(0, g_nTerrainLOD);
-      g_SampleUI.GetStatic(IDC_LODSLIDER_S)->SetText(L"LOD (+/-): 0");
-      SAFE_DELETE(g_pLODSelector);
-      g_pLODSelector = new FixedLODSelector(0);
       break;
     }
   }
