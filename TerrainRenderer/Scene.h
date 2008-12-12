@@ -61,7 +61,7 @@ class Scene {
   /**
    * Führt Per-Frame-Updates in der Szene aus
    */
-  void OnFrameMove(float elapsed_time, const D3DXVECTOR3 &cam_pos);
+  void OnFrameMove(float elapsed_time);
 
   HRESULT OnCreateDevice(ID3D10Device *device);
   void GetShaderHandles(ID3D10Effect* effect);

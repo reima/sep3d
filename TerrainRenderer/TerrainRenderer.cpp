@@ -229,7 +229,7 @@ void InitApp() {
   StringCchPrintf(sz, 100, L"SM Res.: %dx%d", 1024, 1024);
   g_SampleUI.AddStatic(IDC_SHADOWMAPS_RESOLUTION_S, sz, 35, iY += 24, 125, 22);
   g_SampleUI.AddSlider(IDC_SHADOWMAPS_RESOLUTION, 35, iY += 24, 125, 22, 4, 11, 10);
-  
+
   g_SampleUI.AddCheckBox(IDC_SHADOWMAPS_PRECISION, L"High Prec. SM", 35,
                          iY += 24, 125, 22, true);
 
@@ -332,7 +332,7 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   // Load ground texture
   V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice,
      L"Textures/checker1.png", NULL, NULL, &g_pGroundRV, NULL));
-  
+
   // Load ground texture 3d
   V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice,
      L"Textures/terrain.dds", NULL, NULL, &g_pGround3DRV, NULL));
@@ -374,9 +374,9 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
 
   // Setup the camera's view parameters
   D3DXVECTOR3 vecEye(0.0f, 0.1f, 0.0f);
-  D3DXVECTOR3 vecAt (0.0f, 0.0f, 1.0f);
+  D3DXVECTOR3 vecAt (0.0f, -1.0f, 0.0f);
   g_Camera.SetViewParams(&vecEye, &vecAt);
-  //g_Camera.SetScalers(0.01f, 0.5f);
+  g_Camera.SetScalers(0.01f, 0.25f);
 
   // FixedLODSelector mit LOD-Stufe 0
   g_pLODSelector = new FixedLODSelector(0);
@@ -397,9 +397,9 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   g_pScene->SetMaterial(0.05f, 0.9f, 0.05f, 50);
   g_pScene->SetCamera(&g_Camera);
   g_pScene->SetLODSelector(g_pLODSelector);
-  
+
   // Terrain erzeugen
-  g_pScene->CreateTerrain(g_nTerrainN, g_fTerrainR, g_nTerrainLOD);  
+  g_pScene->CreateTerrain(g_nTerrainN, g_fTerrainR, g_nTerrainLOD);
   Terrain *terrain = g_pScene->GetTerrain();
   g_pfMinHeight->SetFloat(terrain->GetMinHeight());
   g_pfMaxHeight->SetFloat(terrain->GetMaxHeight());
@@ -472,7 +472,7 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain(ID3D10Device* pd3dDevice,
   // Setup the camera's projection parameters
   float fAspectRatio = pBackBufferSurfaceDesc->Width /
       (FLOAT)pBackBufferSurfaceDesc->Height;
-  g_Camera.SetProjParams(D3DX_PI / 4, fAspectRatio, 0.1f, 100.0f);
+  g_Camera.SetProjParams(D3DX_PI / 4, fAspectRatio, 0.01f, 100.0f);
 
   g_HUD.SetLocation(pBackBufferSurfaceDesc->Width - 170, 0);
   g_HUD.SetSize(170, 170);
@@ -531,7 +531,7 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   if (g_bWireframe) pd3dDevice->RSSetState(g_pRSWireframe);
 
   DXUT_BeginPerfEvent(DXUT_PERFEVENTCOLOR, L"Scene");
-  g_pScene->Draw(g_pTechnique);  
+  g_pScene->Draw(g_pTechnique);
   DXUT_EndPerfEvent();
 
   //
@@ -613,7 +613,7 @@ void CALLBACK OnFrameMove(double fTime, float fElapsedTime,
   // Update the camera's position based on user input
   g_Camera.FrameMove(fElapsedTime);
   if (g_bPaused) fElapsedTime = 0;
-  g_pScene->OnFrameMove(fElapsedTime, *g_Camera.GetEyePt());  
+  g_pScene->OnFrameMove(fElapsedTime);
 }
 
 

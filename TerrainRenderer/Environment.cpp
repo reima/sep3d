@@ -59,7 +59,7 @@ void Environment::GetShaderHandles(ID3D10Effect *effect) {
   back_buffer_size_ =
       effect->GetVariableByName("g_vBackBufferSize")->AsVector();
   camera_fov_ =
-      effect->GetVariableByName("g_fCameraFOV")->AsScalar();  
+      effect->GetVariableByName("g_fCameraFOV")->AsScalar();
 }
 
 void Environment::SetBackBufferSize(UINT width, UINT height) {

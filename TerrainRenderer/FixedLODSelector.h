@@ -10,7 +10,7 @@ class FixedLODSelector : public LODSelector {
    * Konstruktor.
    * @param lod Die zu akzeptierende LOD-Stufe.
    */
-  FixedLODSelector(int lod);  
+  FixedLODSelector(int lod);
   virtual bool IsLODSufficient(const Tile *tile,
                                const D3DXVECTOR3 *cam_pos) const;
  private:

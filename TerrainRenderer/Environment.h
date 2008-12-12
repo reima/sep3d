@@ -5,7 +5,7 @@ class Environment {
  public:
   Environment(ID3D10Device *device);
   ~Environment(void);
-  
+
   void SetBackBufferSize(UINT width, UINT height);
   void OnFrameMove(const D3DXMATRIX *world_view_matrix, float camera_fov);
   void GetShaderHandles(ID3D10Effect* effect);

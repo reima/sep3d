@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "Scene.h"
 #include "PointLight.h"
 #include "DirectionalLight.h"
@@ -6,7 +7,10 @@
 #include "ShadowedDirectionalLight.h"
 #include "Terrain.h"
 #include "LODSelector.h"
-#include "DXUTShapes.h"
+#include "DXUTCamera.h"
+
+#undef min
+#undef max
 
 Scene::Scene(void)
     : cam_pos_(D3DXVECTOR3(0, 0, 0)),
@@ -98,9 +102,17 @@ void Scene::AddSpotLight(const D3DXVECTOR3 &position,
                                          cutoff_angle, exponent));
 }
 
-void Scene::OnFrameMove(float elapsed_time, const D3DXVECTOR3 &cam_pos) {
+void Scene::OnFrameMove(float elapsed_time) {
   assert(pCameraPosition != NULL);
-  cam_pos_ = cam_pos;
+
+  cam_pos_ = *camera_->GetEyePt();
+  // TODO: Hack CFirstPersonCamera to prevent "look up/down error"
+  D3DXVECTOR3 lookat = *camera_->GetLookAtPt();
+  D3DXVECTOR3 view_dir = lookat - cam_pos_;
+  cam_pos_.y = std::max(terrain_->GetHeightAt(cam_pos_), 0.0f) + 0.1f;
+  lookat = cam_pos_ + view_dir;
+  camera_->SetViewParams(&cam_pos_, &lookat);
+
   pCameraPosition->SetFloatVector(cam_pos_);
   std::vector<LightSource *>::iterator it;
   for (it = light_sources_.begin(); it != light_sources_.end(); ++it) {
@@ -133,7 +145,7 @@ void Scene::GetShaderHandles(ID3D10Effect* effect) {
   if (terrain_)
     terrain_->GetShaderHandles(effect);
   pMaterialParameters =
-      effect->GetVariableByName("g_vMaterialParameters")->AsVector();  
+      effect->GetVariableByName("g_vMaterialParameters")->AsVector();
   pCameraPosition =
       effect->GetVariableByName("g_vCamPos")->AsVector();
   pShadowedPointLight =
@@ -185,7 +197,7 @@ void Scene::GetBoundingBox(D3DXVECTOR3 *box, D3DXVECTOR3 *mid) {
     terrain_->GetBoundingBox(box, mid);
   } else {
     for (int i = 0; i < 8; ++i) {
-      box[i] = D3DXVECTOR3(0, 0, 0);      
+      box[i] = D3DXVECTOR3(0, 0, 0);
     }
     *mid = D3DXVECTOR3(0, 0, 0);
   }

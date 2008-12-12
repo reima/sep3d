@@ -44,7 +44,7 @@ void Terrain::TriangulateLines(void) {
       indices_[i++] = I(x, y+1);   // 2. Dreieck links unten
       indices_[i++] = I(x+1, y+1); // 2. Dreieck rechts unten
     }
-  }  
+  }
 }
 
 void Terrain::TriangulateZOrder(void) {
@@ -179,13 +179,13 @@ void Terrain::DrawTile(float scale, D3DXVECTOR2 &translate,
   tile_scale_ev_->SetFloat(scale);
   tile_translate_ev_->SetFloatVector(translate);
   tile_heightmap_ev_->SetResource(srv);
-  
+
   D3D10_TECHNIQUE_DESC tech_desc;
   technique_->GetDesc(&tech_desc);
   for (UINT p = 0; p < tech_desc.Passes; ++p) {
     technique_->GetPassByIndex(p)->Apply(0);
     device_->DrawIndexed((size_-1)*(size_-1)*2*3, 0, 0);
-  }  
+  }
 }
 
 float Terrain::GetMinHeight() const {

@@ -1,4 +1,5 @@
 #include <ctime>
+#include <cmath>
 #include <limits>
 #include "Tile.h"
 #include "LODSelector.h"
@@ -13,7 +14,7 @@
 
 // Makro, um die Indexberechnungen für das "flachgeklopfte" 2D-Array von
 // Vertices zu vereinfachen
-#define I(x,y) ((y)*size_+(x))
+#define I(x,y) (static_cast<unsigned int>(y)*size_+static_cast<unsigned int>(x))
 
 namespace {
 
@@ -254,10 +255,42 @@ float Tile::GetMaxHeight(void) const {
 }
 
 float Tile::GetHeightAt(const D3DXVECTOR3 &pos) const {
+  D3DXVECTOR2 pos2d = D3DXVECTOR2(pos.x, pos.z);
   if (num_lod_ > 0) {
-    // TODO: Kind finden, in dem der Punkt liegt + rekursiver Aufruf
+    D3DXVECTOR2 mid = D3DXVECTOR2(0.5f*scale_, 0.5f*scale_) + translation_;
+    if (pos2d.x < mid.x) {
+      if (pos2d.y < mid.y) return children_[NW]->GetHeightAt(pos);
+      else return children_[SW]->GetHeightAt(pos);
+    } else {
+      if (pos2d.y < mid.y) return children_[NE]->GetHeightAt(pos);
+      else return children_[SE]->GetHeightAt(pos);
+    }
   } else {
+    // Zwischen den 4 nähesten Vertices interpolieren
+    //
+    // NW--NC----NE \
+    // |   |      |  } yfactor
+    // +---o------+ /
+    // |   |      |
+    // SW--SC----SE
+    // \_ _/
+    //   V
+    // xfactor
 
+    // TODO: out of bounds check
+    D3DXVECTOR2 texel_coords = (pos2d - translation_) / scale_ *
+                               static_cast<float>(size_ - 1);
+    float xfactor = std::modf(texel_coords.x, &texel_coords.x);
+    float yfactor = std::modf(texel_coords.y, &texel_coords.y);
+    float height_nw = heights_[I(texel_coords.x,     texel_coords.y)];
+    float height_ne = heights_[I(texel_coords.x + 1, texel_coords.y)];
+    float height_sw = heights_[I(texel_coords.x,     texel_coords.y + 1)];
+    float height_se = heights_[I(texel_coords.x + 1, texel_coords.y + 1)];
+
+    float height_nc = (1 - xfactor) * height_nw + xfactor * height_ne;
+    float height_sc = (1 - xfactor) * height_sw + xfactor * height_se;
+
+    return (1 - yfactor) * height_nc + yfactor * height_sc;
   }
 }
 
@@ -321,7 +354,7 @@ void Tile::ReleaseBuffers(void) {
 }
 
 void Tile::FreeMemory(void) {
-  SAFE_DELETE_ARRAY(heights_);  
+  SAFE_DELETE_ARRAY(heights_);
   SAFE_DELETE_ARRAY(vertex_normals_);
   if (num_lod_ > 0) {
     for (int dir = 0; dir < 4; ++dir) {
