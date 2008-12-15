@@ -1,31 +1,62 @@
 Anmerkungen
 ===========
-* Unsere Szene enthält standardmäßig eine direktionale, schattenwerfende Licht-
-  quelle (Farbe orange), eine schattenwerfende Punktlichtquelle (Farbe rot),
-  eine normale Punktlichtquelle (Farbe grün) und ein Spotlight (Farbe gelb).
-  Hinzufügen und Entfernen von Lichtquellen klappt nur durch Anpassen des
-  Quellcodes (TerrainRenderer.cpp ab Zeile 425) und neu kompilieren. Schatten-
-  werfende Lichtquellen können zwischen 0 und 1 mal pro Typ (direktional, Punkt)
-  vorkommen. Fügt man der Szene darüberhinaus schattenwerfende Lichtquellen
-  hinzu, so ist das Verhalten undefiniert (insbesondere wird keine Warnung
-  ausgegeben).
-* Neues Killer-Feature: Der Pausen-Modus (F6).
-* Während der Laufzeit kann die Schattenberechnung über die Parameter
-  - Shadow Map Auflösung (SM Res.)
-  - Shadow Map Genauigkeit (High Prec. SM = 32-Bit-Textur, sonst 16-Bit)
-  - Depth Bias (Z epsilon)
-  - Filtering (3x3 PCF oder Point)
-  anpassen. Die Einstellungen wirken sich auf sämtliche schattenwerfende Licht-
-  quellen in der Szene gleichzeitig aus.
-* Die Shader sind ziemlich unoptimiert und enthalten noch einige Redundanzen.
-* Die im Debug-Modus pro Frame ausgegebenen Warnungen
-  
-  D3D10: WARNING: ID3D10Device::OMSetRenderTargets: Resource being set to OM DepthStencil is still bound on input! [ STATE_SETTING WARNING #9: DEVICE_OMSETRENDERTARGETS_HAZARD ]
-  D3D10: WARNING: ID3D10Device::OMSetRenderTargets: Forcing PS shader resource slot 3 to NULL. [ STATE_SETTING WARNING #7: DEVICE_PSSETSHADERRESOURCES_HAZARD ]
-  D3D10: WARNING: ID3D10Device::OMSetRenderTargets: Resource being set to OM DepthStencil is still bound on input! [ STATE_SETTING WARNING #9: DEVICE_OMSETRENDERTARGETS_HAZARD ]
-  D3D10: WARNING: ID3D10Device::OMSetRenderTargets: Forcing PS shader resource slot 4 to NULL. [ STATE_SETTING WARNING #7: DEVICE_PSSETSHADERRESOURCES_HAZARD ]
-  
-  sind uns bekannt. Wie man sie wegbekommt, ohne einen Handstand zu machen,
-  wissen wir hingegen nicht.
-* Der Quellcode ist nicht gerade eine Software-Engineering-Meisterleistung.
-  Aber hey, es läuft (meistens sogar ohne abzustürzen) ;-)
+
+zu 8.1 b) + c):
+Der Hauptteil der Arbeit (Berechnung der Geländehöhe unter der Kamera) wird in 
+Tile::GetHeightAt erledigt. Es wird zuerst rekursiv das Tile auf der höchsten 
+(feinsten) LOD-Stufe ermittelt, über dem die Kamera sich befindet. Befindet sich 
+die Kamera außerhalb des Terrains (was wir nicht verbieten/verhindern), wird das 
+Tile am Rand gewählt, in das die Kamera durch Verschieben entlang der x- oder 
+z-Achse gebracht werden kann. Dies ergibt insofern Sinn, als dass in diesem Fall 
+die Höhe am Rand des Terrains für die Kollisionserkennung verwendet wird. Dies 
+garantiert, dass im "Schwebe-Modus" keine harten Sprünge auftreten, wenn man 
+sich aus dem Terrain heraus bewegt. Eine andere Möglichkeit wäre, die Höhe 
+außerhalb des Terrains als 0 zu definieren (wodurch dann aber diese harten 
+Sprüngen auftreten können). Durch Umkommentieren können beide Möglichkeiten 
+ausprobiert werden (Tile.cpp, Z.299-303).
+Für die Interpolation haben wir auch zwei Alternativen implementiert:
+
+ * Bilineare Interpolation der vier Stützpunkte, welche zwar nicht immer die 
+   tatsächliche Höhe ermittelt, aber bei genügend hoher Terrain-Auflösung 
+   akzeptable Werte liefert.
+ * Die korrekte Variante: lineare Interpolation über die Dreiecke des 
+   Terrain-Meshes.
+
+Ein Umschalten zur Laufzeit ist auch hier wieder nicht vorgesehen. Der 
+experimentierfreudige Betreuer möge deshalb wieder Umkommentieren (Tile.cpp, 
+Z.322-352).
+Um zwischen Flug und Schwebe-Modus zu wechseln, betätigt man die Checkbox "Fly 
+mode".
+
+zu 8.2:
+Zum Zwecke der nur einmaligen Speicherung des "Einheits-Tiles" und ähnlichem 
+wurde die neue Klasse "Terrain" aus der Taufe gehoben. Sie agiert mehr oder 
+weniger als Proxy-Objekt zwischen der Tile-Klasse und dem Rest der Applikation, 
+das zudem alle Informationen, die alle Tiles eines zusammengehörigen Terrains 
+gemein haben, speichert.
+Zusätzlich zu den Höhendaten haben wir auch noch die Per-Vertex-Normalen in der 
+Textur gespeichert (rgb = Normale, a = Höhe).
+
+zu 8.3:
+Die LOD-Färbung kann über die Technique-Combobox ausgewählt werden. Die 
+Farbkodierung lautet (0 gröbste, 5 feinste Stufe):
+
+ Stufe | Farbe
+ ------+-------
+   0   | rot
+   1   | grün
+   2   | blau
+   3   | gelb
+   4   | cyan
+   5   | magenta
+
+Der für die LOD-Wahl zu verwendende maximale Screen Space Error kann über den 
+Schieberegler "Screen error" gesetzt werden.
+
+zum Hinweis:
+Die Skalierung des Höhenfeldes in xz-Richtung kann nun im "New Terrain"-Dialog 
+angepasst werden ("Scale"). Standardwert ist 10 (Seitenlänge des Terrains 10 
+Längeneinheiten). Der Wertebereich der berechneten Höhen passt sich automatisch 
+dieser Skalierung an.
+Zusätzlich kann nun auch die Bewegungsgeschwindigkeit der Kamera über den 
+Schieberegler "Camera Speed" angepasst werden.

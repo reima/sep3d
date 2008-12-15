@@ -5,7 +5,7 @@
 // Vertices zu vereinfachen
 #define I(x,y) ((y)*size_+(x))
 
-Terrain::Terrain(int n, float roughness, int num_lod, float scale)
+Terrain::Terrain(int n, float roughness, int num_lod, float scale, bool water)
     : size_((1 << n) + 1),
       device_(NULL),
       vertex_layout_(NULL),
@@ -15,7 +15,7 @@ Terrain::Terrain(int n, float roughness, int num_lod, float scale)
       tile_translate_ev_(NULL),
       technique_(NULL),
       indices_(NULL) {
-  tile_ = new Tile(this, n, roughness, num_lod, scale);
+  tile_ = new Tile(this, n, roughness, num_lod, scale, water);
 }
 
 Terrain::~Terrain(void) {

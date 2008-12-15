@@ -122,7 +122,6 @@ const float4 g_vWaterMaterial = float4(0.05, 0.7, 0.25, 200);
 struct VS_INPUT
 {
   float3 Position   : POSITION;   // vertex position
-  float3 Normal     : NORMAL;     // vertex normal
 };
 
 //--------------------------------------------------------------------------------------
@@ -378,39 +377,40 @@ float3 FullLighting(float3 vColor,
 }
 
 // TODO: Nur noch ein Lookup pro Vertex
-float4 GetTileVertex(float2 vPosition)
+float4 GetTileData(float2 vPosition)
 {
-  float4 vVertexData = g_tTerrain.Load(float3(vPosition.xy, 0) * (g_uiTerrainSize - 1));
-  vPosition *= g_fTileScale;
-  vPosition += g_vTileTranslate;
-  return float4(vPosition.x, max(vVertexData.w, 0), vPosition.y, 1);
+  return g_tTerrain.Load(float3(vPosition.xy, 0) * (g_uiTerrainSize - 1));
 }
 
-float4 GetTileNormal(float2 vPosition)
+float4 GetTileVertex(float2 vPosition)
 {
-  float4 vVertexData = g_tTerrain.Load(float3(vPosition.xy, 0) * (g_uiTerrainSize - 1));
-  if (vVertexData.w <= 0) {
-    return float4(0, 1, 0, 0);
-  } else {
-    return float4(vVertexData.xyz, 0);
-  }
+  float4 vVertexData = GetTileData(vPosition);
+  vPosition *= g_fTileScale;
+  vPosition += g_vTileTranslate;
+  return float4(vPosition.x, vVertexData.w, vPosition.y, 1);
+}
+
+float4 GetTileVertexAndNormal(float2 vPosition, out float4 vNormal)
+{
+  float4 vVertexData = GetTileData(vPosition);
+  vNormal = float4(vVertexData.xyz, 0);
+  vPosition *= g_fTileScale;
+  vPosition += g_vTileTranslate;
+  return float4(vPosition.x, vVertexData.w, vPosition.y, 1);  
 }
 
 //--------------------------------------------------------------------------------------
 // Vertex Shaders
 //--------------------------------------------------------------------------------------
-VS_GOURAUD_SHADING_OUTPUT GouraudShading_VS( VS_INPUT In )
+VS_GOURAUD_SHADING_OUTPUT GouraudShading_VS( float2 vPosition : POSITION )
 {
   VS_GOURAUD_SHADING_OUTPUT Output;
-  float4 vPos = float4(In.Position, 1);
-  Output.Height = vPos.y;
-  if (vPos.y < 0) {
-    vPos.y = 0;
-    In.Normal = float3(0, 1, 0);
-  }
+  float4 vNormal;
+  float4 vPos = GetTileVertexAndNormal(vPosition, vNormal);
+  Output.Height = vPos.y;  
   // Transform the position from object space to homogeneous projection space
   Output.Position = mul(vPos, g_mWorldViewProjection);
-  PHONG phong = PhongLighting(In.Position, In.Normal,
+  PHONG phong = PhongLighting(vPos, vNormal,
                               g_vMaterialParameters);
   Output.DiffuseLight = phong.DiffuseLight;
   Output.SpecularLight = phong.SpecularLight;
@@ -421,9 +421,7 @@ VS_GOURAUD_SHADING_OUTPUT GouraudShading_VS( VS_INPUT In )
 VS_PHONG_SHADING_OUTPUT PhongShading_VS( float2 vPosition : POSITION )
 {
   VS_PHONG_SHADING_OUTPUT Output;
-  float4 vPos = GetTileVertex(vPosition);
-  float4 vNormal = GetTileNormal(vPosition);
-  Output.Height = vPos.y;
+  float4 vPos = GetTileVertexAndNormal(vPosition, Output.Normal);
   if (vPos.y <= 0) {
     Output.Material = g_vWaterMaterial;
   } else {
@@ -431,7 +429,7 @@ VS_PHONG_SHADING_OUTPUT PhongShading_VS( float2 vPosition : POSITION )
   }
   // Transform the position from object space to homogeneous projection space
   Output.Position = mul(vPos, g_mWorldViewProjection);
-  Output.Normal = vNormal;
+  Output.Height = vPos.y;
   Output.WorldPosition = vPos;
   Output.LightSpacePos = mul(vPos, g_mDirectionalLightSpaceTransform);
   Output.TexCoord = vPos.xz * 5;
@@ -496,7 +494,7 @@ float4 GouraudShading_PS( VS_GOURAUD_SHADING_OUTPUT In ) : SV_Target
 
 float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In, uniform bool bLODColoring ) : SV_Target
 {
-  float3 N = 0;
+  float3 N = normalize(In.Normal);
   float4 vTerrainColor = 0;
   if (In.Height <= 0) {
     if (g_bWaveNormals) {
@@ -510,8 +508,6 @@ float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In, uniform bool bLODColoring ) 
                                             vWave2 + vWave3 - 2);
       vNormalPertubation = vNormalPertubation.xzy;
       N = normalize(float3(0, 1, 0) + vNormalPertubation * 0.1f);
-    } else {
-      N = float3(0, 1, 0);
     }
     vTerrainColor = g_vWaterColor;
   } else {
@@ -523,7 +519,6 @@ float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In, uniform bool bLODColoring ) 
                                             float3(In.TexCoord,
                                                    fHeightNormalized),
                                             0);
-    N = normalize(In.Normal);
   }
 
   if (bLODColoring) {

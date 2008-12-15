@@ -107,7 +107,7 @@ void Scene::OnFrameMove(float elapsed_time) {
   assert(pCameraPosition != NULL);
 
   cam_pos_ = *camera_->GetEyePt();
-  float terrain_height = std::max(terrain_->GetHeightAt(cam_pos_), 0.0f) + 0.1f;
+  float terrain_height = terrain_->GetHeightAt(cam_pos_) + 0.1f;
   if (movement_ == SCENE_MOVEMENT_WALK ||
       (movement_ == SCENE_MOVEMENT_FLY && cam_pos_.y < terrain_height)) {
     D3DXVECTOR3 lookat = *camera_->GetLookAtPt();
@@ -187,7 +187,7 @@ void Scene::SetShadowMapPrecision(bool high_precision) {
 
 void Scene::CreateTerrain(int n, float roughness, int num_lod, float scale) {
   SAFE_DELETE(terrain_);
-  terrain_ = new Terrain(n, roughness, num_lod, scale);
+  terrain_ = new Terrain(n, roughness, num_lod, scale, true);
   terrain_->TriangulateZOrder();
   if (device_)
     terrain_->CreateBuffers(device_);

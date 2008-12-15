@@ -315,9 +315,7 @@ void RenderText() {
     g_pTxtHelper->DrawTextLine(sz);
     D3DXVECTOR3 cam_pos = *g_Camera.GetEyePt();
     StringCchPrintf(sz, 100, L"Camera: (%f, %f, %f)", cam_pos.x, cam_pos.y, cam_pos.z);
-    g_pTxtHelper->DrawTextLine(sz);
-    StringCchPrintf(sz, 100, L"Calc. Height: %f", g_pScene->GetTerrain()->GetHeightAt(cam_pos));
-    g_pTxtHelper->DrawTextLine(sz);
+    g_pTxtHelper->DrawTextLine(sz);    
   }
 
   g_pTxtHelper->End();

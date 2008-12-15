@@ -27,7 +27,8 @@ inline float randf(void) {
 
 }
 
-Tile::Tile(Terrain *terrain, int n, float roughness, int num_lod, float scale)
+Tile::Tile(Terrain *terrain, int n, float roughness, int num_lod, float scale,
+           bool water)
     : lod_(0),
       size_((1 << n) + 1),
       num_lod_(num_lod),
@@ -43,6 +44,7 @@ Tile::Tile(Terrain *terrain, int n, float roughness, int num_lod, float scale)
   heights_ = new float[size_*size_];
   Init(roughness);
   InitChildren(roughness, NULL, NULL);
+  if (water) CreateWater();
   CalculateHeights();
 }
 
@@ -223,6 +225,17 @@ void Tile::FixEdges(Tile *north, Tile *west) {
   }
 }
 
+void Tile::CreateWater(void) {
+  const int res = GetResolution();
+  for (int i = 0; i < res; ++i)
+    heights_[i] = std::max(heights_[i], 0.0f);
+  if (num_lod_ > 0) {
+    for (int dir = 0; dir < 4; ++dir) {
+      children_[dir]->CreateWater();
+    }
+  }
+}
+
 void Tile::CalculateHeights() {
   assert(heights_ != NULL);
   float min = std::numeric_limits<float>::max();
@@ -295,48 +308,48 @@ float Tile::GetHeightAt(const D3DXVECTOR3 &pos) const {
 
     if (xfactor == 0.0f) {
       // NW-SW-Linie      
-      float height_nw = std::max(heights_[I(texel_coords.x, texel_coords.y)], 0.0f);
+      float height_nw = heights_[I(texel_coords.x, texel_coords.y)];
       if (yfactor == 0.0f) return height_nw;
-      float height_sw = std::max(heights_[I(texel_coords.x, texel_coords.y + 1)], 0.0f);
+      float height_sw = heights_[I(texel_coords.x, texel_coords.y + 1)];
       return yfactor*height_sw + (1-yfactor)*height_nw;
     } else if (yfactor == 0.0f) {
       // NW-NE-Linie
-      float height_nw = std::max(heights_[I(texel_coords.x, texel_coords.y)], 0.0f);
-      float height_ne = std::max(heights_[I(texel_coords.x + 1, texel_coords.y)], 0.0f);
+      float height_nw = heights_[I(texel_coords.x, texel_coords.y)];
+      float height_ne = heights_[I(texel_coords.x + 1, texel_coords.y)];
       return xfactor*height_ne + (1-xfactor)*height_nw;
     }
 
     //
-    // Korrekte Interpolation im jeweiligen Dreieck
+    // Interpolation im jeweiligen Dreieck
     //
-    //if (xfactor + yfactor <= 1.0f) {
-    //  // SW-NE-NW-Dreieck
-    //  float height_nw = std::max(heights_[I(texel_coords.x, texel_coords.y)], 0.0f);
-    //  float height_sw = std::max(heights_[I(texel_coords.x, texel_coords.y + 1)], 0.0f);
-    //  float height_ne = std::max(heights_[I(texel_coords.x + 1, texel_coords.y)], 0.0f);
-    //  float height_w = yfactor*height_sw + (1-yfactor)*height_nw;
-    //  float height_e = yfactor*height_sw + (1-yfactor)*height_ne;
-    //  return (xfactor*height_e + (1-yfactor-xfactor)*height_w)/(1-yfactor);
-    //} else {
-    //  // SW-SE-NE-Dreieck
-    //  float height_sw = std::max(heights_[I(texel_coords.x, texel_coords.y + 1)], 0.0f);
-    //  float height_ne = std::max(heights_[I(texel_coords.x + 1, texel_coords.y)], 0.0f);      
-    //  float height_se = std::max(heights_[I(texel_coords.x + 1, texel_coords.y + 1)], 0.0f);
-    //  float height_w = yfactor*height_sw + (1-yfactor)*height_ne;
-    //  float height_e = yfactor*height_se + (1-yfactor)*height_ne;
-    //  return ((1-xfactor)*height_w + (yfactor-(1-xfactor))*height_e)/yfactor;
-    //}
+    if (xfactor + yfactor <= 1.0f) {
+      // SW-NE-NW-Dreieck
+      float height_nw = heights_[I(texel_coords.x, texel_coords.y)];
+      float height_sw = heights_[I(texel_coords.x, texel_coords.y + 1)];
+      float height_ne = heights_[I(texel_coords.x + 1, texel_coords.y)];
+      float height_w = yfactor*height_sw + (1-yfactor)*height_nw;
+      float height_e = yfactor*height_sw + (1-yfactor)*height_ne;
+      return (xfactor*height_e + (1-yfactor-xfactor)*height_w)/(1-yfactor);
+    } else {
+      // SW-SE-NE-Dreieck
+      float height_sw = heights_[I(texel_coords.x, texel_coords.y + 1)];
+      float height_ne = heights_[I(texel_coords.x + 1, texel_coords.y)];      
+      float height_se = heights_[I(texel_coords.x + 1, texel_coords.y + 1)];
+      float height_w = yfactor*height_sw + (1-yfactor)*height_ne;
+      float height_e = yfactor*height_se + (1-yfactor)*height_ne;
+      return ((1-xfactor)*height_w + (yfactor-(1-xfactor))*height_e)/yfactor;
+    }
 
     //
     // Bilineare Interpolation im Quadrat
     //
-    float height_nw = std::max(heights_[I(texel_coords.x, texel_coords.y)], 0.0f);
-    float height_sw = std::max(heights_[I(texel_coords.x, texel_coords.y + 1)], 0.0f);
-    float height_ne = std::max(heights_[I(texel_coords.x + 1, texel_coords.y)], 0.0f);      
-    float height_se = std::max(heights_[I(texel_coords.x + 1, texel_coords.y + 1)], 0.0f);
-    float height_w = yfactor*height_sw + (1-yfactor)*height_nw;
-    float height_e = yfactor*height_se + (1-yfactor)*height_ne;
-    return xfactor*height_e + (1-xfactor)*height_w;
+    //float height_nw = heights_[I(texel_coords.x, texel_coords.y)];
+    //float height_sw = heights_[I(texel_coords.x, texel_coords.y + 1)];
+    //float height_ne = heights_[I(texel_coords.x + 1, texel_coords.y)];      
+    //float height_se = heights_[I(texel_coords.x + 1, texel_coords.y + 1)];
+    //float height_w = yfactor*height_sw + (1-yfactor)*height_nw;
+    //float height_e = yfactor*height_se + (1-yfactor)*height_ne;
+    //return xfactor*height_e + (1-xfactor)*height_w;
   }
 }
 

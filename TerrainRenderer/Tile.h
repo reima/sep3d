@@ -1,6 +1,4 @@
 #pragma once
-#ifndef TILE_H
-#define TILE_H
 #include <string>
 #include "DXUT.h"
 #include "DXUTCamera.h"
@@ -23,7 +21,8 @@ class Tile {
    *                  Höhenunterschiede)
    * @param num_lod Anzahl zusätzlicher LOD-Ebenen
    */
-  Tile(Terrain *terrain, int n, float roughness, int num_lod, float scale);
+  Tile(Terrain *terrain, int n, float roughness, int num_lod, float scale,
+       bool water);
   ~Tile(void);
 
   /**
@@ -140,6 +139,8 @@ class Tile {
    */
   void FixEdges(Tile *north, Tile *west);
 
+  void CreateWater(void);
+
   inline D3DXVECTOR3 GetVectorFromIndex(int index);
   /**
    * Rekursive Implementierung von CalculateNormals
@@ -206,4 +207,3 @@ class Tile {
   ID3D10ShaderResourceView *shader_resource_view_;
 };
 
-#endif
