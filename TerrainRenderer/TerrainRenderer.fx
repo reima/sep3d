@@ -9,6 +9,7 @@ cbuffer cbPerTilePass
 {
   float    g_fTileScale;
   float2   g_vTileTranslate;
+  uint     g_uiTileLOD;
 }
 
 cbuffer cbPerFrame
@@ -101,6 +102,15 @@ const float4 g_Colors[NUM_SPOTS] = {
   float4(1, 1, 1, 1)
 };
 
+const float4 g_LODColors[] = {
+  float4(1, 0, 0, 1),
+  float4(0, 1, 0, 1),
+  float4(0, 0, 1, 1),
+  float4(1, 1, 0, 1),
+  float4(0, 1, 1, 1),
+  float4(1, 0, 1, 1),
+};
+
 const float3 vAttenuation = float3(0, 0, 1); // Constant, linear, quadratic
 
 const float4 g_vWaterColor = float4(0, 0.25, 0.5, 1.0);
@@ -139,15 +149,6 @@ struct VS_PHONG_SHADING_OUTPUT
   float2 Wave2          : TEXCOORD4;
   float2 Wave3          : TEXCOORD5;
   float4 Material       : MATERIAL; // = { k_a, k_d, k_s, n }
-};
-
-struct VS_PLAIN_COLOR_PHONG_OUTPUT
-{
-  float4 Position       : SV_Position;
-  float3 WorldPosition  : WORLDPOS;
-  float4 LightSpacePos  : LIGHTSPACEPOS;
-  float  Height         : HEIGHT;
-  float3 Normal         : NORMAL;
 };
 
 struct GS_POINTSHADOW_INPUT
@@ -382,13 +383,17 @@ float4 GetTileVertex(float2 vPosition)
   float4 vVertexData = g_tTerrain.Load(float3(vPosition.xy, 0) * (g_uiTerrainSize - 1));
   vPosition *= g_fTileScale;
   vPosition += g_vTileTranslate;
-  return float4(vPosition.x, vVertexData.w, vPosition.y, 1);
+  return float4(vPosition.x, max(vVertexData.w, 0), vPosition.y, 1);
 }
 
 float4 GetTileNormal(float2 vPosition)
 {
   float4 vVertexData = g_tTerrain.Load(float3(vPosition.xy, 0) * (g_uiTerrainSize - 1));
-  return float4(vVertexData.xyz, 0);
+  if (vVertexData.w <= 0) {
+    return float4(0, 1, 0, 0);
+  } else {
+    return float4(vVertexData.xyz, 0);
+  }
 }
 
 //--------------------------------------------------------------------------------------
@@ -419,9 +424,7 @@ VS_PHONG_SHADING_OUTPUT PhongShading_VS( float2 vPosition : POSITION )
   float4 vPos = GetTileVertex(vPosition);
   float4 vNormal = GetTileNormal(vPosition);
   Output.Height = vPos.y;
-  if (vPos.y < 0) {
-    vPos.y = 0;
-    vNormal = float4(0, 1, 0, 0);
+  if (vPos.y <= 0) {
     Output.Material = g_vWaterMaterial;
   } else {
     Output.Material = g_vMaterialParameters;
@@ -495,7 +498,7 @@ float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In ) : SV_Target
 {
   float3 N = 0;
   float4 vTerrainColor = 0;
-  if (In.Height < 0) {
+  if (In.Height <= 0) {
     if (g_bWaveNormals) {
       // Waves bump map lookups
       float3 vWave0 = g_tWaves.Sample(g_ssLinear, In.Wave0);
@@ -519,8 +522,12 @@ float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In ) : SV_Target
     vTerrainColor = g_tGround3D.SampleLevel(g_ssLinear,
                                             float3(In.TexCoord,
                                                    fHeightNormalized),
-                                            1);
+                                            0);
     N = normalize(In.Normal);
+  }
+
+  if (g_uiTileLOD != -1) {
+    vTerrainColor = g_LODColors[g_uiTileLOD % 6];
   }
 
   float3 vColor = FullLighting(vTerrainColor,
@@ -589,6 +596,12 @@ RasterizerState rsCullNone
   CullMode = None;
 };
 
+RasterizerState rsWireframe
+{
+  CullMode = Back;
+  FillMode = Wireframe;
+};
+
 //--------------------------------------------------------------------------------------
 // Techniques
 //--------------------------------------------------------------------------------------
@@ -623,6 +636,8 @@ technique10 Environment
     SetVertexShader( CompileShader( vs_4_0, Environment_VS() ) );
     SetGeometryShader( NULL );
     SetPixelShader( CompileShader( ps_4_0, Environment_PS() ) );
+    SetRasterizerState( NULL );
+    SetBlendState( NULL, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
   }
 }
 

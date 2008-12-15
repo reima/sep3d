@@ -17,6 +17,7 @@
 
 #include "Terrain.h"
 #include "LODSelector.h"
+#include "FixedLODSelector.h"
 #include "DynamicLODSelector.h"
 #include "Scene.h"
 #include "Environment.h"
@@ -29,9 +30,9 @@
 //--------------------------------------------------------------------------------------
 // Global variables
 //--------------------------------------------------------------------------------------
-int g_nTerrainN = 3;
+int g_nTerrainN = 7;
 float g_fTerrainR = 1.0f;
-int g_nTerrainLOD = 5;
+int g_nTerrainLOD = 3;
 
 CFirstPersonCamera          g_Camera;               // A first person camera
 CDXUTDialogResourceManager  g_DialogResourceManager; // manager for shared resources of dialogs
@@ -243,7 +244,7 @@ void InitApp() {
 
   StringCchPrintf(sz, 100, L"Camera speed: %.2f", 0.25f);
   g_SampleUI.AddStatic(IDC_CAMERA_SPEED_S, sz, 35, iY += 24, 125, 22);
-  g_SampleUI.AddSlider(IDC_CAMERA_SPEED, 35, iY += 24, 125, 22, 0, 10000, 25);
+  g_SampleUI.AddSlider(IDC_CAMERA_SPEED, 35, iY += 24, 125, 22, 0, 1000, 25);
 
   /**
    * Terrain UI
@@ -290,6 +291,11 @@ void RenderText() {
     StringCchPrintf(sz, 100, L"Roughness: %.2f", g_fTerrainR);
     g_pTxtHelper->DrawTextLine(sz);
     StringCchPrintf(sz, 100, L"LOD Levels: %d", g_nTerrainLOD);
+    g_pTxtHelper->DrawTextLine(sz);
+    D3DXVECTOR3 cam_pos = *g_Camera.GetEyePt();
+    StringCchPrintf(sz, 100, L"Camera: (%f, %f, %f)", cam_pos.x, cam_pos.y, cam_pos.z);
+    g_pTxtHelper->DrawTextLine(sz);
+    StringCchPrintf(sz, 100, L"Calc. Height: %f", g_pScene->GetTerrain()->GetHeightAt(cam_pos));
     g_pTxtHelper->DrawTextLine(sz);
   }
 
@@ -378,12 +384,13 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
 
   // Setup the camera's view parameters
   D3DXVECTOR3 vecEye(0.0f, 0.1f, 0.0f);
-  D3DXVECTOR3 vecAt (0.0f, -1.0f, 0.0f);
+  D3DXVECTOR3 vecAt (0.0f, 0.1f, 1.0f);
   g_Camera.SetViewParams(&vecEye, &vecAt);
   g_Camera.SetScalers(0.01f, 0.25f);
 
   // FixedLODSelector mit LOD-Stufe 0
-  g_pLODSelector = new DynamicLODSelector(D3DX_PI / 4 * (3 / 4), 600, 10.0f);
+  //g_pLODSelector = new FixedLODSelector(0);
+  g_pLODSelector = new DynamicLODSelector(D3DX_PI / 4.0f * (3.0f / 4.0f), 600, 10.f);
 
   // RasterizerState für Wireframe erzeugen
   D3D10_RASTERIZER_DESC rast_desc = {
@@ -476,7 +483,7 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain(ID3D10Device* pd3dDevice,
   // Setup the camera's projection parameters
   float fAspectRatio = pBackBufferSurfaceDesc->Width /
       (FLOAT)pBackBufferSurfaceDesc->Height;
-  g_Camera.SetProjParams(D3DX_PI / 4, fAspectRatio, 0.01f, 100.0f);
+  g_Camera.SetProjParams(D3DX_PI / 4, fAspectRatio, 0.01f, 1000.0f);
 
   g_HUD.SetLocation(pBackBufferSurfaceDesc->Width - 170, 0);
   g_HUD.SetSize(170, 170);
@@ -737,7 +744,7 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
       break;
     case IDC_CAMERA_SPEED: {
       float value =
-          g_SampleUI.GetSlider(IDC_CAMERA_SPEED)->GetValue() / 1000.0f;
+          g_SampleUI.GetSlider(IDC_CAMERA_SPEED)->GetValue() / 100.0f;
       StringCchPrintf(sz, 100, L"Camera speed: %.2f", value);
       g_SampleUI.GetStatic(IDC_CAMERA_SPEED_S)->SetText(sz);
       g_Camera.SetScalers(0.01f, value);

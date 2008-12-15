@@ -66,7 +66,7 @@ class Terrain {
   Terrain(const Terrain &t);
   void operator=(const Terrain &t);
 
-  void DrawTile(float scale, D3DXVECTOR2 &translate,
+  void DrawTile(float scale, D3DXVECTOR2 &translate, UINT lod,
                 ID3D10ShaderResourceView *srv);
 
   /**
@@ -101,6 +101,7 @@ class Terrain {
 
   ID3D10EffectScalarVariable *tile_scale_ev_;
   ID3D10EffectVectorVariable *tile_translate_ev_;
+  ID3D10EffectScalarVariable *tile_lod_ev_;
   ID3D10EffectScalarVariable *terrain_size_ev_;
   ID3D10EffectShaderResourceVariable *tile_heightmap_ev_;
 

@@ -268,30 +268,75 @@ float Tile::GetHeightAt(const D3DXVECTOR3 &pos) const {
   } else {
     // Zwischen den 4 nähesten Vertices interpolieren
     //
-    // NW--NC----NE \
-    // |   |      |  } yfactor
-    // +---o------+ /
-    // |   |      |
-    // |   |      |
-    // SW--SC----SE
+    // NW--+-----NE \
+    // |   |   /  |  } yfactor
+    // +---o-/----+ /
+    // |   /      |
+    // | / |      |
+    // SW--+-----SE
     // \_ _/
     //   V
     // xfactor
 
-    // TODO: out of bounds check
     D3DXVECTOR2 texel_coords = (pos2d - translation_) / scale_ *
                                static_cast<float>(size_ - 1);
+    // Out of bounds check
+    if (texel_coords.x < 0 || texel_coords.x > size_ - 1 ||
+        texel_coords.y < 0 || texel_coords.y > size_ - 1) {
+      // Strategie 1: Höhe = 0
+      //return 0.0f;
+      // Strategie 2: Clamping
+      texel_coords.x = std::max(std::min(texel_coords.x, (float)size_ - 1), 0.0f);
+      texel_coords.y = std::max(std::min(texel_coords.y, (float)size_ - 1), 0.0f);
+    }
+
     float xfactor = std::modf(texel_coords.x, &texel_coords.x);
     float yfactor = std::modf(texel_coords.y, &texel_coords.y);
-    float height_nw = heights_[I(texel_coords.x,     texel_coords.y)];
-    float height_ne = heights_[I(texel_coords.x + 1, texel_coords.y)];
-    float height_sw = heights_[I(texel_coords.x,     texel_coords.y + 1)];
-    float height_se = heights_[I(texel_coords.x + 1, texel_coords.y + 1)];
 
-    float height_nc = (1 - xfactor) * height_nw + xfactor * height_ne;
-    float height_sc = (1 - xfactor) * height_sw + xfactor * height_se;
+    if (xfactor == 0.0f) {
+      // NW-SW-Linie      
+      float height_nw = std::max(heights_[I(texel_coords.x, texel_coords.y)], 0.0f);
+      if (yfactor == 0.0f) return height_nw;
+      float height_sw = std::max(heights_[I(texel_coords.x, texel_coords.y + 1)], 0.0f);
+      return yfactor*height_sw + (1-yfactor)*height_nw;
+    } else if (yfactor == 0.0f) {
+      // NW-NE-Linie
+      float height_nw = std::max(heights_[I(texel_coords.x, texel_coords.y)], 0.0f);
+      float height_ne = std::max(heights_[I(texel_coords.x + 1, texel_coords.y)], 0.0f);
+      return xfactor*height_ne + (1-xfactor)*height_nw;
+    }
 
-    return (1 - yfactor) * height_nc + yfactor * height_sc;
+    //
+    // Korrekte Interpolation im jeweiligen Dreieck
+    //
+    //if (xfactor + yfactor <= 1.0f) {
+    //  // SW-NE-NW-Dreieck
+    //  float height_nw = std::max(heights_[I(texel_coords.x, texel_coords.y)], 0.0f);
+    //  float height_sw = std::max(heights_[I(texel_coords.x, texel_coords.y + 1)], 0.0f);
+    //  float height_ne = std::max(heights_[I(texel_coords.x + 1, texel_coords.y)], 0.0f);
+    //  float height_w = yfactor*height_sw + (1-yfactor)*height_nw;
+    //  float height_e = yfactor*height_sw + (1-yfactor)*height_ne;
+    //  return (xfactor*height_e + (1-yfactor-xfactor)*height_w)/(1-yfactor);
+    //} else {
+    //  // SW-SE-NE-Dreieck
+    //  float height_sw = std::max(heights_[I(texel_coords.x, texel_coords.y + 1)], 0.0f);
+    //  float height_ne = std::max(heights_[I(texel_coords.x + 1, texel_coords.y)], 0.0f);      
+    //  float height_se = std::max(heights_[I(texel_coords.x + 1, texel_coords.y + 1)], 0.0f);
+    //  float height_w = yfactor*height_sw + (1-yfactor)*height_ne;
+    //  float height_e = yfactor*height_se + (1-yfactor)*height_ne;
+    //  return ((1-xfactor)*height_w + (yfactor-(1-xfactor))*height_e)/yfactor;
+    //}
+
+    //
+    // Bilineare Interpolation im Quadrat
+    //
+    float height_nw = std::max(heights_[I(texel_coords.x, texel_coords.y)], 0.0f);
+    float height_sw = std::max(heights_[I(texel_coords.x, texel_coords.y + 1)], 0.0f);
+    float height_ne = std::max(heights_[I(texel_coords.x + 1, texel_coords.y)], 0.0f);      
+    float height_se = std::max(heights_[I(texel_coords.x + 1, texel_coords.y + 1)], 0.0f);
+    float height_w = yfactor*height_sw + (1-yfactor)*height_nw;
+    float height_e = yfactor*height_se + (1-yfactor)*height_ne;
+    return xfactor*height_e + (1-xfactor)*height_w;
   }
 }
 
@@ -368,7 +413,7 @@ void Tile::Draw(LODSelector *lod_selector, const CBaseCamera *camera) {
   assert(terrain_ != NULL);
   assert(shader_resource_view_ != NULL);
   if (lod_selector->IsLODSufficient(this, camera) || num_lod_ == 0) {
-    terrain_->DrawTile(scale_, translation_, shader_resource_view_);
+    terrain_->DrawTile(scale_, translation_, lod_, shader_resource_view_);
   } else {
     for (int dir = 0; dir < 4; ++dir) {
       children_[dir]->Draw(lod_selector, camera);

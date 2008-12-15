@@ -136,6 +136,8 @@ void Terrain::GetShaderHandles(ID3D10Effect *effect) {
   tile_scale_ev_ = effect->GetVariableByName("g_fTileScale")->AsScalar();
   tile_translate_ev_ =
       effect->GetVariableByName("g_vTileTranslate")->AsVector();
+  tile_lod_ev_ =
+      effect->GetVariableByName("g_uiTileLOD")->AsScalar();
   tile_heightmap_ev_ =
       effect->GetVariableByName("g_tTerrain")->AsShaderResource();
   terrain_size_ev_ =
@@ -170,14 +172,16 @@ void Terrain::Draw(ID3D10EffectTechnique *technique, LODSelector *lod_selector,
   technique_ = NULL;
 }
 
-void Terrain::DrawTile(float scale, D3DXVECTOR2 &translate,
+void Terrain::DrawTile(float scale, D3DXVECTOR2 &translate, UINT lod,
                        ID3D10ShaderResourceView *srv) {
   assert(tile_scale_ev_ != NULL);
   assert(tile_translate_ev_ != NULL);
+  assert(tile_lod_ev_ != NULL);
   assert(tile_heightmap_ev_ != NULL);
   assert(device_ != NULL);
   tile_scale_ev_->SetFloat(scale);
   tile_translate_ev_->SetFloatVector(translate);
+  tile_lod_ev_->SetInt(-1/*lod*/);
   tile_heightmap_ev_->SetResource(srv);
 
   D3D10_TECHNIQUE_DESC tech_desc;
