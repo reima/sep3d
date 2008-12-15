@@ -30,9 +30,12 @@
 //--------------------------------------------------------------------------------------
 // Global variables
 //--------------------------------------------------------------------------------------
-int g_nTerrainN = 7;
+int   g_nTerrainN = 7;
 float g_fTerrainR = 1.0f;
-int g_nTerrainLOD = 3;
+int   g_nTerrainLOD = 3;
+float g_fTerrainScale = 10.0f;
+
+const float g_fFOV = D3DX_PI / 3;
 
 CFirstPersonCamera          g_Camera;               // A first person camera
 CDXUTDialogResourceManager  g_DialogResourceManager; // manager for shared resources of dialogs
@@ -75,6 +78,8 @@ ShadowedPointLight*         g_pShadowedPointLight = NULL;
 bool                        g_bShowSettings = false;
 bool                        g_bWireframe = false;
 bool                        g_bPaused = false;
+float                       g_fScreenError = 1.0f;
+UINT                        g_uiScreenHeight = 600;
 ID3D10RasterizerState*      g_pRSWireframe = NULL;
 
 //--------------------------------------------------------------------------------------
@@ -99,14 +104,19 @@ ID3D10RasterizerState*      g_pRSWireframe = NULL;
 #define IDC_SHADOWMAPS_PCF          17
 #define IDC_CAMERA_SPEED            18
 #define IDC_CAMERA_SPEED_S          19
+#define IDC_FLY_MODE                20
+#define IDC_SCREEN_ERROR            21
+#define IDC_SCREEN_ERROR_S          22
 
 #define IDC_NEWTERRAIN_LOD          100
 #define IDC_NEWTERRAIN_SIZE         101
 #define IDC_NEWTERRAIN_ROUGHNESS    102
-#define IDC_NEWTERRAIN_LOD_S        103
-#define IDC_NEWTERRAIN_SIZE_S       104
-#define IDC_NEWTERRAIN_ROUGHNESS_S  105
-#define IDC_NEWTERRAIN_OK           106
+#define IDC_NEWTERRAIN_SCALE        103
+#define IDC_NEWTERRAIN_LOD_S        104
+#define IDC_NEWTERRAIN_SIZE_S       105
+#define IDC_NEWTERRAIN_ROUGHNESS_S  106
+#define IDC_NEWTERRAIN_SCALE_S      107
+#define IDC_NEWTERRAIN_OK           108
 
 //--------------------------------------------------------------------------------------
 // Forward declarations
@@ -219,14 +229,24 @@ void InitApp() {
 
 
   WCHAR sz[100];
-  StringCchPrintf(sz, 100, L"LOD (+/-): %d", 0);
-  g_SampleUI.AddStatic(IDC_LODSLIDER_S, sz, 35, iY += 24, 125, 22);
-  g_SampleUI.AddSlider(IDC_LODSLIDER, 35, iY += 24, 125, 22, 0, g_nTerrainLOD, 0);
+  //StringCchPrintf(sz, 100, L"LOD (+/-): %d", 0);
+  //g_SampleUI.AddStatic(IDC_LODSLIDER_S, sz, 35, iY += 24, 125, 22);
+  //g_SampleUI.AddSlider(IDC_LODSLIDER, 35, iY += 24, 125, 22, 0, g_nTerrainLOD, 0);
+
+  StringCchPrintf(sz, 100, L"Camera speed: %.2f", 0.25f);
+  g_SampleUI.AddStatic(IDC_CAMERA_SPEED_S, sz, 35, iY += 24, 125, 22);
+  g_SampleUI.AddSlider(IDC_CAMERA_SPEED, 35, iY += 24, 125, 22, 0, 1000, 100);
+
+  g_SampleUI.AddCheckBox(IDC_FLY_MODE, L"Fly mode", 35, iY += 24, 125, 22, true);
+
+  StringCchPrintf(sz, 100, L"Screen error: %.1f", 1.0f);
+  g_SampleUI.AddStatic(IDC_SCREEN_ERROR_S, sz, 35, iY += 24, 125, 22);
+  g_SampleUI.AddSlider(IDC_SCREEN_ERROR, 35, iY += 24, 125, 22, 0, 100, (int)(10*g_fScreenError));
 
   g_SampleUI.AddStatic(0, L"Technique:", 35, iY += 24, 125, 22);
   g_SampleUI.AddComboBox(IDC_TECHNIQUE, 35, iY += 24, 125, 22);
-  //g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"GouraudShading", "GouraudShading");
   g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"PhongShading", "PhongShading");
+  g_SampleUI.GetComboBox(IDC_TECHNIQUE)->AddItem(L"LOD Coloring", "LODColoring");
 
   StringCchPrintf(sz, 100, L"SM Res.: %dx%d", 1024, 1024);
   g_SampleUI.AddStatic(IDC_SHADOWMAPS_RESOLUTION_S, sz, 35, iY += 24, 125, 22);
@@ -241,10 +261,6 @@ void InitApp() {
 
   g_SampleUI.AddCheckBox(IDC_SHADOWMAPS_PCF, L"3x3 PCF", 35,
                          iY += 24, 125, 22, true);
-
-  StringCchPrintf(sz, 100, L"Camera speed: %.2f", 0.25f);
-  g_SampleUI.AddStatic(IDC_CAMERA_SPEED_S, sz, 35, iY += 24, 125, 22);
-  g_SampleUI.AddSlider(IDC_CAMERA_SPEED, 35, iY += 24, 125, 22, 0, 1000, 25);
 
   /**
    * Terrain UI
@@ -265,6 +281,11 @@ void InitApp() {
   g_TerrainUI.AddStatic(IDC_NEWTERRAIN_LOD_S, sz, 0, iY += 24, 125, 22);
   g_TerrainUI.AddSlider(IDC_NEWTERRAIN_LOD, 0, iY += 24, 125, 22, 0, 5,
                   g_nTerrainLOD);
+
+  StringCchPrintf(sz, 100, L"Scale: %.1f", g_fTerrainScale);
+  g_TerrainUI.AddStatic(IDC_NEWTERRAIN_SCALE_S, sz, 0, iY += 24, 125, 22);
+  g_TerrainUI.AddSlider(IDC_NEWTERRAIN_SCALE, 0, iY += 24, 125, 22, 10, 1000,
+                  (int)(10*g_fTerrainScale));
 
   g_TerrainUI.AddButton(IDC_NEWTERRAIN_OK, L"Generate", 0, iY += 24, 125, 22);
 
@@ -381,16 +402,13 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   OnGUIEvent(0, IDC_WAVENORMALS, NULL, NULL);
   OnGUIEvent(0, IDC_SHADOWMAPS_ZEPSILON, NULL, NULL);
   OnGUIEvent(0, IDC_SHADOWMAPS_PCF, NULL, NULL);
+  OnGUIEvent(0, IDC_CAMERA_SPEED, NULL, NULL);
+  OnGUIEvent(0, IDC_SCREEN_ERROR, NULL, NULL);
 
   // Setup the camera's view parameters
   D3DXVECTOR3 vecEye(0.0f, 0.1f, 0.0f);
   D3DXVECTOR3 vecAt (0.0f, 0.1f, 1.0f);
   g_Camera.SetViewParams(&vecEye, &vecAt);
-  g_Camera.SetScalers(0.01f, 0.25f);
-
-  // FixedLODSelector mit LOD-Stufe 0
-  //g_pLODSelector = new FixedLODSelector(0);
-  g_pLODSelector = new DynamicLODSelector(D3DX_PI / 4.0f * (3.0f / 4.0f), 600, 10.f);
 
   // RasterizerState für Wireframe erzeugen
   D3D10_RASTERIZER_DESC rast_desc = {
@@ -410,7 +428,7 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   g_pScene->SetLODSelector(g_pLODSelector);
 
   // Terrain erzeugen
-  g_pScene->CreateTerrain(g_nTerrainN, g_fTerrainR, g_nTerrainLOD);
+  g_pScene->CreateTerrain(g_nTerrainN, g_fTerrainR, g_nTerrainLOD, g_fTerrainScale);
   Terrain *terrain = g_pScene->GetTerrain();
   g_pfMinHeight->SetFloat(terrain->GetMinHeight());
   g_pfMaxHeight->SetFloat(terrain->GetMaxHeight());
@@ -483,7 +501,7 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain(ID3D10Device* pd3dDevice,
   // Setup the camera's projection parameters
   float fAspectRatio = pBackBufferSurfaceDesc->Width /
       (FLOAT)pBackBufferSurfaceDesc->Height;
-  g_Camera.SetProjParams(D3DX_PI / 4, fAspectRatio, 0.01f, 1000.0f);
+  g_Camera.SetProjParams(g_fFOV, fAspectRatio, 0.01f, 1000.0f);
 
   g_HUD.SetLocation(pBackBufferSurfaceDesc->Width - 170, 0);
   g_HUD.SetSize(170, 170);
@@ -496,6 +514,12 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain(ID3D10Device* pd3dDevice,
     g_pEnvironment->SetBackBufferSize(pBackBufferSurfaceDesc->Width,
                                       pBackBufferSurfaceDesc->Height);
   }
+
+  g_uiScreenHeight = pBackBufferSurfaceDesc->Height;
+  SAFE_DELETE(g_pLODSelector);
+  g_pLODSelector = new DynamicLODSelector(g_fFOV, g_uiScreenHeight,
+                                          g_fScreenError);
+  if (g_pScene) g_pScene->SetLODSelector(g_pLODSelector);
 
   return S_OK;
 }
@@ -549,7 +573,7 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   // Render the environment
   //
   DXUT_BeginPerfEvent(DXUT_PERFEVENTCOLOR, L"Environment");
-  g_pEnvironment->OnFrameMove(&mView, D3DX_PI / 4);
+  g_pEnvironment->OnFrameMove(&mView, g_fFOV);
   g_pEnvironment->Draw();
   DXUT_EndPerfEvent();
 
@@ -750,6 +774,25 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
       g_Camera.SetScalers(0.01f, value);
       break;
     }
+    case IDC_FLY_MODE: {
+      if (g_SampleUI.GetCheckBox(IDC_FLY_MODE)->GetChecked()) {
+        g_pScene->SetMovement(SCENE_MOVEMENT_FLY);
+      } else {
+        g_pScene->SetMovement(SCENE_MOVEMENT_WALK);
+      }
+      break;
+    }
+    case IDC_SCREEN_ERROR: {
+      float value =
+          g_SampleUI.GetSlider(IDC_SCREEN_ERROR)->GetValue() / 10.0f;
+      StringCchPrintf(sz, 100, L"Screen error: %.1f", value);
+      g_SampleUI.GetStatic(IDC_SCREEN_ERROR_S)->SetText(sz);
+      g_fScreenError = value;
+      SAFE_DELETE(g_pLODSelector);
+      g_pLODSelector = new DynamicLODSelector(g_fFOV, g_uiScreenHeight, g_fScreenError);
+      if (g_pScene) g_pScene->SetLODSelector(g_pLODSelector);
+      break;
+    }
 
     /**
      * Terrain UI
@@ -774,6 +817,13 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
       g_TerrainUI.GetStatic(IDC_NEWTERRAIN_LOD_S)->SetText(sz);
       break;
     }
+    case IDC_NEWTERRAIN_SCALE: {
+      float value =
+          g_TerrainUI.GetSlider(IDC_NEWTERRAIN_SCALE)->GetValue() / 10.0f;
+      StringCchPrintf(sz, 100, L"Scale: %.1f", value);
+      g_TerrainUI.GetStatic(IDC_NEWTERRAIN_SCALE_S)->SetText(sz);
+      break;
+    }
     case IDC_NEWTERRAIN_OK: {
       g_TerrainUI.SetVisible(false);
 
@@ -781,8 +831,10 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
       g_fTerrainR =
           g_TerrainUI.GetSlider(IDC_NEWTERRAIN_ROUGHNESS)->GetValue()/100.0f;
       g_nTerrainLOD = g_TerrainUI.GetSlider(IDC_NEWTERRAIN_LOD)->GetValue();
+      g_fTerrainScale =
+          g_TerrainUI.GetSlider(IDC_NEWTERRAIN_SCALE)->GetValue() / 10.0f;
 
-      g_pScene->CreateTerrain(g_nTerrainN, g_fTerrainR, g_nTerrainLOD);
+      g_pScene->CreateTerrain(g_nTerrainN, g_fTerrainR, g_nTerrainLOD, g_fTerrainScale);
       Terrain *terrain = g_pScene->GetTerrain();
       g_pfMinHeight->SetFloat(terrain->GetMinHeight());
       g_pfMaxHeight->SetFloat(terrain->GetMaxHeight());

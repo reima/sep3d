@@ -27,7 +27,8 @@ Scene::Scene(void)
       pMaterialParameters(NULL),
       pCameraPosition(NULL),
       pShadowedPointLight(NULL),
-      pShadowedDirectionalLight(NULL) {
+      pShadowedDirectionalLight(NULL),
+      movement_(SCENE_MOVEMENT_FLY) {
 }
 
 Scene::~Scene(void) {
@@ -107,7 +108,8 @@ void Scene::OnFrameMove(float elapsed_time) {
 
   cam_pos_ = *camera_->GetEyePt();
   float terrain_height = std::max(terrain_->GetHeightAt(cam_pos_), 0.0f) + 0.1f;
-  if (cam_pos_.y < terrain_height) {
+  if (movement_ == SCENE_MOVEMENT_WALK ||
+      (movement_ == SCENE_MOVEMENT_FLY && cam_pos_.y < terrain_height)) {
     D3DXVECTOR3 lookat = *camera_->GetLookAtPt();
     D3DXVECTOR3 view_dir = lookat - cam_pos_;
     cam_pos_.y = terrain_height;
@@ -183,9 +185,9 @@ void Scene::SetShadowMapPrecision(bool high_precision) {
     shadowed_directional_light_->SetShadowMapPrecision(high_precision);
 }
 
-void Scene::CreateTerrain(int n, float roughness, int num_lod) {
+void Scene::CreateTerrain(int n, float roughness, int num_lod, float scale) {
   SAFE_DELETE(terrain_);
-  terrain_ = new Terrain(n, roughness, num_lod);
+  terrain_ = new Terrain(n, roughness, num_lod, scale);
   terrain_->TriangulateZOrder();
   if (device_)
     terrain_->CreateBuffers(device_);
@@ -211,4 +213,8 @@ void Scene::Draw(ID3D10EffectTechnique *technique) {
     assert(lod_selector_ != NULL);
     terrain_->Draw(technique, lod_selector_, camera_);
   }
+}
+
+void Scene::SetMovement(SceneMovement movement) {
+  movement_ = movement;
 }

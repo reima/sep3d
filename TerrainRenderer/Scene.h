@@ -9,6 +9,11 @@ class LODSelector;
 class ShadowedDirectionalLight;
 class ShadowedPointLight;
 
+enum SceneMovement {
+  SCENE_MOVEMENT_WALK,
+  SCENE_MOVEMENT_FLY
+};
+
 class Scene {
  public:
   /**
@@ -53,7 +58,7 @@ class Scene {
    * Erzeugt ein neues Terrain mit den übergebenen Parametern und bereitet es auf
    * das Rendering vor.
    */
-  void CreateTerrain(int n, float roughness, int num_lod);
+  void CreateTerrain(int n, float roughness, int num_lod, float scale);
   Terrain *GetTerrain(void) { return terrain_; }
 
   void GetBoundingBox(D3DXVECTOR3 *box, D3DXVECTOR3 *mid);
@@ -70,6 +75,8 @@ class Scene {
   void SetShadowMapPrecision(bool high_precision);
 
   void Draw(ID3D10EffectTechnique *technique);
+
+  void SetMovement(SceneMovement movement);
 
  private:
    /**
@@ -97,4 +104,6 @@ class Scene {
   ID3D10EffectVectorVariable *pCameraPosition;
   ID3D10EffectScalarVariable *pShadowedPointLight;
   ID3D10EffectScalarVariable *pShadowedDirectionalLight;
+
+  SceneMovement movement_;
 };

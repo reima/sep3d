@@ -23,7 +23,7 @@ class Tile {
    *                  Höhenunterschiede)
    * @param num_lod Anzahl zusätzlicher LOD-Ebenen
    */
-  Tile(Terrain *terrain, int n, float roughness, int num_lod);
+  Tile(Terrain *terrain, int n, float roughness, int num_lod, float scale);
   ~Tile(void);
 
   /**

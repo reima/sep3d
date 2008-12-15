@@ -494,7 +494,7 @@ float4 GouraudShading_PS( VS_GOURAUD_SHADING_OUTPUT In ) : SV_Target
     float4(In.SpecularLight, 1);
 }
 
-float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In ) : SV_Target
+float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In, uniform bool bLODColoring ) : SV_Target
 {
   float3 N = 0;
   float4 vTerrainColor = 0;
@@ -526,7 +526,7 @@ float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In ) : SV_Target
     N = normalize(In.Normal);
   }
 
-  if (g_uiTileLOD != -1) {
+  if (bLODColoring) {
     vTerrainColor = g_LODColors[g_uiTileLOD % 6];
   }
 
@@ -623,7 +623,19 @@ technique10 PhongShading
   {
     SetVertexShader( CompileShader( vs_4_0, PhongShading_VS() ) );
     SetGeometryShader( NULL );
-    SetPixelShader( CompileShader( ps_4_0, PhongShading_PS() ) );
+    SetPixelShader( CompileShader( ps_4_0, PhongShading_PS(false) ) );
+    SetRasterizerState( NULL );
+    SetBlendState( NULL, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
+  }
+}
+
+technique10 LODColoring
+{
+  pass P0
+  {
+    SetVertexShader( CompileShader( vs_4_0, PhongShading_VS() ) );
+    SetGeometryShader( NULL );
+    SetPixelShader( CompileShader( ps_4_0, PhongShading_PS(true) ) );
     SetRasterizerState( NULL );
     SetBlendState( NULL, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
   }

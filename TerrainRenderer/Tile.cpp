@@ -27,7 +27,7 @@ inline float randf(void) {
 
 }
 
-Tile::Tile(Terrain *terrain, int n, float roughness, int num_lod)
+Tile::Tile(Terrain *terrain, int n, float roughness, int num_lod, float scale)
     : lod_(0),
       size_((1 << n) + 1),
       num_lod_(num_lod),
@@ -36,8 +36,8 @@ Tile::Tile(Terrain *terrain, int n, float roughness, int num_lod)
       parent_(NULL),
       min_height_(0),
       max_height_(0),
-      scale_(50.0f),
-      translation_(D3DXVECTOR2(-25.f, -25.f)),
+      scale_(scale),
+      translation_(D3DXVECTOR2(-.5f*scale_, -.5f*scale)),
       height_map_(NULL),
       shader_resource_view_(NULL) {
   heights_ = new float[size_*size_];

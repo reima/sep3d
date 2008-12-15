@@ -5,7 +5,7 @@
 // Vertices zu vereinfachen
 #define I(x,y) ((y)*size_+(x))
 
-Terrain::Terrain(int n, float roughness, int num_lod)
+Terrain::Terrain(int n, float roughness, int num_lod, float scale)
     : size_((1 << n) + 1),
       device_(NULL),
       vertex_layout_(NULL),
@@ -15,7 +15,7 @@ Terrain::Terrain(int n, float roughness, int num_lod)
       tile_translate_ev_(NULL),
       technique_(NULL),
       indices_(NULL) {
-  tile_ = new Tile(this, n, roughness, num_lod);
+  tile_ = new Tile(this, n, roughness, num_lod, scale);
 }
 
 Terrain::~Terrain(void) {
@@ -181,7 +181,7 @@ void Terrain::DrawTile(float scale, D3DXVECTOR2 &translate, UINT lod,
   assert(device_ != NULL);
   tile_scale_ev_->SetFloat(scale);
   tile_translate_ev_->SetFloatVector(translate);
-  tile_lod_ev_->SetInt(-1/*lod*/);
+  tile_lod_ev_->SetInt(lod);
   tile_heightmap_ev_->SetResource(srv);
 
   D3D10_TECHNIQUE_DESC tech_desc;

@@ -16,7 +16,7 @@ class Terrain {
    *                  Höhenunterschiede)
    * @param num_lod Anzahl LOD-Ebenen
    */
-  Terrain(int n, float roughness, int num_lod);
+  Terrain(int n, float roughness, int num_lod, float scale);
   ~Terrain(void);
 
   /**

@@ -23,12 +23,9 @@ bool DynamicLODSelector::IsLODSufficient(const Tile *tile,
                               bbox, sizeof(D3DXVECTOR3),
                               camera->GetViewMatrix(), 8);
   float min_z = bbox[0].z;
-  float max_z = bbox[0].z;
   for (int i = 1; i < 8; ++i) {
     min_z = std::min(min_z, bbox[i].z);
-    max_z = std::max(max_z, bbox[i].z);
   }
-  if (max_z <= 0) return true;
   float max_world_error = factor_ * min_z;
   return tile->GetWorldError() <= max_world_error;
 }
