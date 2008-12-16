@@ -66,6 +66,7 @@ Texture2D g_tWaves;
 Texture2D g_tGround;
 Texture2D g_tTerrain; // Terrain heights
 Texture3D g_tGround3D;
+Texture2D g_tMesh; // Tree texture
 TextureCube g_tCubeMap;
 Texture2D g_tDirectionalShadowMap;
 Texture2DArray g_tPointShadowMap;
@@ -115,6 +116,7 @@ const float3 vAttenuation = float3(0, 0, 1); // Constant, linear, quadratic
 
 const float4 g_vWaterColor = float4(0, 0.25, 0.5, 1.0);
 const float4 g_vWaterMaterial = float4(0.05, 0.7, 0.25, 200);
+const float4 g_vTreeMaterial = float4(0.05, 0.8, 0.15, 10);
 
 //--------------------------------------------------------------------------------------
 // Vertex shader input structures
@@ -122,6 +124,13 @@ const float4 g_vWaterMaterial = float4(0.05, 0.7, 0.25, 200);
 struct VS_INPUT
 {
   float3 Position   : POSITION;   // vertex position
+};
+
+struct VS_TREES_INPUT
+{
+  float3 Position   : POSITION;
+  float3 Normal     : NORMAL;
+  float2 TexCoord   : TEXTURE;
 };
 
 //--------------------------------------------------------------------------------------
@@ -150,6 +159,15 @@ struct VS_PHONG_SHADING_OUTPUT
   float4 Material       : MATERIAL; // = { k_a, k_d, k_s, n }
 };
 
+struct VS_TREES_OUTPUT
+{
+  float4 Position      : SV_Position;
+  float3 WorldPosition : WORLDPOS;
+  float4 LightSpacePos : LIGHTSPACEPOS;
+  float3 Normal        : NORMAL;
+  float2 TexCoord      : TEXCOORD0;
+};
+
 struct GS_POINTSHADOW_INPUT
 {
   float4 Position   : SV_Position;
@@ -164,8 +182,8 @@ struct GS_POINTSHADOW_OUTPUT
 
 struct PHONG
 {
-  float3 DiffuseLight  : DIFFUSE;
-  float3 SpecularLight : SPECULAR;
+  float3 DiffuseLight;
+  float3 SpecularLight;
 };
 
 //--------------------------------------------------------------------------------------
@@ -376,7 +394,6 @@ float3 FullLighting(float3 vColor,
       phong.SpecularLight;
 }
 
-// TODO: Nur noch ein Lookup pro Vertex
 float4 GetTileData(float2 vPosition)
 {
   return g_tTerrain.Load(float3(vPosition.xy, 0) * (g_uiTerrainSize - 1));
@@ -442,6 +459,20 @@ VS_PHONG_SHADING_OUTPUT PhongShading_VS( float2 vPosition : POSITION )
     Output.Wave2 = vTexCoord * 4 + vTrans * 2;
     Output.Wave3 = vTexCoord * 8 - vTrans * 1;
   }
+
+  return Output;
+}
+
+VS_TREES_OUTPUT Trees_VS( VS_TREES_INPUT Input )
+{
+  VS_TREES_OUTPUT Output;
+  Input.Position.y += 0.5;
+  float4 vPos = float4(Input.Position, 1);
+  Output.Position = mul(vPos, g_mWorldViewProjection);
+  Output.WorldPosition = Input.Position;
+  Output.LightSpacePos = mul(vPos, g_mDirectionalLightSpaceTransform);
+  Output.Normal = normalize(Input.Normal);
+  Output.TexCoord = Input.TexCoord;
 
   return Output;
 }
@@ -538,6 +569,22 @@ float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In, uniform bool bLODColoring ) 
   return float4(vColor, 1) + In.Material.z * vReflect;
 }
 
+float4 Trees_PS( VS_TREES_OUTPUT In ) : SV_Target
+{
+  float3 N = normalize(In.Normal);
+  float4 vColor = g_tMesh.Sample(g_ssLinear, In.TexCoord);
+
+  if (vColor.a < 0.05) discard;
+  
+  vColor.rgb = FullLighting(vColor.rgb,
+                            In.WorldPosition,
+                            In.LightSpacePos,
+                            N,
+                            g_vTreeMaterial);
+
+  return vColor;
+}
+
 float4 Environment_PS( float4 vPos : SV_Position ) : SV_Target
 {
   // Transform vPos.xy in NDC
@@ -586,6 +633,12 @@ BlendState bsNoColorWrite
   RenderTargetWriteMask[7] = 0;
 };
 
+BlendState bsAlphaToCov
+{
+  AlphaToCoverageEnable = TRUE;
+  RenderTargetWriteMask[0] = 0x0F;
+};
+
 RasterizerState rsCullNone
 {
   CullMode = None;
@@ -621,6 +674,18 @@ technique10 PhongShading
     SetPixelShader( CompileShader( ps_4_0, PhongShading_PS(false) ) );
     SetRasterizerState( NULL );
     SetBlendState( NULL, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
+  }
+}
+
+technique10 Trees
+{
+  pass P0
+  {
+    SetVertexShader( CompileShader( vs_4_0, Trees_VS() ) );
+    SetGeometryShader( NULL );
+    SetPixelShader( CompileShader( ps_4_0, Trees_PS() ) );
+    SetRasterizerState( rsCullNone );
+    SetBlendState( bsAlphaToCov, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
   }
 }
 

@@ -4,6 +4,7 @@
 
 class Tile;
 class LODSelector;
+class CDXUTSDKMesh;
 
 class Terrain {
  friend class Tile;
@@ -68,6 +69,7 @@ class Terrain {
 
   void DrawTile(float scale, D3DXVECTOR2 &translate, UINT lod,
                 ID3D10ShaderResourceView *srv);
+  void DrawMesh(void);
 
   /**
    * Reserviert Speicher für den Index Buffer.
@@ -78,6 +80,8 @@ class Terrain {
    * Rekursive Implementierung der Z-Order-Triangulierung.
    */
   void TriangulateZOrder0(int x1, int y1, int x2, int y2, int &i);
+
+  void InitMeshes(void);
 
   /**
    * Zeiger auf das Wurzel-Tile
@@ -113,4 +117,10 @@ class Terrain {
    * @see Terrain::TriangulateZOrder
    */
   unsigned int *indices_;
+
+  CDXUTSDKMesh *mesh_;
+  ID3D10InputLayout *mesh_vertex_layout_;
+  ID3D10EffectShaderResourceVariable *mesh_texture_ev_;
+  ID3D10ShaderResourceView *mesh_texture_srv_;
+  ID3D10EffectPass *mesh_pass_;
 };

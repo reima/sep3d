@@ -703,6 +703,14 @@
 				>
 			</File>
 			<File
+				RelativePath=".\DXUT\Optional\SDKmesh.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\DXUT\Optional\SDKmesh.h"
+				>
+			</File>
+			<File
 				RelativePath="DXUT\Optional\SDKmisc.cpp"
 				>
 			</File>

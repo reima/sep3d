@@ -1,5 +1,6 @@
 #include "Terrain.h"
 #include "Tile.h"
+#include "SDKmesh.h"
 
 // Makro, um die Indexberechnungen für das "flachgeklopfte" 2D-Array von
 // Vertices zu vereinfachen
@@ -13,15 +14,30 @@ Terrain::Terrain(int n, float roughness, int num_lod, float scale, bool water)
       index_buffer_(NULL),
       tile_scale_ev_(NULL),
       tile_translate_ev_(NULL),
+      tile_lod_ev_(NULL),
+      tile_heightmap_ev_(NULL),
+      terrain_size_ev_(NULL),
       technique_(NULL),
-      indices_(NULL) {
+      indices_(NULL),
+      mesh_(NULL),
+      mesh_vertex_layout_(NULL),
+      mesh_texture_ev_(NULL),
+      mesh_texture_srv_(NULL),
+      mesh_pass_(NULL) {
   tile_ = new Tile(this, n, roughness, num_lod, scale, water);
+  InitMeshes();
 }
 
 Terrain::~Terrain(void) {
   SAFE_DELETE(indices_);
   SAFE_DELETE(tile_);
+  SAFE_DELETE(mesh_);
   ReleaseBuffers();
+}
+
+void Terrain::InitMeshes(void) {
+  mesh_ = new CDXUTSDKMesh();
+  mesh_->Create(DXUTGetD3D10Device(), L"Meshes\\AshTree.sdkmesh");
 }
 
 void Terrain::InitIndexBuffer(void) {
@@ -112,6 +128,10 @@ HRESULT Terrain::CreateBuffers(ID3D10Device *device) {
   tile_->CalculateNormals(indices_);
   V_RETURN(tile_->CreateBuffers(device));
 
+  // Texturen laden
+  V_RETURN(D3DX10CreateShaderResourceViewFromFile(device_,
+      L"Meshes\\AshTree.png", NULL, NULL, &mesh_texture_srv_, NULL));
+
   return S_OK;
 }
 
@@ -119,11 +139,15 @@ void Terrain::ReleaseBuffers(void) {
   SAFE_RELEASE(vertex_buffer_);
   SAFE_RELEASE(index_buffer_);
   SAFE_RELEASE(vertex_layout_);
+  SAFE_RELEASE(mesh_vertex_layout_);
+  SAFE_RELEASE(mesh_texture_srv_);
 }
 
 void Terrain::GetShaderHandles(ID3D10Effect *effect) {
-  // Vertex Layout festlegen
-  D3D10_INPUT_ELEMENT_DESC layout[] = {
+  assert(device_ != NULL);
+
+  // Terrain Vertex Layout
+  const D3D10_INPUT_ELEMENT_DESC layout[] = {
     { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0,
       D3D10_INPUT_PER_VERTEX_DATA, 0 },
   };
@@ -132,6 +156,21 @@ void Terrain::GetShaderHandles(ID3D10Effect *effect) {
   effect->GetTechniqueByName("PhongShading")->GetPassByIndex(0)->GetDesc(&pass_desc);
   device_->CreateInputLayout(layout, num_elements, pass_desc.pIAInputSignature,
                              pass_desc.IAInputSignatureSize, &vertex_layout_);
+
+  // Mesh Vertex Layout
+  const D3D10_INPUT_ELEMENT_DESC mesh_layout[] = {
+    { "POSITION" , 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
+      D3D10_INPUT_PER_VERTEX_DATA, 0 },
+    { "NORMAL" , 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12,
+      D3D10_INPUT_PER_VERTEX_DATA, 0 },
+    { "TEXTURE" , 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24,
+      D3D10_INPUT_PER_VERTEX_DATA, 0 },
+  };
+  num_elements = sizeof(mesh_layout) / sizeof(mesh_layout[0]);
+  mesh_pass_ = effect->GetTechniqueByName("Trees")->GetPassByIndex(0);
+  mesh_pass_->GetDesc(&pass_desc);
+  device_->CreateInputLayout(mesh_layout, num_elements, pass_desc.pIAInputSignature,
+                             pass_desc.IAInputSignatureSize, &mesh_vertex_layout_);
 
   tile_scale_ev_ = effect->GetVariableByName("g_fTileScale")->AsScalar();
   tile_translate_ev_ =
@@ -143,6 +182,9 @@ void Terrain::GetShaderHandles(ID3D10Effect *effect) {
   terrain_size_ev_ =
       effect->GetVariableByName("g_uiTerrainSize")->AsScalar();
   terrain_size_ev_->SetInt(size_);
+  mesh_texture_ev_ =
+      effect->GetVariableByName("g_tMesh")->AsShaderResource();
+
 }
 
 void Terrain::GetBoundingBox(D3DXVECTOR3 *out, D3DXVECTOR3 *mid) const {
@@ -169,7 +211,36 @@ void Terrain::Draw(ID3D10EffectTechnique *technique, LODSelector *lod_selector,
 
   technique_ = technique;
   tile_->Draw(lod_selector, camera);
+  DrawMesh();
   technique_ = NULL;
+}
+
+void Terrain::DrawMesh(void) {
+  assert(mesh_ != NULL);
+  assert(mesh_->IsLoaded());
+  assert(mesh_vertex_layout_ != NULL);
+  assert(device_ != NULL);
+
+  UINT stride = mesh_->GetVertexStride(0, 0);
+  UINT offset = 0;
+  ID3D10Buffer *mesh_vb = mesh_->GetVB10(0, 0);
+  device_->IASetVertexBuffers(0, 1, &mesh_vb, &stride, &offset);
+  device_->IASetIndexBuffer(mesh_->GetIB10(0), mesh_->GetIBFormat10(0), 0);
+  device_->IASetInputLayout(mesh_vertex_layout_);
+
+  SDKMESH_SUBSET *mesh_subset = NULL;
+  for (UINT subset = 0; subset < mesh_->GetNumSubsets(0); ++subset) {
+    mesh_subset = mesh_->GetSubset(0, subset);
+    device_->IASetPrimitiveTopology(
+        mesh_->GetPrimitiveType10(
+            (SDKMESH_PRIMITIVE_TYPE)mesh_subset->PrimitiveType));
+    //mesh_texture_ev_->SetResource(mesh_texture_srv_[subset]);
+    mesh_texture_ev_->SetResource(mesh_texture_srv_);
+    mesh_pass_->Apply(0);    
+    device_->DrawIndexed((UINT)mesh_subset->IndexCount,
+                         (UINT)mesh_subset->IndexStart,
+                         0);
+  }
 }
 
 void Terrain::DrawTile(float scale, D3DXVECTOR2 &translate, UINT lod,
@@ -179,6 +250,7 @@ void Terrain::DrawTile(float scale, D3DXVECTOR2 &translate, UINT lod,
   assert(tile_lod_ev_ != NULL);
   assert(tile_heightmap_ev_ != NULL);
   assert(device_ != NULL);
+  assert(technique_ != NULL);
   tile_scale_ev_->SetFloat(scale);
   tile_translate_ev_->SetFloatVector(translate);
   tile_lod_ev_->SetInt(lod);
