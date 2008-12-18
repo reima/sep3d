@@ -692,7 +692,7 @@ LRESULT CALLBACK MsgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
 void CALLBACK OnKeyboard(UINT nChar, bool bKeyDown, bool bAltDown,
                          void* pUserContext) {
   if (!bKeyDown) return;
-  switch (nChar) {    
+  switch (nChar) {
     case 'H':
     case 'h':
       g_bShowSettings = !g_bShowSettings;

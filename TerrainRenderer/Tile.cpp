@@ -307,7 +307,7 @@ float Tile::GetHeightAt(const D3DXVECTOR3 &pos) const {
     float yfactor = std::modf(texel_coords.y, &texel_coords.y);
 
     if (xfactor == 0.0f) {
-      // NW-SW-Linie      
+      // NW-SW-Linie
       float height_nw = heights_[I(texel_coords.x, texel_coords.y)];
       if (yfactor == 0.0f) return height_nw;
       float height_sw = heights_[I(texel_coords.x, texel_coords.y + 1)];
@@ -333,7 +333,7 @@ float Tile::GetHeightAt(const D3DXVECTOR3 &pos) const {
     } else {
       // SW-SE-NE-Dreieck
       float height_sw = heights_[I(texel_coords.x, texel_coords.y + 1)];
-      float height_ne = heights_[I(texel_coords.x + 1, texel_coords.y)];      
+      float height_ne = heights_[I(texel_coords.x + 1, texel_coords.y)];
       float height_se = heights_[I(texel_coords.x + 1, texel_coords.y + 1)];
       float height_w = yfactor*height_sw + (1-yfactor)*height_ne;
       float height_e = yfactor*height_se + (1-yfactor)*height_ne;
@@ -345,7 +345,7 @@ float Tile::GetHeightAt(const D3DXVECTOR3 &pos) const {
     //
     //float height_nw = heights_[I(texel_coords.x, texel_coords.y)];
     //float height_sw = heights_[I(texel_coords.x, texel_coords.y + 1)];
-    //float height_ne = heights_[I(texel_coords.x + 1, texel_coords.y)];      
+    //float height_ne = heights_[I(texel_coords.x + 1, texel_coords.y)];
     //float height_se = heights_[I(texel_coords.x + 1, texel_coords.y + 1)];
     //float height_w = yfactor*height_sw + (1-yfactor)*height_nw;
     //float height_e = yfactor*height_se + (1-yfactor)*height_ne;

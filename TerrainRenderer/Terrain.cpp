@@ -148,7 +148,7 @@ HRESULT Terrain::InitTrees(void) {
 
   std::vector<D3DXMATRIX> tree_transforms;
   srand(42);
-  
+
   for (int ix = 0; ix < size_; ix += dist) {
     for (int iy = 0; iy < size_; iy += dist) {
       float scaleY = 1 + (rand() / (RAND_MAX * 0.5f) - 1.0f) * 0.3f;
@@ -157,22 +157,22 @@ HRESULT Terrain::InitTrees(void) {
 
       D3DXVECTOR3 normal = tile_->vertex_normals_[I(ix,iy)];
       D3DXVECTOR3 base = tile_->GetVectorFromIndex(I(ix,iy));
-      
+
       // Keine Bäume bei zu großer Steigung
       if (normal.x > normal.y || normal.z > normal.y ) continue;
 
       base.x += (float)dist/size_ * (rand() / (RAND_MAX * 0.5f) - 1.0f) * 4;
       base.z += (float)dist/size_ * (rand() / (RAND_MAX * 0.5f) - 1.0f) * 4;
       base.y = tile_->GetHeightAt(base);
-      
+
       // Keine Bäume im Wasser
       if (base.y == 0.0f) continue;
-      
+
       base.y += 0.5f * scaleY;
 
       D3DXMATRIX transform;
       D3DXMATRIX temp;
-      D3DXMatrixRotationY(&transform, rot);      
+      D3DXMatrixRotationY(&transform, rot);
       D3DXMatrixMultiply(&transform, &transform, D3DXMatrixScaling(&temp, scaleXZ, scaleY, scaleXZ));
       D3DXMatrixMultiply(&transform, &transform, D3DXMatrixTranslation(&temp, base.x, base.y, base.z));
 
@@ -182,20 +182,21 @@ HRESULT Terrain::InitTrees(void) {
 
   num_trees_ = tree_transforms.size();
 
+  D3D10_BUFFER_DESC buffer_desc;
+  buffer_desc.Usage = D3D10_USAGE_DEFAULT;
+  buffer_desc.ByteWidth = sizeof(D3DXMATRIX) * num_trees_;
+  buffer_desc.BindFlags = D3D10_BIND_VERTEX_BUFFER;
+  buffer_desc.CPUAccessFlags = 0;
+  buffer_desc.MiscFlags = 0;
+  D3D10_SUBRESOURCE_DATA init_data;
   if (num_trees_ > 0) {
-    D3D10_BUFFER_DESC buffer_desc;
-    buffer_desc.Usage = D3D10_USAGE_DEFAULT;
-    buffer_desc.ByteWidth = sizeof(D3DXMATRIX) * num_trees_;
-    buffer_desc.BindFlags = D3D10_BIND_VERTEX_BUFFER;
-    buffer_desc.CPUAccessFlags = 0;
-    buffer_desc.MiscFlags = 0;
-    D3D10_SUBRESOURCE_DATA init_data;
     init_data.pSysMem = &tree_transforms[0];
-    init_data.SysMemPitch = 0;
-    init_data.SysMemSlicePitch = 0;
-    V_RETURN(device_->CreateBuffer(&buffer_desc, &init_data, &tree_buffer_));
   } else {
+    init_data.pSysMem = NULL;
   }
+  init_data.SysMemPitch = 0;
+  init_data.SysMemSlicePitch = 0;
+  V_RETURN(device_->CreateBuffer(&buffer_desc, &init_data, &tree_buffer_));
 
   return S_OK;
 }
@@ -290,7 +291,7 @@ void Terrain::DrawMesh(void) {
   assert(mesh_vertex_layout_ != NULL);
   assert(tree_buffer_ != NULL);
   assert(device_ != NULL);
-  
+
   UINT stride[2] = {
     mesh_->GetVertexStride(0, 0),
     sizeof(D3DXMATRIX)
@@ -314,7 +315,7 @@ void Terrain::DrawMesh(void) {
             (SDKMESH_PRIMITIVE_TYPE)mesh_subset->PrimitiveType));
 
     mesh_texture_ev_->SetResource(mesh_texture_srv_);
-    mesh_pass_->Apply(0);    
+    mesh_pass_->Apply(0);
 
     device_->DrawIndexedInstanced((UINT)mesh_subset->IndexCount,
                                   num_trees_,

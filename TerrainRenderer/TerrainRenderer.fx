@@ -27,7 +27,7 @@ cbuffer cbPerFrame
   float4x4 g_mPointLightSpaceTransform[6];
   // Environment
   float4x4 g_mWorldViewInv;
-  float    g_fCameraFOV;  
+  float    g_fCameraFOV;
 }
 
 cbuffer cbOptions
@@ -130,7 +130,7 @@ struct VS_TREES_INPUT
 {
   float3 Position : POSITION;
   float3 Normal : NORMAL;
-  float2 TexCoord : TEXTURE; 
+  float2 TexCoord : TEXTURE;
   row_major float4x4 mTransform: mTransform;
 };
 
@@ -269,7 +269,7 @@ PHONG PhongLighting(float3 vPos, float3 vNormal, float4 vMaterial)
       fAttenuation *= 1 - pow(angle/theta, g_fSpotLight_AngleExp[i].y);
       vPhong = Phong(vPos, g_vSpotLight_Position[i] - vPos, vNormal, vMaterial);
       vDiffuseLight += vPhong.x * g_vSpotLight_Color[i] * fAttenuation;
-      vSpecularLight += vPhong.y * g_vSpotLight_Color[i] * fAttenuation; 
+      vSpecularLight += vPhong.y * g_vSpotLight_Color[i] * fAttenuation;
     }
   }
 
@@ -324,7 +324,7 @@ float3 FullLighting(float3 vColor,
       uint i = g_iShadowedDirectionalLight;
       vPhong = Phong(vWorldPosition,
                      g_vDirectionalLight_Direction[i],
-                     N, vMaterial);      
+                     N, vMaterial);
       phong.DiffuseLight +=
           fLightScale * vPhong.x * g_vDirectionalLight_Color[i];
       phong.SpecularLight +=
@@ -414,7 +414,7 @@ float4 GetTileVertexAndNormal(float2 vPosition, out float4 vNormal)
   vNormal = float4(vVertexData.xyz, 0);
   vPosition *= g_fTileScale;
   vPosition += g_vTileTranslate;
-  return float4(vPosition.x, vVertexData.w, vPosition.y, 1);  
+  return float4(vPosition.x, vVertexData.w, vPosition.y, 1);
 }
 
 //--------------------------------------------------------------------------------------
@@ -425,7 +425,7 @@ VS_GOURAUD_SHADING_OUTPUT GouraudShading_VS( float2 vPosition : POSITION )
   VS_GOURAUD_SHADING_OUTPUT Output;
   float4 vNormal;
   float4 vPos = GetTileVertexAndNormal(vPosition, vNormal);
-  Output.Height = vPos.y;  
+  Output.Height = vPos.y;
   // Transform the position from object space to homogeneous projection space
   Output.Position = mul(vPos, g_mWorldViewProjection);
   PHONG phong = PhongLighting(vPos, vNormal,
@@ -476,8 +476,8 @@ VS_TREES_OUTPUT Trees_VS( VS_TREES_INPUT Input ) {
   Output.LightSpacePos = mul(vPos, g_mDirectionalLightSpaceTransform);
   Output.Normal = normalize(Input.Normal); // korrekt?
   Output.TexCoord = Input.TexCoord;
- 
-  return Output; 
+
+  return Output;
 }
 
 float4 Environment_VS( float3 vPosition : POSITION ) : SV_Position
@@ -578,7 +578,7 @@ float4 Trees_PS( VS_TREES_OUTPUT In ) : SV_Target
   float4 vColor = g_tMesh.Sample(g_ssLinear, In.TexCoord);
 
   if (vColor.a < 0.05) discard;
-  
+
   vColor.rgb = FullLighting(vColor.rgb,
                             In.WorldPosition,
                             In.LightSpacePos,

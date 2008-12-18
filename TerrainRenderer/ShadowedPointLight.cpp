@@ -112,10 +112,10 @@ void ShadowedPointLight::UpdateMatrices(void) {
 
   D3DXVECTOR3 lookat = position_+ D3DXVECTOR3(-1,0,0);
   D3DXMatrixLookAtLH(&light_space_transforms_[0], &position_, &lookat, &upvec);
-  
+
   lookat = position_+ D3DXVECTOR3(+1,0,0);
   D3DXMatrixLookAtLH(&light_space_transforms_[1], &position_, &lookat, &upvec);
-  
+
   upvec = D3DXVECTOR3(0, 0, 1);
   lookat = position_+ D3DXVECTOR3(0,-1,0);
   D3DXMatrixLookAtLH(&light_space_transforms_[2], &position_, &lookat, &upvec);
@@ -127,7 +127,7 @@ void ShadowedPointLight::UpdateMatrices(void) {
   upvec = D3DXVECTOR3(0, 1, 0);
   lookat = position_+ D3DXVECTOR3(0,0,-1);
   D3DXMatrixLookAtLH(&light_space_transforms_[4], &position_, &lookat, &upvec);
-  
+
   lookat = position_+ D3DXVECTOR3(0,0,1);
   D3DXMatrixLookAtLH(&light_space_transforms_[5], &position_, &lookat, &upvec);
 
@@ -162,7 +162,7 @@ void ShadowedPointLight::OnFrameMove(float elapsed_time) {
 
   // Shader Resource ausbinden
   // DEVICE_OMSETRENDERTARGETS_HAZARD tritt aber trotzdem auf :(
-  shadow_map_ev_->SetResource(NULL);  
+  shadow_map_ev_->SetResource(NULL);
 
   // Unsere Textur als Depth-Stencil-Target setzen
   device_->OMSetRenderTargets(0, NULL, depth_stencil_view_);
