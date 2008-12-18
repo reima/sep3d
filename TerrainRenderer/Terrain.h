@@ -83,7 +83,7 @@ class Terrain {
 
   void InitMeshes(void);
 
-  void InitTrees(ID3D10Device *device);
+  HRESULT InitTrees(void);
 
   /**
    * Zeiger auf das Wurzel-Tile

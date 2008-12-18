@@ -1,3 +1,4 @@
+#include <vector>
 #include "Terrain.h"
 #include "Tile.h"
 #include "SDKmesh.h"
@@ -23,7 +24,8 @@ Terrain::Terrain(int n, float roughness, int num_lod, float scale, bool water)
       mesh_vertex_layout_(NULL),
       mesh_texture_ev_(NULL),
       mesh_texture_srv_(NULL),
-      mesh_pass_(NULL) {
+      mesh_pass_(NULL),
+      tree_buffer_(NULL) {
   tile_ = new Tile(this, n, roughness, num_lod, scale, water);
   InitMeshes();
 
@@ -132,62 +134,70 @@ HRESULT Terrain::CreateBuffers(ID3D10Device *device) {
   // Texturen laden
   V_RETURN(D3DX10CreateShaderResourceViewFromFile(device_,
       L"Meshes\\AshTree.png", NULL, NULL, &mesh_texture_srv_, NULL));
-  InitTrees(device);
+
+  V_RETURN(InitTrees());
+
   return S_OK;
 }
 
-void Terrain::InitTrees(ID3D10Device *device){
-  int dist = 8;
+HRESULT Terrain::InitTrees(void) {
+  assert(tile_ != NULL);
+  assert(device_ != NULL);
+  HRESULT hr;
+  const int dist = 8;
+
+  std::vector<D3DXMATRIX> tree_transforms;
+  srand(42);
   
-  num_trees_ = (size_/dist+1)*(size_/dist+1);
-  D3D10_BUFFER_DESC bufferDesc={
-    num_trees_ * sizeof( D3DXMATRIX ),
-    D3D10_USAGE_DYNAMIC,
-    D3D10_BIND_VERTEX_BUFFER,
-    D3D10_CPU_ACCESS_WRITE,
-    0};
+  for (int ix = 0; ix < size_; ix += dist) {
+    for (int iy = 0; iy < size_; iy += dist) {
+      float scaleY = 1 + (rand() / (RAND_MAX * 0.5f) - 1.0f) * 0.3f;
+      float scaleXZ = 1 + (rand() / (RAND_MAX * 0.5f) - 1.0f) * 0.1f;
+      float rot = (rand() / RAND_MAX) * D3DX_PI;
 
-  D3DXMATRIX * m_pMatPerInstance= new D3DXMATRIX[ num_trees_]; //Matrix array
-   srand(42);
-  
-  int i = 0;
-  for (int ix = 0; ix < size_; ix+=dist)
-    for (int iy = 0; iy < size_; iy+=dist){
+      D3DXVECTOR3 normal = tile_->vertex_normals_[I(ix,iy)];
+      D3DXVECTOR3 base = tile_->GetVectorFromIndex(I(ix,iy));
       
-     
-      double scaleY = 1 + (rand() / (RAND_MAX * 0.5f) - 1.0f)* 0.3;
-      double scaleXZ = 1 + (rand() / (RAND_MAX * 0.5f) - 1.0f)* 0.1;
-      double rot = (rand() / RAND_MAX)* D3DX_PI ;
+      // Keine Bäume bei zu großer Steigung
+      if (normal.x > normal.y || normal.z > normal.y ) continue;
 
-      D3DXVECTOR3 n = tile_->vertex_normals_[I(ix,iy)];
-      D3DXVECTOR3 b = tile_->GetVectorFromIndex(I(ix,iy));
+      base.x += (float)dist/size_ * (rand() / (RAND_MAX * 0.5f) - 1.0f) * 4;
+      base.z += (float)dist/size_ * (rand() / (RAND_MAX * 0.5f) - 1.0f) * 4;
+      base.y = tile_->GetHeightAt(base);
       
-      if (n.x > n.y || n.z > n.y ) continue;
+      // Keine Bäume im Wasser
+      if (base.y == 0.0f) continue;
+      
+      base.y += 0.5f * scaleY;
 
-      b.x += (float)dist/size_ * (rand() / (RAND_MAX * 0.5f) - 1.0f) *4 ;
-      b.z += (float)dist/size_ * (rand() / (RAND_MAX * 0.5f) - 1.0f) *4 ;
-      b.y = tile_->GetHeightAt(b);
-      
-      if (b.y == 0.0f ) continue;
-      
-      b.y += 0.5*scaleY;
-    
-      m_pMatPerInstance[i] = D3DXMATRIX(cos(rot)*scaleXZ, 0, sin(rot), 0,
-                                        0, scaleY, 0, 0,
-                                        -sin(rot), 0, cos(rot)*scaleXZ, 0,
-                                        b.x, b.y, b.z,  1);
-      i++;
+      D3DXMATRIX transform;
+      D3DXMATRIX temp;
+      D3DXMatrixRotationY(&transform, rot);      
+      D3DXMatrixMultiply(&transform, &transform, D3DXMatrixScaling(&temp, scaleXZ, scaleY, scaleXZ));
+      D3DXMatrixMultiply(&transform, &transform, D3DXMatrixTranslation(&temp, base.x, base.y, base.z));
+
+      tree_transforms.push_back(transform);
     }
+  }
 
-  D3DXMATRIX * asd = new D3DXMATRIX[i];
-  for (int ii=0;ii<i;ii++) asd[ii]=m_pMatPerInstance[ii];
-  
-  D3D10_SUBRESOURCE_DATA vbInitMatrices;
-  ZeroMemory( &vbInitMatrices, sizeof(D3D10_SUBRESOURCE_DATA) );
-  vbInitMatrices.pSysMem= asd;
-  
-  device_->CreateBuffer( &bufferDesc, &vbInitMatrices, &tree_buffer_);
- 
+  num_trees_ = tree_transforms.size();
+
+  if (num_trees_ > 0) {
+    D3D10_BUFFER_DESC buffer_desc;
+    buffer_desc.Usage = D3D10_USAGE_DEFAULT;
+    buffer_desc.ByteWidth = sizeof(D3DXMATRIX) * num_trees_;
+    buffer_desc.BindFlags = D3D10_BIND_VERTEX_BUFFER;
+    buffer_desc.CPUAccessFlags = 0;
+    buffer_desc.MiscFlags = 0;
+    D3D10_SUBRESOURCE_DATA init_data;
+    init_data.pSysMem = &tree_transforms[0];
+    init_data.SysMemPitch = 0;
+    init_data.SysMemSlicePitch = 0;
+    V_RETURN(device_->CreateBuffer(&buffer_desc, &init_data, &tree_buffer_));
+  } else {
+  }
+
+  return S_OK;
 }
 
 void Terrain::ReleaseBuffers(void) {
@@ -278,16 +288,21 @@ void Terrain::DrawMesh(void) {
   assert(mesh_ != NULL);
   assert(mesh_->IsLoaded());
   assert(mesh_vertex_layout_ != NULL);
+  assert(tree_buffer_ != NULL);
   assert(device_ != NULL);
   
-  UINT stride[2];
-  stride[0] = mesh_->GetVertexStride(0, 0);
-  stride[1] = sizeof( D3DXMATRIX );
-  UINT offset[2] = {0,0};
+  UINT stride[2] = {
+    mesh_->GetVertexStride(0, 0),
+    sizeof(D3DXMATRIX)
+  };
+  UINT offset[2] = { 0, 0 };
 
-  ID3D10Buffer *pVB[2] = {mesh_->GetVB10(0,0), tree_buffer_};
+  ID3D10Buffer *pVB[2] = {
+    mesh_->GetVB10(0, 0),
+    tree_buffer_
+  };
 
-  device_->IASetVertexBuffers( 0, 2, pVB, stride, offset );
+  device_->IASetVertexBuffers(0, 2, pVB, stride, offset);
   device_->IASetIndexBuffer(mesh_->GetIB10(0), mesh_->GetIBFormat10(0), 0);
   device_->IASetInputLayout(mesh_vertex_layout_);
 
@@ -301,8 +316,11 @@ void Terrain::DrawMesh(void) {
     mesh_texture_ev_->SetResource(mesh_texture_srv_);
     mesh_pass_->Apply(0);    
 
-    device_->DrawIndexedInstanced((UINT)mesh_subset->IndexCount, num_trees_, 0, (UINT)mesh_subset->VertexStart, 0 );
-    
+    device_->DrawIndexedInstanced((UINT)mesh_subset->IndexCount,
+                                  num_trees_,
+                                  0,
+                                  (UINT)mesh_subset->VertexStart,
+                                  0);
   }
 }
 

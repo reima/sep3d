@@ -438,9 +438,9 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   //g_pScene->AddPointLight(D3DXVECTOR3(0.0f, 0.0f, -2.5f),
   //                        D3DXVECTOR3(0, 1, 0),
   //                        D3DXVECTOR3(1, 0, 0));
-  //g_pScene->AddDirectionalLight(D3DXVECTOR3(1.0f, 1.0f, 0.0f),
-  //                              D3DXVECTOR3(1, 0.75f, 0.5f),
-  //                              D3DXVECTOR3(0, 1, 0));
+  g_pScene->AddDirectionalLight(D3DXVECTOR3(1.0f, 1.0f, 0.0f),
+                                D3DXVECTOR3(1, 0.75f, 0.5f),
+                                D3DXVECTOR3(0, 1, 0));
   //g_pScene->AddSpotLight(D3DXVECTOR3(2.5f, 3.0f, 0.0f),
   //                       D3DXVECTOR3(0, -1, 0),
   //                       D3DXVECTOR3(1, 1, 0),
@@ -461,11 +461,11 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   //                       D3DXVECTOR3(1, 1, 1),
   //                       D3DXVECTOR3(0, 1, 0),
   //                       .5f, 5);
-  g_pScene->AddDirectionalLight(
-      D3DXVECTOR3(1.0f, 0.25f, 0.0f),
-      D3DXVECTOR3(1, 0.75f, 0.5f),
-      D3DXVECTOR3(0, 0.2f, 0),
-      true);
+  //g_pScene->AddDirectionalLight(
+  //    D3DXVECTOR3(1.0f, 0.25f, 0.0f),
+  //    D3DXVECTOR3(1, 0.75f, 0.5f),
+  //    D3DXVECTOR3(0, 0.2f, 0),
+  //    true);
   //g_pScene->AddPointLight(
   //    D3DXVECTOR3(-1, 1, 0),
   //    D3DXVECTOR3(1, 0, 0),

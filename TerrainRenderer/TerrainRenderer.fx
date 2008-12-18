@@ -464,13 +464,12 @@ VS_PHONG_SHADING_OUTPUT PhongShading_VS( float2 vPosition : POSITION )
   return Output;
 }
 
-VS_TREES_OUTPUT Trees_VS( VS_TREES_INPUT Input )
-{
-VS_TREES_OUTPUT Output;
+VS_TREES_OUTPUT Trees_VS( VS_TREES_INPUT Input ) {
+  VS_TREES_OUTPUT Output;
 
   float4 vPos = float4(Input.Position, 1);
   float4x4 trans = Input.mTransform;
-  trans._14 = sin(g_fTime)/30;
+  //trans._14 = sin(g_fTime)/30;
   vPos = mul(vPos, trans);
   Output.Position = mul(vPos, g_mWorldViewProjection);
   Output.WorldPosition = Input.Position;
