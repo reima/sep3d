@@ -467,9 +467,11 @@ VS_PHONG_SHADING_OUTPUT PhongShading_VS( float2 vPosition : POSITION )
 VS_TREES_OUTPUT Trees_VS( VS_TREES_INPUT Input )
 {
 VS_TREES_OUTPUT Output;
-  Input.Position.y += 0.5;
+
   float4 vPos = float4(Input.Position, 1);
-  vPos = mul(vPos, Input.mTransform);
+  float4x4 trans = Input.mTransform;
+  trans._14 = sin(g_fTime)/30;
+  vPos = mul(vPos, trans);
   Output.Position = mul(vPos, g_mWorldViewProjection);
   Output.WorldPosition = Input.Position;
   Output.LightSpacePos = mul(vPos, g_mDirectionalLightSpaceTransform);
@@ -686,7 +688,6 @@ technique10 Trees
     SetVertexShader( CompileShader( vs_4_0, Trees_VS() ) );
     SetGeometryShader( NULL );
     SetPixelShader( CompileShader( ps_4_0, Trees_PS() ) );
-   // SetPixelShader( NULL );
     SetRasterizerState( rsCullNone );
     SetBlendState( bsAlphaToCov, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
   }

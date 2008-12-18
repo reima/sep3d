@@ -26,6 +26,7 @@ Terrain::Terrain(int n, float roughness, int num_lod, float scale, bool water)
       mesh_pass_(NULL) {
   tile_ = new Tile(this, n, roughness, num_lod, scale, water);
   InitMeshes();
+
 }
 
 Terrain::~Terrain(void) {
@@ -131,8 +132,62 @@ HRESULT Terrain::CreateBuffers(ID3D10Device *device) {
   // Texturen laden
   V_RETURN(D3DX10CreateShaderResourceViewFromFile(device_,
       L"Meshes\\AshTree.png", NULL, NULL, &mesh_texture_srv_, NULL));
-
+  InitTrees(device);
   return S_OK;
+}
+
+void Terrain::InitTrees(ID3D10Device *device){
+  int dist = 8;
+  
+  num_trees_ = (size_/dist+1)*(size_/dist+1);
+  D3D10_BUFFER_DESC bufferDesc={
+    num_trees_ * sizeof( D3DXMATRIX ),
+    D3D10_USAGE_DYNAMIC,
+    D3D10_BIND_VERTEX_BUFFER,
+    D3D10_CPU_ACCESS_WRITE,
+    0};
+
+  D3DXMATRIX * m_pMatPerInstance= new D3DXMATRIX[ num_trees_]; //Matrix array
+   srand(42);
+  
+  int i = 0;
+  for (int ix = 0; ix < size_; ix+=dist)
+    for (int iy = 0; iy < size_; iy+=dist){
+      
+     
+      double scaleY = 1 + (rand() / (RAND_MAX * 0.5f) - 1.0f)* 0.3;
+      double scaleXZ = 1 + (rand() / (RAND_MAX * 0.5f) - 1.0f)* 0.1;
+      double rot = (rand() / RAND_MAX)* D3DX_PI ;
+
+      D3DXVECTOR3 n = tile_->vertex_normals_[I(ix,iy)];
+      D3DXVECTOR3 b = tile_->GetVectorFromIndex(I(ix,iy));
+      
+      if (n.x > n.y || n.z > n.y ) continue;
+
+      b.x += (float)dist/size_ * (rand() / (RAND_MAX * 0.5f) - 1.0f) *4 ;
+      b.z += (float)dist/size_ * (rand() / (RAND_MAX * 0.5f) - 1.0f) *4 ;
+      b.y = tile_->GetHeightAt(b);
+      
+      if (b.y == 0.0f ) continue;
+      
+      b.y += 0.5*scaleY;
+    
+      m_pMatPerInstance[i] = D3DXMATRIX(cos(rot)*scaleXZ, 0, sin(rot), 0,
+                                        0, scaleY, 0, 0,
+                                        -sin(rot), 0, cos(rot)*scaleXZ, 0,
+                                        b.x, b.y, b.z,  1);
+      i++;
+    }
+
+  D3DXMATRIX * asd = new D3DXMATRIX[i];
+  for (int ii=0;ii<i;ii++) asd[ii]=m_pMatPerInstance[ii];
+  
+  D3D10_SUBRESOURCE_DATA vbInitMatrices;
+  ZeroMemory( &vbInitMatrices, sizeof(D3D10_SUBRESOURCE_DATA) );
+  vbInitMatrices.pSysMem= asd;
+  
+  device_->CreateBuffer( &bufferDesc, &vbInitMatrices, &tree_buffer_);
+ 
 }
 
 void Terrain::ReleaseBuffers(void) {
@@ -141,6 +196,7 @@ void Terrain::ReleaseBuffers(void) {
   SAFE_RELEASE(vertex_layout_);
   SAFE_RELEASE(mesh_vertex_layout_);
   SAFE_RELEASE(mesh_texture_srv_);
+  SAFE_RELEASE(tree_buffer_);
 }
 
 void Terrain::GetShaderHandles(ID3D10Effect *effect) {
@@ -158,14 +214,6 @@ void Terrain::GetShaderHandles(ID3D10Effect *effect) {
                              pass_desc.IAInputSignatureSize, &vertex_layout_);
 
   // Mesh Vertex Layout
- /* const D3D10_INPUT_ELEMENT_DESC mesh_layout[] = {
-    { "POSITION" , 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
-      D3D10_INPUT_PER_VERTEX_DATA, 0 },
-    { "NORMAL" , 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12,
-      D3D10_INPUT_PER_VERTEX_DATA, 0 },
-    { "TEXTURE" , 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24,
-      D3D10_INPUT_PER_VERTEX_DATA, 0 },
-  };*/
   const D3D10_INPUT_ELEMENT_DESC mesh_layout[] = {
     { "POSITION" , 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D10_INPUT_PER_VERTEX_DATA, 0 },
     { "NORMAL" , 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D10_INPUT_PER_VERTEX_DATA, 0 },
@@ -231,37 +279,14 @@ void Terrain::DrawMesh(void) {
   assert(mesh_->IsLoaded());
   assert(mesh_vertex_layout_ != NULL);
   assert(device_ != NULL);
-
-
-  UINT uiNumInstances  = 100;
-  D3D10_BUFFER_DESC bufferDesc={
-  uiNumInstances* sizeof( D3DXMATRIX ),
-  D3D10_USAGE_DYNAMIC,
-  D3D10_BIND_VERTEX_BUFFER,
-  D3D10_CPU_ACCESS_WRITE,
-  0};
-  D3DXMATRIX * m_pMatPerInstance= new D3DXMATRIX[ uiNumInstances]; //Matrix array
-  for(UINT i=0; i<uiNumInstances; i++){
-    m_pMatPerInstance[i] = D3DXMATRIX(1, 0, 0, 0,
-                                   0, 1, 0, 0,
-                                   0, 0, 1, 0,
-                                   i/2, 0.2f, i%10, 1);
-  }
-  D3D10_SUBRESOURCE_DATA vbInitMatrices;
-  ZeroMemory( &vbInitMatrices, sizeof(D3D10_SUBRESOURCE_DATA) );
-  vbInitMatrices.pSysMem= m_pMatPerInstance;
-  ID3D10Buffer *m_pInstanceVB;
-  device_->CreateBuffer( &bufferDesc, &vbInitMatrices, &m_pInstanceVB);
-
-
+  
   UINT stride[2];
   stride[0] = mesh_->GetVertexStride(0, 0);
   stride[1] = sizeof( D3DXMATRIX );
   UINT offset[2] = {0,0};
- // ID3D10Buffer *mesh_vb = mesh_->GetVB10(0, 0);
 
-  ID3D10Buffer *pVB[2] = {mesh_->GetVB10(0,0), m_pInstanceVB};
- // device_->IASetVertexBuffers(0, 1, &mesh_vb, &stride, &offset);
+  ID3D10Buffer *pVB[2] = {mesh_->GetVB10(0,0), tree_buffer_};
+
   device_->IASetVertexBuffers( 0, 2, pVB, stride, offset );
   device_->IASetIndexBuffer(mesh_->GetIB10(0), mesh_->GetIBFormat10(0), 0);
   device_->IASetInputLayout(mesh_vertex_layout_);
@@ -272,42 +297,13 @@ void Terrain::DrawMesh(void) {
     device_->IASetPrimitiveTopology(
         mesh_->GetPrimitiveType10(
             (SDKMESH_PRIMITIVE_TYPE)mesh_subset->PrimitiveType));
-    //mesh_texture_ev_->SetResource(mesh_texture_srv_[subset]);
+
     mesh_texture_ev_->SetResource(mesh_texture_srv_);
     mesh_pass_->Apply(0);    
- //   device_->DrawIndexed((UINT)mesh_subset->IndexCount,
-  //                       (UINT)mesh_subset->IndexStart,
-   //                      0);
-   device_->DrawIndexedInstanced((UINT)mesh_subset->IndexCount, uiNumInstances, 0, (UINT)mesh_subset->VertexStart, 0 );
+
+    device_->DrawIndexedInstanced((UINT)mesh_subset->IndexCount, num_trees_, 0, (UINT)mesh_subset->VertexStart, 0 );
     
   }
-  
-/*
-
-  UINT stride[2];
-  Ustride = mesh_->GetVertexStride(0, 0);
-  UINT offset = 0;
-  ID3D10Buffer *mesh_vb = mesh_->GetVB10(0, 0);
-  device_->IASetVertexBuffers(0, 1, &mesh_vb, &stride, &offset);
-  device_->IASetIndexBuffer(mesh_->GetIB10(0), mesh_->GetIBFormat10(0), 0);
-  device_->IASetInputLayout(mesh_vertex_layout_);
-
-  SDKMESH_SUBSET *mesh_subset = NULL;
-  for (UINT subset = 0; subset < mesh_->GetNumSubsets(0); ++subset) {
-    mesh_subset = mesh_->GetSubset(0, subset);
-    device_->IASetPrimitiveTopology(
-        mesh_->GetPrimitiveType10(
-            (SDKMESH_PRIMITIVE_TYPE)mesh_subset->PrimitiveType));
-    //mesh_texture_ev_->SetResource(mesh_texture_srv_[subset]);
-    mesh_texture_ev_->SetResource(mesh_texture_srv_);
-    mesh_pass_->Apply(0);    
-    device_->DrawIndexed((UINT)mesh_subset->IndexCount,
-                         (UINT)mesh_subset->IndexStart,
-                         0);
-    
-  }
-  */
-
 }
 
 void Terrain::DrawTile(float scale, D3DXVECTOR2 &translate, UINT lod,

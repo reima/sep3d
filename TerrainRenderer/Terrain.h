@@ -83,6 +83,8 @@ class Terrain {
 
   void InitMeshes(void);
 
+  void InitTrees(ID3D10Device *device);
+
   /**
    * Zeiger auf das Wurzel-Tile
    */
@@ -102,6 +104,8 @@ class Terrain {
    * Zeiger auf den D3D10-Index-Buffer.
    */
   ID3D10Buffer *index_buffer_;
+  ID3D10Buffer *tree_buffer_; // bäume positionen/rotationen
+  UINT num_trees_;
 
   ID3D10EffectScalarVariable *tile_scale_ev_;
   ID3D10EffectVectorVariable *tile_translate_ev_;
