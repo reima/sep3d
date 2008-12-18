@@ -128,9 +128,10 @@ struct VS_INPUT
 
 struct VS_TREES_INPUT
 {
-  float3 Position   : POSITION;
-  float3 Normal     : NORMAL;
-  float2 TexCoord   : TEXTURE;
+  float3 Position : POSITION;
+  float3 Normal : NORMAL;
+  float2 TexCoord : TEXTURE; 
+  row_major float4x4 mTransform: mTransform;
 };
 
 //--------------------------------------------------------------------------------------
@@ -465,16 +466,17 @@ VS_PHONG_SHADING_OUTPUT PhongShading_VS( float2 vPosition : POSITION )
 
 VS_TREES_OUTPUT Trees_VS( VS_TREES_INPUT Input )
 {
-  VS_TREES_OUTPUT Output;
+VS_TREES_OUTPUT Output;
   Input.Position.y += 0.5;
   float4 vPos = float4(Input.Position, 1);
+  vPos = mul(vPos, Input.mTransform);
   Output.Position = mul(vPos, g_mWorldViewProjection);
   Output.WorldPosition = Input.Position;
   Output.LightSpacePos = mul(vPos, g_mDirectionalLightSpaceTransform);
-  Output.Normal = normalize(Input.Normal);
+  Output.Normal = normalize(Input.Normal); // korrekt?
   Output.TexCoord = Input.TexCoord;
-
-  return Output;
+ 
+  return Output; 
 }
 
 float4 Environment_VS( float3 vPosition : POSITION ) : SV_Position
@@ -684,6 +686,7 @@ technique10 Trees
     SetVertexShader( CompileShader( vs_4_0, Trees_VS() ) );
     SetGeometryShader( NULL );
     SetPixelShader( CompileShader( ps_4_0, Trees_PS() ) );
+   // SetPixelShader( NULL );
     SetRasterizerState( rsCullNone );
     SetBlendState( bsAlphaToCov, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
   }

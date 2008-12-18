@@ -158,14 +158,25 @@ void Terrain::GetShaderHandles(ID3D10Effect *effect) {
                              pass_desc.IAInputSignatureSize, &vertex_layout_);
 
   // Mesh Vertex Layout
-  const D3D10_INPUT_ELEMENT_DESC mesh_layout[] = {
+ /* const D3D10_INPUT_ELEMENT_DESC mesh_layout[] = {
     { "POSITION" , 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
       D3D10_INPUT_PER_VERTEX_DATA, 0 },
     { "NORMAL" , 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12,
       D3D10_INPUT_PER_VERTEX_DATA, 0 },
     { "TEXTURE" , 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24,
       D3D10_INPUT_PER_VERTEX_DATA, 0 },
+  };*/
+  const D3D10_INPUT_ELEMENT_DESC mesh_layout[] = {
+    { "POSITION" , 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D10_INPUT_PER_VERTEX_DATA, 0 },
+    { "NORMAL" , 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D10_INPUT_PER_VERTEX_DATA, 0 },
+    { "TEXTURE" , 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D10_INPUT_PER_VERTEX_DATA, 0 },
+    { "mTransform", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 0, D3D10_INPUT_PER_INSTANCE_DATA, 1 },
+    { "mTransform", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 16, D3D10_INPUT_PER_INSTANCE_DATA, 1 },
+    { "mTransform", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 32, D3D10_INPUT_PER_INSTANCE_DATA, 1 },
+    { "mTransform", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 48, D3D10_INPUT_PER_INSTANCE_DATA, 1 },
   };
+
+
   num_elements = sizeof(mesh_layout) / sizeof(mesh_layout[0]);
   mesh_pass_ = effect->GetTechniqueByName("Trees")->GetPassByIndex(0);
   mesh_pass_->GetDesc(&pass_desc);
@@ -221,7 +232,60 @@ void Terrain::DrawMesh(void) {
   assert(mesh_vertex_layout_ != NULL);
   assert(device_ != NULL);
 
-  UINT stride = mesh_->GetVertexStride(0, 0);
+
+  UINT uiNumInstances  = 100;
+  D3D10_BUFFER_DESC bufferDesc={
+  uiNumInstances* sizeof( D3DXMATRIX ),
+  D3D10_USAGE_DYNAMIC,
+  D3D10_BIND_VERTEX_BUFFER,
+  D3D10_CPU_ACCESS_WRITE,
+  0};
+  D3DXMATRIX * m_pMatPerInstance= new D3DXMATRIX[ uiNumInstances]; //Matrix array
+  for(UINT i=0; i<uiNumInstances; i++){
+    m_pMatPerInstance[i] = D3DXMATRIX(1, 0, 0, 0,
+                                   0, 1, 0, 0,
+                                   0, 0, 1, 0,
+                                   i/2, 0.2f, i%10, 1);
+  }
+  D3D10_SUBRESOURCE_DATA vbInitMatrices;
+  ZeroMemory( &vbInitMatrices, sizeof(D3D10_SUBRESOURCE_DATA) );
+  vbInitMatrices.pSysMem= m_pMatPerInstance;
+  ID3D10Buffer *m_pInstanceVB;
+  device_->CreateBuffer( &bufferDesc, &vbInitMatrices, &m_pInstanceVB);
+
+
+  UINT stride[2];
+  stride[0] = mesh_->GetVertexStride(0, 0);
+  stride[1] = sizeof( D3DXMATRIX );
+  UINT offset[2] = {0,0};
+ // ID3D10Buffer *mesh_vb = mesh_->GetVB10(0, 0);
+
+  ID3D10Buffer *pVB[2] = {mesh_->GetVB10(0,0), m_pInstanceVB};
+ // device_->IASetVertexBuffers(0, 1, &mesh_vb, &stride, &offset);
+  device_->IASetVertexBuffers( 0, 2, pVB, stride, offset );
+  device_->IASetIndexBuffer(mesh_->GetIB10(0), mesh_->GetIBFormat10(0), 0);
+  device_->IASetInputLayout(mesh_vertex_layout_);
+
+  SDKMESH_SUBSET *mesh_subset = NULL;
+  for (UINT subset = 0; subset < mesh_->GetNumSubsets(0); ++subset) {
+    mesh_subset = mesh_->GetSubset(0, subset);
+    device_->IASetPrimitiveTopology(
+        mesh_->GetPrimitiveType10(
+            (SDKMESH_PRIMITIVE_TYPE)mesh_subset->PrimitiveType));
+    //mesh_texture_ev_->SetResource(mesh_texture_srv_[subset]);
+    mesh_texture_ev_->SetResource(mesh_texture_srv_);
+    mesh_pass_->Apply(0);    
+ //   device_->DrawIndexed((UINT)mesh_subset->IndexCount,
+  //                       (UINT)mesh_subset->IndexStart,
+   //                      0);
+   device_->DrawIndexedInstanced((UINT)mesh_subset->IndexCount, uiNumInstances, 0, (UINT)mesh_subset->VertexStart, 0 );
+    
+  }
+  
+/*
+
+  UINT stride[2];
+  Ustride = mesh_->GetVertexStride(0, 0);
   UINT offset = 0;
   ID3D10Buffer *mesh_vb = mesh_->GetVB10(0, 0);
   device_->IASetVertexBuffers(0, 1, &mesh_vb, &stride, &offset);
@@ -240,7 +304,10 @@ void Terrain::DrawMesh(void) {
     device_->DrawIndexed((UINT)mesh_subset->IndexCount,
                          (UINT)mesh_subset->IndexStart,
                          0);
+    
   }
+  */
+
 }
 
 void Terrain::DrawTile(float scale, D3DXVECTOR2 &translate, UINT lod,
