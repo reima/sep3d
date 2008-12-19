@@ -74,7 +74,7 @@ class Scene {
   void SetShadowMapDimensions(UINT width, UINT height);
   void SetShadowMapPrecision(bool high_precision);
 
-  void Draw(ID3D10EffectTechnique *technique);
+  void Draw(ID3D10EffectTechnique *technique, bool shadow_pass=false);
 
   void SetMovement(SceneMovement movement);
 

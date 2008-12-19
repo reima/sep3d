@@ -48,7 +48,7 @@ class Terrain {
 
   void GetBoundingBox(D3DXVECTOR3 *out, D3DXVECTOR3 *mid) const;
   void Draw(ID3D10EffectTechnique *technique, LODSelector *lod_selector,
-            const CBaseCamera *camera);
+            const CBaseCamera *camera, bool shadow_pass=false);
 
   /**
    * Ermittelt die minimale Höhe im Terrain und gibt sie zurück.
@@ -69,7 +69,7 @@ class Terrain {
 
   void DrawTile(float scale, D3DXVECTOR2 &translate, UINT lod,
                 ID3D10ShaderResourceView *srv);
-  void DrawMesh(void);
+  void DrawMesh(bool shadow_pass=false);
 
   /**
    * Reserviert Speicher für den Index Buffer.
@@ -127,4 +127,5 @@ class Terrain {
   ID3D10EffectShaderResourceVariable *mesh_texture_ev_;
   ID3D10ShaderResourceView *mesh_texture_srv_;
   ID3D10EffectPass *mesh_pass_;
+  ID3D10EffectPass *mesh_shadow_pass_;
 };

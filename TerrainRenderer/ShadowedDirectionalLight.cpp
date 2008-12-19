@@ -256,7 +256,7 @@ void ShadowedDirectionalLight::OnFrameMove(float elapsed_time) {
   viewport.MinDepth = 0.0f;
   device_->RSSetViewports(1, &viewport);
 
-  scene_->Draw(technique_);
+  scene_->Draw(technique_, true);
 
   // Alte Render Targets wieder setzen
   device_->OMSetRenderTargets(D3D10_SIMULTANEOUS_RENDER_TARGET_COUNT,

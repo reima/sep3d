@@ -207,11 +207,11 @@ void Scene::GetBoundingBox(D3DXVECTOR3 *box, D3DXVECTOR3 *mid) {
   }
 }
 
-void Scene::Draw(ID3D10EffectTechnique *technique) {
+void Scene::Draw(ID3D10EffectTechnique *technique, bool shadow_pass) {
   assert(device_ != NULL);
   if (terrain_) {
     assert(lod_selector_ != NULL);
-    terrain_->Draw(technique, lod_selector_, camera_);
+    terrain_->Draw(technique, lod_selector_, camera_, shadow_pass);
   }
 }
 

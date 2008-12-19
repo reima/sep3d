@@ -480,6 +480,20 @@ VS_TREES_OUTPUT Trees_VS( VS_TREES_INPUT Input ) {
   return Output;
 }
 
+// TODO: neue Struktur nur mit Position und TexCoord
+VS_TREES_OUTPUT TreesShadowMap_VS( VS_TREES_INPUT Input ) {
+  VS_TREES_OUTPUT Output;
+
+  float4 vPos = float4(Input.Position, 1);
+  float4x4 trans = Input.mTransform;
+  //trans._14 = sin(g_fTime)/30;
+  vPos = mul(vPos, trans);
+  Output.Position = mul(vPos, g_mDirectionalLightSpaceTransform);
+  Output.TexCoord = Input.TexCoord;
+
+  return Output;
+}
+
 float4 Environment_VS( float3 vPosition : POSITION ) : SV_Position
 {
   return float4(vPosition, 1);
@@ -588,6 +602,14 @@ float4 Trees_PS( VS_TREES_OUTPUT In ) : SV_Target
   return vColor;
 }
 
+float TreesShadowMap_PS( VS_TREES_OUTPUT In ) : SV_Depth
+{
+  float4 vColor = g_tMesh.Sample(g_ssLinear, In.TexCoord);
+  if (vColor.a < 0.05) discard;
+
+  return In.Position.z/In.Position.w;
+}
+
 float4 Environment_PS( float4 vPos : SV_Position ) : SV_Target
 {
   // Transform vPos.xy in NDC
@@ -689,6 +711,19 @@ technique10 Trees
     SetPixelShader( CompileShader( ps_4_0, Trees_PS() ) );
     SetRasterizerState( rsCullNone );
     SetBlendState( bsAlphaToCov, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
+  }
+}
+
+technique10 TreesShadowMap
+{
+  pass P0
+  {
+    SetVertexShader( CompileShader( vs_4_0, TreesShadowMap_VS() ) );
+    SetGeometryShader( NULL );
+    SetPixelShader( CompileShader( ps_4_0, TreesShadowMap_PS() ) );
+    SetDepthStencilState( dssEnableDepth, 0 );
+    SetRasterizerState( rsCullNone );
+    SetBlendState( bsNoColorWrite, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
   }
 }
 

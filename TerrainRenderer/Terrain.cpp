@@ -25,6 +25,7 @@ Terrain::Terrain(int n, float roughness, int num_lod, float scale, bool water)
       mesh_texture_ev_(NULL),
       mesh_texture_srv_(NULL),
       mesh_pass_(NULL),
+      mesh_shadow_pass_(NULL),
       tree_buffer_(NULL) {
   tile_ = new Tile(this, n, roughness, num_lod, scale, water);
   InitMeshes();
@@ -40,7 +41,7 @@ Terrain::~Terrain(void) {
 
 void Terrain::InitMeshes(void) {
   mesh_ = new CDXUTSDKMesh();
-  mesh_->Create(DXUTGetD3D10Device(), L"Meshes\\AshTree.sdkmesh");
+  mesh_->Create(DXUTGetD3D10Device(), L"Meshes\\AutuumMaple.sdkmesh");
 }
 
 void Terrain::InitIndexBuffer(void) {
@@ -133,7 +134,7 @@ HRESULT Terrain::CreateBuffers(ID3D10Device *device) {
 
   // Texturen laden
   V_RETURN(D3DX10CreateShaderResourceViewFromFile(device_,
-      L"Meshes\\AshTree.png", NULL, NULL, &mesh_texture_srv_, NULL));
+      L"Meshes\\AutuumMaple.png", NULL, NULL, &mesh_texture_srv_, NULL));
 
   V_RETURN(InitTrees());
 
@@ -144,14 +145,14 @@ HRESULT Terrain::InitTrees(void) {
   assert(tile_ != NULL);
   assert(device_ != NULL);
   HRESULT hr;
-  const int dist = 8;
+  const int dist = 16;
 
   std::vector<D3DXMATRIX> tree_transforms;
   srand(42);
 
   for (int ix = 0; ix < size_; ix += dist) {
     for (int iy = 0; iy < size_; iy += dist) {
-      float scaleY = 1 + (rand() / (RAND_MAX * 0.5f) - 1.0f) * 0.3f;
+      float scaleY = 1/* + (rand() / (RAND_MAX * 0.5f) - 1.0f) * 0.3f*/;
       float scaleXZ = 1 + (rand() / (RAND_MAX * 0.5f) - 1.0f) * 0.1f;
       float rot = (rand() / RAND_MAX) * D3DX_PI;
 
@@ -168,35 +169,33 @@ HRESULT Terrain::InitTrees(void) {
       // Keine Bäume im Wasser
       if (base.y == 0.0f) continue;
 
-      base.y += 0.5f * scaleY;
+      base.y += 0.5f;
 
       D3DXMATRIX transform;
       D3DXMATRIX temp;
       D3DXMatrixRotationY(&transform, rot);
-      D3DXMatrixMultiply(&transform, &transform, D3DXMatrixScaling(&temp, scaleXZ, scaleY, scaleXZ));
       D3DXMatrixMultiply(&transform, &transform, D3DXMatrixTranslation(&temp, base.x, base.y, base.z));
+      D3DXMatrixMultiply(&transform, &transform, D3DXMatrixScaling(&temp, scaleXZ, scaleY, scaleXZ));      
 
       tree_transforms.push_back(transform);
     }
   }
 
   num_trees_ = tree_transforms.size();
-
-  D3D10_BUFFER_DESC buffer_desc;
-  buffer_desc.Usage = D3D10_USAGE_DEFAULT;
-  buffer_desc.ByteWidth = sizeof(D3DXMATRIX) * num_trees_;
-  buffer_desc.BindFlags = D3D10_BIND_VERTEX_BUFFER;
-  buffer_desc.CPUAccessFlags = 0;
-  buffer_desc.MiscFlags = 0;
-  D3D10_SUBRESOURCE_DATA init_data;
+  
   if (num_trees_ > 0) {
-    init_data.pSysMem = &tree_transforms[0];
-  } else {
-    init_data.pSysMem = NULL;
+    D3D10_BUFFER_DESC buffer_desc;
+    buffer_desc.Usage = D3D10_USAGE_DEFAULT;
+    buffer_desc.ByteWidth = sizeof(D3DXMATRIX) * num_trees_;
+    buffer_desc.BindFlags = D3D10_BIND_VERTEX_BUFFER;
+    buffer_desc.CPUAccessFlags = 0;
+    buffer_desc.MiscFlags = 0;
+    D3D10_SUBRESOURCE_DATA init_data;
+    init_data.pSysMem = &tree_transforms[0];   
+    init_data.SysMemPitch = 0;
+    init_data.SysMemSlicePitch = 0;
+    V_RETURN(device_->CreateBuffer(&buffer_desc, &init_data, &tree_buffer_));
   }
-  init_data.SysMemPitch = 0;
-  init_data.SysMemSlicePitch = 0;
-  V_RETURN(device_->CreateBuffer(&buffer_desc, &init_data, &tree_buffer_));
 
   return S_OK;
 }
@@ -238,6 +237,7 @@ void Terrain::GetShaderHandles(ID3D10Effect *effect) {
 
   num_elements = sizeof(mesh_layout) / sizeof(mesh_layout[0]);
   mesh_pass_ = effect->GetTechniqueByName("Trees")->GetPassByIndex(0);
+  mesh_shadow_pass_ = effect->GetTechniqueByName("TreesShadowMap")->GetPassByIndex(0);
   mesh_pass_->GetDesc(&pass_desc);
   device_->CreateInputLayout(mesh_layout, num_elements, pass_desc.pIAInputSignature,
                              pass_desc.IAInputSignatureSize, &mesh_vertex_layout_);
@@ -254,7 +254,6 @@ void Terrain::GetShaderHandles(ID3D10Effect *effect) {
   terrain_size_ev_->SetInt(size_);
   mesh_texture_ev_ =
       effect->GetVariableByName("g_tMesh")->AsShaderResource();
-
 }
 
 void Terrain::GetBoundingBox(D3DXVECTOR3 *out, D3DXVECTOR3 *mid) const {
@@ -262,7 +261,7 @@ void Terrain::GetBoundingBox(D3DXVECTOR3 *out, D3DXVECTOR3 *mid) const {
 }
 
 void Terrain::Draw(ID3D10EffectTechnique *technique, LODSelector *lod_selector,
-                   const CBaseCamera *camera) {
+                   const CBaseCamera *camera, bool shadow_pass) {
   assert(vertex_buffer_ != NULL);
   assert(index_buffer_ != NULL);
   assert(vertex_layout_ != NULL);
@@ -280,17 +279,19 @@ void Terrain::Draw(ID3D10EffectTechnique *technique, LODSelector *lod_selector,
   device_->IASetInputLayout(vertex_layout_);
 
   technique_ = technique;
-  tile_->Draw(lod_selector, camera);
-  DrawMesh();
+  tile_->Draw(lod_selector, camera);  
   technique_ = NULL;
+
+  if (tree_buffer_) DrawMesh(shadow_pass);
 }
 
-void Terrain::DrawMesh(void) {
+void Terrain::DrawMesh(bool shadow_pass) {
   assert(mesh_ != NULL);
   assert(mesh_->IsLoaded());
   assert(mesh_vertex_layout_ != NULL);
   assert(tree_buffer_ != NULL);
   assert(device_ != NULL);
+  assert((shadow_pass && mesh_shadow_pass_) || mesh_pass_);
 
   UINT stride[2] = {
     mesh_->GetVertexStride(0, 0),
@@ -315,7 +316,11 @@ void Terrain::DrawMesh(void) {
             (SDKMESH_PRIMITIVE_TYPE)mesh_subset->PrimitiveType));
 
     mesh_texture_ev_->SetResource(mesh_texture_srv_);
-    mesh_pass_->Apply(0);
+    if (shadow_pass) {
+      mesh_shadow_pass_->Apply(0);
+    } else {
+      mesh_pass_->Apply(0);
+    }
 
     device_->DrawIndexedInstanced((UINT)mesh_subset->IndexCount,
                                   num_trees_,
