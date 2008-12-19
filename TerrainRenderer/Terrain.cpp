@@ -41,7 +41,7 @@ Terrain::~Terrain(void) {
 
 void Terrain::InitMeshes(void) {
   mesh_ = new CDXUTSDKMesh();
-  mesh_->Create(DXUTGetD3D10Device(), L"Meshes\\AutuumMaple.sdkmesh");
+  mesh_->Create(DXUTGetD3D10Device(), L"Meshes\\AshTree.sdkmesh");
 }
 
 void Terrain::InitIndexBuffer(void) {
@@ -134,7 +134,7 @@ HRESULT Terrain::CreateBuffers(ID3D10Device *device) {
 
   // Texturen laden
   V_RETURN(D3DX10CreateShaderResourceViewFromFile(device_,
-      L"Meshes\\AutuumMaple.png", NULL, NULL, &mesh_texture_srv_, NULL));
+      L"Meshes\\AshTree.png", NULL, NULL, &mesh_texture_srv_, NULL));
 
   V_RETURN(InitTrees());
 
@@ -152,7 +152,7 @@ HRESULT Terrain::InitTrees(void) {
 
   for (int ix = 0; ix < size_; ix += dist) {
     for (int iy = 0; iy < size_; iy += dist) {
-      float scaleY = 1/* + (rand() / (RAND_MAX * 0.5f) - 1.0f) * 0.3f*/;
+      float scaleY = 1 + (rand() / (RAND_MAX * 0.5f) - 1.0f) * 0.3f;
       float scaleXZ = 1 + (rand() / (RAND_MAX * 0.5f) - 1.0f) * 0.1f;
       float rot = (rand() / RAND_MAX) * D3DX_PI;
 
@@ -167,15 +167,14 @@ HRESULT Terrain::InitTrees(void) {
       base.y = tile_->GetHeightAt(base);
 
       // Keine Bäume im Wasser
-      if (base.y == 0.0f) continue;
-
-      base.y += 0.5f;
+      if (base.y < 0.05f) continue;
 
       D3DXMATRIX transform;
       D3DXMATRIX temp;
-      D3DXMatrixRotationY(&transform, rot);
-      D3DXMatrixMultiply(&transform, &transform, D3DXMatrixTranslation(&temp, base.x, base.y, base.z));
-      D3DXMatrixMultiply(&transform, &transform, D3DXMatrixScaling(&temp, scaleXZ, scaleY, scaleXZ));      
+      D3DXMatrixTranslation(&transform, 0.0f, 0.5f, 0.0f);
+      D3DXMatrixMultiply(&transform, &transform, D3DXMatrixRotationY(&temp, rot));      
+      D3DXMatrixMultiply(&transform, &transform, D3DXMatrixScaling(&temp, scaleXZ, scaleY, scaleXZ));
+      D3DXMatrixMultiply(&transform, &transform, D3DXMatrixTranslation(&temp, base.x, base.y, base.z));      
 
       tree_transforms.push_back(transform);
     }
