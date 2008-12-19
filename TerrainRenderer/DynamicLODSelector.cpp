@@ -22,9 +22,14 @@ bool DynamicLODSelector::IsLODSufficient(const Tile *tile,
   D3DXVec3TransformCoordArray(bbox, sizeof(D3DXVECTOR3),
                               bbox, sizeof(D3DXVECTOR3),
                               camera->GetViewMatrix(), 8);
+  float min_dist_sq = D3DXVec3LengthSq(&bbox[0]);
   float min_z = bbox[0].z;
   for (int i = 1; i < 8; ++i) {
-    min_z = std::min(min_z, bbox[i].z);
+    float dist_sq = D3DXVec3LengthSq(&bbox[i]);
+    if (dist_sq < min_dist_sq) {
+      min_dist_sq = dist_sq;
+      min_z = bbox[i].z;
+    }
   }
   float max_world_error = factor_ * min_z;
   return tile->GetWorldError() <= max_world_error;

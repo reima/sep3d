@@ -1,7 +1,10 @@
+#include <vector>
 #include "ShadowedDirectionalLight.h"
 #include "LODSelector.h"
 #include "Scene.h"
 #include "DXUTCamera.h"
+
+extern CFirstPersonCamera g_Camera;
 
 ShadowedDirectionalLight::ShadowedDirectionalLight(
     const D3DXVECTOR3 &direction,
@@ -105,11 +108,18 @@ void ShadowedDirectionalLight::SetShadowMapPrecision(bool high_precision) {
   OnCreateDevice(device_);
 }
 
+bool IsLeft(const D3DXVECTOR3 *p0, const D3DXVECTOR3 *p1, const D3DXVECTOR3 *p2) {
+  return p0->x*(p1->y-p2->y) + p1->x*(p2->y-p0->y) + p2->x*(p0->y-p1->y) > 0;
+}
+
 void ShadowedDirectionalLight::UpdateMatrices(void) {
+  //
+  // Calculate light space transform
+  //
   D3DXVECTOR3 box[8];
   D3DXVECTOR3 mid;
-
   scene_->GetBoundingBox(box, &mid);
+
   D3DXMATRIX view;
 
   D3DXVECTOR3 lookat = mid - direction_;
@@ -139,6 +149,70 @@ void ShadowedDirectionalLight::UpdateMatrices(void) {
                              max_coords.z);
 
   light_space_transform_ = view * proj;
+
+  ////
+  //// Calculate view frustum in light space
+  ////
+
+  //// Frustum in NDC
+  //D3DXVECTOR3 frustum[] = {
+  //  // Near plane
+  //  D3DXVECTOR3(-1, -1, 0),
+  //  D3DXVECTOR3(-1,  1, 0),
+  //  D3DXVECTOR3( 1,  1, 0),
+  //  D3DXVECTOR3( 1, -1, 0),
+  //  // Far plane
+  //  D3DXVECTOR3(-1, -1, 1),
+  //  D3DXVECTOR3(-1,  1, 1),
+  //  D3DXVECTOR3( 1,  1, 1),
+  //  D3DXVECTOR3( 1, -1, 1),
+  //};
+
+  //D3DXMATRIX view_proj_inv;
+  //view_proj_inv = *g_Camera.GetViewMatrix();
+  //D3DXMatrixMultiply(&view_proj_inv, &view_proj_inv, g_Camera.GetProjMatrix());
+  //D3DXMatrixInverse(&view_proj_inv, NULL, &view_proj_inv);
+
+  //D3DXMATRIX frustum_transform;
+  //D3DXMatrixMultiply(&frustum_transform, &view_proj_inv, &light_space_transform_);
+
+  //// Transform NDC frustum to World Space -> Light Space
+  //D3DXVec3TransformCoordArray(frustum, sizeof(D3DXVECTOR3),
+  //                            frustum, sizeof(D3DXVECTOR3),
+  //                            &frustum_transform, 8);
+
+  ////
+  //// Calculate 2D convex hull of frustum in light space
+  ////
+
+  //// Gift Wrapping Algorithm
+  //std::vector<D3DXVECTOR3 *> convex_hull;
+  //D3DXVECTOR3 *start = &frustum[0];
+  //for (int i = 1; i < 8; ++i) {
+  //  if (frustum[i].y < start->y) start = &frustum[i];
+  //}
+  //convex_hull.push_back(start);
+  //D3DXVECTOR3 *point_a = start;
+  //D3DXVECTOR3 *point_b = NULL;
+  //D3DXVECTOR3 *point_c = NULL;
+  //bool all_left = true;
+  //while (true) {
+  //  for (point_b = &frustum[0]; point_b <= &frustum[7]; ++point_b) {
+  //    if (point_a == point_b) continue;
+  //    all_left = true;
+  //    for (point_c = &frustum[0]; point_c <= &frustum[7]; ++point_c) {
+  //      if (point_a == point_c || point_b == point_c) continue;
+  //      if (!IsLeft(point_a, point_b, point_c)) {
+  //        all_left = false;
+  //        break;
+  //      }
+  //    }
+  //    if (all_left) break;
+  //  }
+  //  if (point_b == start) break;
+  //  convex_hull.push_back(point_b);
+  //  point_a = point_b;
+  //}
 }
 
 void ShadowedDirectionalLight::OnFrameMove(float elapsed_time) {
