@@ -820,6 +820,14 @@
 			>
 		</File>
 		<File
+			RelativePath=".\Geom2D.cpp"
+			>
+		</File>
+		<File
+			RelativePath=".\Geom2D.h"
+			>
+		</File>
+		<File
 			RelativePath=".\LoadEffect.cpp"
 			>
 		</File>

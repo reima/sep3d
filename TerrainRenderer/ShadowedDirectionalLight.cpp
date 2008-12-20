@@ -3,6 +3,7 @@
 #include "LODSelector.h"
 #include "Scene.h"
 #include "DXUTCamera.h"
+#include "Geom2D.h"
 
 extern CFirstPersonCamera g_Camera;
 
@@ -149,71 +150,107 @@ void ShadowedDirectionalLight::UpdateMatrices(void) {
                              max_coords.z);
 
   light_space_transform_ = view * proj;
-
-  ////
-  //// Calculate view frustum in light space
-  ////
-
-  //// Frustum in NDC
-  //D3DXVECTOR3 frustum[] = {
-  //  // Near plane
-  //  D3DXVECTOR3(-1, -1, 0),
-  //  D3DXVECTOR3(-1,  1, 0),
-  //  D3DXVECTOR3( 1,  1, 0),
-  //  D3DXVECTOR3( 1, -1, 0),
-  //  // Far plane
-  //  D3DXVECTOR3(-1, -1, 1),
-  //  D3DXVECTOR3(-1,  1, 1),
-  //  D3DXVECTOR3( 1,  1, 1),
-  //  D3DXVECTOR3( 1, -1, 1),
-  //};
-
-  //D3DXMATRIX view_proj_inv;
-  //view_proj_inv = *g_Camera.GetViewMatrix();
-  //D3DXMatrixMultiply(&view_proj_inv, &view_proj_inv, g_Camera.GetProjMatrix());
-  //D3DXMatrixInverse(&view_proj_inv, NULL, &view_proj_inv);
-
-  //D3DXMATRIX frustum_transform;
-  //D3DXMatrixMultiply(&frustum_transform, &view_proj_inv, &light_space_transform_);
-
-  //// Transform NDC frustum to World Space -> Light Space
-  //D3DXVec3TransformCoordArray(frustum, sizeof(D3DXVECTOR3),
-  //                            frustum, sizeof(D3DXVECTOR3),
-  //                            &frustum_transform, 8);
-
-  ////
-  //// Calculate 2D convex hull of frustum in light space
-  ////
-
-  //// Gift Wrapping Algorithm
-  //std::vector<D3DXVECTOR3 *> convex_hull;
-  //D3DXVECTOR3 *start = &frustum[0];
-  //for (int i = 1; i < 8; ++i) {
-  //  if (frustum[i].y < start->y) start = &frustum[i];
-  //}
-  //convex_hull.push_back(start);
-  //D3DXVECTOR3 *point_a = start;
-  //D3DXVECTOR3 *point_b = NULL;
-  //D3DXVECTOR3 *point_c = NULL;
-  //bool all_left = true;
-  //while (true) {
-  //  for (point_b = &frustum[0]; point_b <= &frustum[7]; ++point_b) {
-  //    if (point_a == point_b) continue;
-  //    all_left = true;
-  //    for (point_c = &frustum[0]; point_c <= &frustum[7]; ++point_c) {
-  //      if (point_a == point_c || point_b == point_c) continue;
-  //      if (!IsLeft(point_a, point_b, point_c)) {
-  //        all_left = false;
-  //        break;
-  //      }
-  //    }
-  //    if (all_left) break;
-  //  }
-  //  if (point_b == start) break;
-  //  convex_hull.push_back(point_b);
-  //  point_a = point_b;
-  //}
 }
+
+void ShadowedDirectionalLight::TSM_UpdateMatrices(void) {
+  UpdateMatrices();
+
+  //
+  // Calculate view frustum in light space
+  //
+
+  // Frustum in NDC
+  D3DXVECTOR3 frustum[] = {
+    // Near plane
+    D3DXVECTOR3(-1, -1, 0),
+    D3DXVECTOR3(-1,  1, 0),
+    D3DXVECTOR3( 1,  1, 0),
+    D3DXVECTOR3( 1, -1, 0),
+    // Far plane
+    D3DXVECTOR3(-1, -1, 1),
+    D3DXVECTOR3(-1,  1, 1),
+    D3DXVECTOR3( 1,  1, 1),
+    D3DXVECTOR3( 1, -1, 1),
+  };
+
+  D3DXMATRIX view_proj_inv;
+  view_proj_inv = *g_Camera.GetViewMatrix();
+  D3DXMatrixMultiply(&view_proj_inv, &view_proj_inv, g_Camera.GetProjMatrix());
+  D3DXMatrixInverse(&view_proj_inv, NULL, &view_proj_inv);
+
+  D3DXMATRIX frustum_transform;
+  D3DXMatrixMultiply(&frustum_transform, &view_proj_inv, &light_space_transform_);
+
+  // Transform NDC frustum to World Space -> Light Space
+  D3DXVec3TransformCoordArray(frustum, sizeof(D3DXVECTOR3),
+                              frustum, sizeof(D3DXVECTOR3),
+                              &frustum_transform, 8);
+
+  //
+  // Calculate 2D convex hull of frustum in light space
+  //
+  ConvexPolygon2D poly;
+  for (int i = 0; i < 8; ++i) {
+    poly.AddPoint(frustum[i]);
+  }
+  poly.MakeConvexHull();
+
+  // Clip frustum to light space
+  poly.ClipToRect(D3DXVECTOR2(-1, -1), D3DXVECTOR2(1, 1));
+
+  D3DXVECTOR2 near_center = (frustum[0] + frustum[2]) * 0.5f;
+  D3DXVECTOR2 far_center =  (frustum[4] + frustum[6]) * 0.5f;
+  Line2D eye_line(near_center, far_center);
+  Line2D eye_line_ortho = eye_line.OrthogonalLine();
+
+  // Determine base and top line
+  float min_dist, max_dist;
+  D3DXVECTOR2 min_dist_point, max_dist_point;
+  poly.FindExtremePoints(LineDistanceMetric2D(&eye_line_ortho),
+                         &max_dist, &max_dist_point,
+                         &min_dist, &min_dist_point);
+  // min_dist and max_dist are now (directed) distances from near_center
+  Line2D top_line = eye_line_ortho.ParallelThrough(max_dist_point);
+  Line2D bottom_line = eye_line_ortho.ParallelThrough(min_dist_point);
+  // Make sure top_line has minimal distance from near_center
+  if (-min_dist < max_dist) {
+    Line2D temp = top_line;
+    top_line = bottom_line;
+    bottom_line = temp;
+  }
+
+  // Calculation of q according to paper
+  float lambda = max_dist + (-min_dist);
+  float delta = 0.25f; // TODO: insert something sensible here
+  float xi = -0.6f;
+  float eta = lambda*delta*(1+xi)/(lambda-2*delta-lambda*xi);
+  D3DXVECTOR2 q = eye_line.PointAt(-(max_dist + eta));
+
+  // Calculate side lines
+  float left_angle, right_angle;
+  D3DXVECTOR2 left_point, right_point;
+  poly.FindExtremePoints(LineAngleMetric2D(q, far_center),
+                         &right_angle, &right_point,
+                         &left_angle, &left_point);
+  Line2D left_line(q, left_point);
+  Line2D right_line(q, right_point);
+
+  // Calculate trapezoid
+  D3DXVECTOR2 t0 = left_line.Intersection(bottom_line);
+  D3DXVECTOR2 t1 = right_line.Intersection(bottom_line);
+  D3DXVECTOR2 t2 = right_line.Intersection(top_line);
+  D3DXVECTOR2 t3 = left_line.Intersection(top_line);
+
+  TSM_TrapezoidToSquare(t0, t1, t2, t3);
+}
+
+void ShadowedDirectionalLight::TSM_TrapezoidToSquare(const D3DXVECTOR2 &t0,
+                                                     const D3DXVECTOR2 &t1,
+                                                     const D3DXVECTOR2 &t2,
+                                                     const D3DXVECTOR2 &t3) {
+  // TODO: implement http://www.comp.nus.edu.sg/~tants/tsm/TSM_recipe.html
+}
+
 
 void ShadowedDirectionalLight::OnFrameMove(float elapsed_time) {
   assert(technique_ != NULL);

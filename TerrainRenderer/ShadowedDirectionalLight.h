@@ -25,6 +25,11 @@ class ShadowedDirectionalLight : public DirectionalLight {
  private:
   void SetShaderVariables(void);
   void UpdateMatrices(void);
+  void TSM_UpdateMatrices(void);
+  void TSM_TrapezoidToSquare(const D3DXVECTOR2 &t0,
+                             const D3DXVECTOR2 &t1,
+                             const D3DXVECTOR2 &t2,
+                             const D3DXVECTOR2 &t3);
 
   UINT map_width_;
   UINT map_height_;
