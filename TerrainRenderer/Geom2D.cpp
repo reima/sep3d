@@ -24,8 +24,7 @@ Line2D Line2D::ParallelThrough(const D3DXVECTOR2 &point) const {
 }
 
 float Line2D::Distance(const D3DXVECTOR2 &point) const {
-  D3DXVECTOR2 temp = point - start_;
-  return D3DXVec2Dot(&normal_, &temp);
+  return D3DXVec2Dot(&normal_, &point) - distance_;
 }
 
 float Line2D::Angle(const Line2D &line) const {
@@ -85,11 +84,13 @@ void ConvexPolygon2D::MakeConvexHull(void) {
       for (it2 = points_.begin(); it2 != points_.end(); ++it2) {
         point_c = &(*it2);
         if (point_a == point_c || point_b == point_c) continue;
-        inside = ab.Distance(*point_c) >= 0;
+        inside = ab.Distance(*point_c) >= -1E-5f;
         if (!inside) break;
       }
       if (inside) break;
     }
+    //assert(inside);
+    if (!inside) break;
     if (start == point_b) break;
     convex_hull.push_back(*point_b);
     point_a = point_b;
@@ -98,6 +99,7 @@ void ConvexPolygon2D::MakeConvexHull(void) {
 }
 
 void ConvexPolygon2D::ClipToLine(const Line2D &line) {
+  if (GetPointCount() == 0) return;
   std::vector<D3DXVECTOR2> new_points;
   D3DXVECTOR2 p0 = points_[points_.size()-1];
   bool p0_inside = line.Distance(p0) < 0;
@@ -127,7 +129,7 @@ void ConvexPolygon2D::ClipToRect(const D3DXVECTOR2 &min, const D3DXVECTOR2 &max)
   ClipToLine(Line2D(min, minmax));
   ClipToLine(Line2D(minmax, max));
   ClipToLine(Line2D(max, maxmin));
-  ClipToLine(Line2D(maxmin, min));  
+  ClipToLine(Line2D(maxmin, min));
 }
 
 void ConvexPolygon2D::FindExtremePoints(const Metric2D &metric,
@@ -135,6 +137,7 @@ void ConvexPolygon2D::FindExtremePoints(const Metric2D &metric,
                                         D3DXVECTOR2 *pos_extreme_point,
                                         float *neg_extreme_value,
                                         D3DXVECTOR2 *neg_extreme_point) const {
+  if (points_.size() == 0) return;
   *pos_extreme_value = *neg_extreme_value = 0;
   D3DXVECTOR2 const *pos_extreme_point0 = NULL, *neg_extreme_point0 = NULL;
   std::vector<D3DXVECTOR2>::const_iterator it;
@@ -150,8 +153,8 @@ void ConvexPolygon2D::FindExtremePoints(const Metric2D &metric,
       neg_extreme_point0 = &point;
     }
   }
-  *pos_extreme_point = *pos_extreme_point0;
-  *neg_extreme_point = *neg_extreme_point0;
+  if (pos_extreme_point0) *pos_extreme_point = *pos_extreme_point0;
+  if (neg_extreme_point0) *neg_extreme_point = *neg_extreme_point0;
 }
 #pragma endregion
 

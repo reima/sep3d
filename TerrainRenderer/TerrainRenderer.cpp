@@ -32,7 +32,7 @@
 //--------------------------------------------------------------------------------------
 int   g_nTerrainN = 7;
 float g_fTerrainR = 1.0f;
-int   g_nTerrainLOD = 3;
+int   g_nTerrainLOD = 0;
 float g_fTerrainScale = 10.0f;
 
 const float g_fFOV = D3DX_PI / 4;
@@ -77,10 +77,11 @@ ShadowedPointLight*         g_pShadowedPointLight = NULL;
 
 bool                        g_bShowSettings = false;
 bool                        g_bWireframe = false;
-bool                        g_bPaused = false;
+bool                        g_bPaused = true;
 float                       g_fScreenError = 1.0f;
 UINT                        g_uiScreenHeight = 600;
 ID3D10RasterizerState*      g_pRSWireframe = NULL;
+bool                        g_bTSM = false;
 
 //--------------------------------------------------------------------------------------
 // UI control IDs
@@ -157,7 +158,7 @@ ID3D10Effect* LoadEffect(ID3D10Device* pd3dDevice,
                          const D3D10_SHADER_MACRO *Shader_Macros = NULL,
                          const bool bDebugCompile = false);
 
-
+#include "Geom2D.h"
 //--------------------------------------------------------------------------------------
 // Entry point to the program. Initializes everything and goes into a message processing
 // loop. Idle time is used to render the scene.
@@ -168,7 +169,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 #if defined(DEBUG) | defined(_DEBUG)
   _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
-
   // Set DXUT callbacks
   DXUTSetCallbackMsgProc(MsgProc);
   DXUTSetCallbackKeyboard(OnKeyboard);
@@ -315,7 +315,7 @@ void RenderText() {
     g_pTxtHelper->DrawTextLine(sz);
     D3DXVECTOR3 cam_pos = *g_Camera.GetEyePt();
     StringCchPrintf(sz, 100, L"Camera: (%f, %f, %f)", cam_pos.x, cam_pos.y, cam_pos.z);
-    g_pTxtHelper->DrawTextLine(sz);    
+    g_pTxtHelper->DrawTextLine(sz);
   }
 
   g_pTxtHelper->End();
@@ -462,7 +462,7 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   //                       D3DXVECTOR3(0, 1, 0),
   //                       .5f, 5);
   g_pScene->AddDirectionalLight(
-      D3DXVECTOR3(1.0f, 0.25f, 0.0f),
+      D3DXVECTOR3(1.0f, 0.8f, 0.0f),
       D3DXVECTOR3(1, 0.75f, 0.5f),
       D3DXVECTOR3(0, 0.2f, 0),
       true);
@@ -499,7 +499,7 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain(ID3D10Device* pd3dDevice,
   // Setup the camera's projection parameters
   float fAspectRatio = pBackBufferSurfaceDesc->Width /
       (FLOAT)pBackBufferSurfaceDesc->Height;
-  g_Camera.SetProjParams(g_fFOV, fAspectRatio, 0.01f, 1000.0f);
+  g_Camera.SetProjParams(g_fFOV, fAspectRatio, 0.01f, 200.0f);
 
   g_HUD.SetLocation(pBackBufferSurfaceDesc->Width - 170, 0);
   g_HUD.SetSize(170, 170);
@@ -696,6 +696,10 @@ void CALLBACK OnKeyboard(UINT nChar, bool bKeyDown, bool bAltDown,
     case 'H':
     case 'h':
       g_bShowSettings = !g_bShowSettings;
+      break;
+    case 't':
+    case 'T':
+      g_bTSM = !g_bTSM;
       break;
   }
 }

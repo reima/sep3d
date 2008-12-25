@@ -7,6 +7,17 @@
 // Vertices zu vereinfachen
 #define I(x,y) ((y)*size_+(x))
 
+namespace {
+
+/**
+ * Generiert zuf‰llige Flieﬂkommazahl zwischen -1 und 1
+ */
+inline float randf(void) {
+  return rand() / (RAND_MAX * 0.5f) - 1.0f;
+}
+
+}
+
 Terrain::Terrain(int n, float roughness, int num_lod, float scale, bool water)
     : size_((1 << n) + 1),
       device_(NULL),
@@ -145,41 +156,27 @@ HRESULT Terrain::InitTrees(void) {
   assert(tile_ != NULL);
   assert(device_ != NULL);
   HRESULT hr;
-  const int dist = 16;
 
   std::vector<D3DXMATRIX> tree_transforms;
-  srand(42);
 
-  for (int ix = 0; ix < size_; ix += dist) {
-    for (int iy = 0; iy < size_; iy += dist) {
-      float scaleY = 1 + (rand() / (RAND_MAX * 0.5f) - 1.0f) * 0.3f;
-      float scaleXZ = 1 + (rand() / (RAND_MAX * 0.5f) - 1.0f) * 0.1f;
-      float rot = (rand() / RAND_MAX) * D3DX_PI;
+  for (int i = 0; i < 100; ++i) {
+    D3DXVECTOR3 seed(randf() * 0.5f, 0, randf() * 0.5f);
+    seed *= tile_->scale_;
+    seed.y = tile_->GetHeightAt(seed) - 0.05f;
+    // Too low
+    if (seed.y < 0.05f) continue;
 
-      D3DXVECTOR3 normal = tile_->vertex_normals_[I(ix,iy)];
-      D3DXVECTOR3 base = tile_->GetVectorFromIndex(I(ix,iy));
-
-      // Keine B‰ume bei zu groﬂer Steigung
-      if (normal.x > normal.y || normal.z > normal.y ) continue;
-
-      base.x += (float)dist/size_ * (rand() / (RAND_MAX * 0.5f) - 1.0f) * 4;
-      base.z += (float)dist/size_ * (rand() / (RAND_MAX * 0.5f) - 1.0f) * 4;
-      base.y = tile_->GetHeightAt(base);
-
-      // Keine B‰ume im Wasser
-      if (base.y < 0.05f) continue;
-
-      D3DXMATRIX transform;
-      D3DXMATRIX temp;
-      D3DXMatrixTranslation(&transform, 0.0f, 0.5f, 0.0f);
-      D3DXMatrixMultiply(&transform, &transform, D3DXMatrixRotationY(&temp, rot));      
-      D3DXMatrixMultiply(&transform, &transform, D3DXMatrixScaling(&temp, scaleXZ, scaleY, scaleXZ));
-      D3DXMatrixMultiply(&transform, &transform, D3DXMatrixTranslation(&temp, base.x, base.y, base.z));      
-
-      tree_transforms.push_back(transform);
-    }
+    float scale_y = (1 + randf() * 0.3f) * tile_->scale_ * 0.1f;
+    float scale_xz = (1 + randf() * 0.1f) * tile_->scale_ * 0.1f;
+    float rotation = randf() * D3DX_PI;
+    D3DXMATRIX transform, temp;
+    D3DXMatrixTranslation(&transform, 0.0f, 0.5f, 0.0f);
+    D3DXMatrixMultiply(&transform, &transform, D3DXMatrixScaling(&temp, scale_xz, scale_y, scale_xz));
+    D3DXMatrixMultiply(&transform, &transform, D3DXMatrixRotationY(&temp, rotation));
+    D3DXMatrixMultiply(&transform, &transform, D3DXMatrixTranslation(&temp, seed.x, seed.y, seed.z));
+    tree_transforms.push_back(transform);
   }
-
+  
   num_trees_ = tree_transforms.size();
   
   if (num_trees_ > 0) {

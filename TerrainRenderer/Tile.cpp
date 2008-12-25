@@ -89,7 +89,8 @@ Tile::~Tile(void) {
 
 void Tile::Init(float roughness) {
   // Zufallsgenerator initialisieren
-  srand(static_cast<unsigned int>(time(0)));
+  //srand(static_cast<unsigned int>(time(0)));
+  srand(12345);
 
   // Ecken mit Zufallshöhenwerten initialisieren
   int block_size = size_ - 1;
@@ -546,9 +547,8 @@ void Tile::GetBoundingBox(D3DXVECTOR3 *box, D3DXVECTOR3 *mid) const {
   box[6] = D3DXVECTOR3(1, max_height_, 0);
   box[7] = D3DXVECTOR3(1, max_height_, 1);
   for (int i = 0; i < 8; ++i) {
-    box[i] *= scale_;
-    box[i].x += translation_.x;
-    box[i].z += translation_.y;
+    box[i].x = box[i].x * scale_ + translation_.x;
+    box[i].z = box[i].z * scale_ + translation_.y;
   }
   if (mid != NULL) *mid = 0.5f * (box[0] + box[7]);
 }

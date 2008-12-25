@@ -24,6 +24,7 @@ cbuffer cbPerFrame
   float3   g_vDirectionalLight_Direction[8]; // Guaranteed to be normalized
   float3   g_vSpotLight_Position[8];
   float4x4 g_mDirectionalLightSpaceTransform;
+  float4x4 g_mDirectionalTrapezoidToSquare;
   float4x4 g_mPointLightSpaceTransform[6];
   // Environment
   float4x4 g_mWorldViewInv;
@@ -150,6 +151,7 @@ struct VS_PHONG_SHADING_OUTPUT
   float4 Position       : SV_Position;
   float3 WorldPosition  : WORLDPOS;
   float4 LightSpacePos  : LIGHTSPACEPOS;
+  float4 TSMPos         : TSMPOS;
   float  Height         : HEIGHT;
   float3 Normal         : NORMAL;
   float2 TexCoord       : TEXCOORD0;
@@ -160,13 +162,26 @@ struct VS_PHONG_SHADING_OUTPUT
   float4 Material       : MATERIAL; // = { k_a, k_d, k_s, n }
 };
 
+struct VS_DIRECTIONALSHADOW_OUTPUT
+{
+  float4 Position      : SV_Position;
+  float4 LightSpacePos : LIGHTSPACEPOS;
+};
+
 struct VS_TREES_OUTPUT
 {
   float4 Position      : SV_Position;
   float3 WorldPosition : WORLDPOS;
   float4 LightSpacePos : LIGHTSPACEPOS;
+  float4 TSMPos        : TSMPOS;
   float3 Normal        : NORMAL;
   float2 TexCoord      : TEXCOORD0;
+};
+
+struct VS_RTS_OUTPUT
+{
+  float4 Position : SV_Position;
+  float4 Color    : COLOR;
 };
 
 struct GS_POINTSHADOW_INPUT
@@ -282,6 +297,7 @@ PHONG PhongLighting(float3 vPos, float3 vNormal, float4 vMaterial)
 float3 FullLighting(float3 vColor,
                     float3 vWorldPosition,
                     float4 vLightSpacePos,
+                    float4 vTSMPos,
                     float3 N,
                     float4 vMaterial)
 {
@@ -300,22 +316,23 @@ float3 FullLighting(float3 vColor,
   if (g_bShadowedDirectionalLight) {
     vLightSpacePos /= vLightSpacePos.w;
     fLightDist = vLightSpacePos.z - g_fZEpsilon;
-    vLightSpacePos.x = 0.5 * vLightSpacePos.x + 0.5;
-    vLightSpacePos.y = 1 - (0.5 * vLightSpacePos.y + 0.5);
+    vTSMPos /= vTSMPos.w;
+    vTSMPos.x = 0.5 * vTSMPos.x + 0.5;
+    vTSMPos.y = 1 - (0.5 * vTSMPos.y + 0.5);
     g_tDirectionalShadowMap.GetDimensions(uiWidth, uiHeight);
-    vLightSpacePos.xy *= uint2(uiWidth-1, uiHeight-1);
+    vTSMPos.xy *= uint2(uiWidth-1, uiHeight-1);
 
     if (g_bPCF) {
       nInShadow = 0;
       [unroll] for (int x = -1; x <= 1; ++x) {
         [unroll] for (int y = -1; y <= 1; ++y) {
-          fShadowMap = g_tDirectionalShadowMap.Load(int3(vLightSpacePos.xy + int2(x, y), 0));
+          fShadowMap = g_tDirectionalShadowMap.Load(int3(vTSMPos.xy + int2(x, y), 0));
           if (fShadowMap < fLightDist) nInShadow++;
         }
       }
       fLightScale = 1 - nInShadow / 9.0f;
     } else {
-      fShadowMap = g_tDirectionalShadowMap.Load(int3(vLightSpacePos.xy, 0));
+      fShadowMap = g_tDirectionalShadowMap.Load(int3(vTSMPos.xy, 0));
       if (fShadowMap < fLightDist) fLightScale = 0.0f;
       else fLightScale = 1.0f;
     }
@@ -450,6 +467,7 @@ VS_PHONG_SHADING_OUTPUT PhongShading_VS( float2 vPosition : POSITION )
   Output.Height = vPos.y;
   Output.WorldPosition = vPos;
   Output.LightSpacePos = mul(vPos, g_mDirectionalLightSpaceTransform);
+  Output.TSMPos = mul(Output.LightSpacePos, g_mDirectionalTrapezoidToSquare);
   Output.TexCoord = vPos.xz * 5;
 
   if (g_bWaveNormals) {
@@ -474,7 +492,8 @@ VS_TREES_OUTPUT Trees_VS( VS_TREES_INPUT Input ) {
   Output.Position = mul(vPos, g_mWorldViewProjection);
   Output.WorldPosition = Input.Position;
   Output.LightSpacePos = mul(vPos, g_mDirectionalLightSpaceTransform);
-  Output.Normal = normalize(Input.Normal); // korrekt?
+  Output.TSMPos = mul(Output.LightSpacePos, g_mDirectionalTrapezoidToSquare);
+  Output.Normal = normalize(Input.Normal);
   Output.TexCoord = Input.TexCoord;
 
   return Output;
@@ -488,7 +507,8 @@ VS_TREES_OUTPUT TreesShadowMap_VS( VS_TREES_INPUT Input ) {
   float4x4 trans = Input.mTransform;
   //trans._14 = sin(g_fTime)/30;
   vPos = mul(vPos, trans);
-  Output.Position = mul(vPos, g_mDirectionalLightSpaceTransform);
+  Output.LightSpacePos = mul(vPos, g_mDirectionalLightSpaceTransform);
+  Output.Position = mul(Output.LightSpacePos, g_mDirectionalTrapezoidToSquare);
   Output.TexCoord = Input.TexCoord;
 
   return Output;
@@ -499,15 +519,26 @@ float4 Environment_VS( float3 vPosition : POSITION ) : SV_Position
   return float4(vPosition, 1);
 }
 
-float4 DirectionalShadow_VS( float2 vPosition : POSITION ) : SV_Position
+VS_DIRECTIONALSHADOW_OUTPUT DirectionalShadow_VS( float2 vPosition : POSITION )
 {
+  VS_DIRECTIONALSHADOW_OUTPUT Output;
   float4 vPos = GetTileVertex(vPosition);
-  return mul(vPos, g_mDirectionalLightSpaceTransform);
+  Output.LightSpacePos = mul(vPos, g_mDirectionalLightSpaceTransform);
+  Output.Position = mul(Output.LightSpacePos, g_mDirectionalTrapezoidToSquare);
+  return Output;
 }
 
 float4 PointShadow_VS( float2 vPosition : POSITION ) : SV_Position
 {
   return GetTileVertex(vPosition);
+}
+
+VS_RTS_OUTPUT RenderToScreen_VS( float2 vPosition : POSITION, uint iVertex : SV_VertexID )
+{
+  VS_RTS_OUTPUT Output;
+  Output.Position = float4(vPosition, 0, 1);
+  Output.Color = g_LODColors[iVertex % 6];
+  return Output;
 }
 
 //--------------------------------------------------------------------------------------
@@ -576,6 +607,7 @@ float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In, uniform bool bLODColoring ) 
   float3 vColor = FullLighting(vTerrainColor,
                                In.WorldPosition,
                                In.LightSpacePos,
+                               In.TSMPos,
                                N,
                                In.Material);
 
@@ -596,6 +628,7 @@ float4 Trees_PS( VS_TREES_OUTPUT In ) : SV_Target
   vColor.rgb = FullLighting(vColor.rgb,
                             In.WorldPosition,
                             In.LightSpacePos,
+                            In.TSMPos,
                             N,
                             g_vTreeMaterial);
 
@@ -626,14 +659,19 @@ float4 Environment_PS( float4 vPos : SV_Position ) : SV_Target
   return g_tCubeMap.Sample(g_ssLinear, vView);
 }
 
-float DirectionalShadow_PS( float4 vPos : SV_Position ) : SV_Depth
+float DirectionalShadow_PS( VS_DIRECTIONALSHADOW_OUTPUT In ) : SV_Depth
 {
-  return vPos.z/vPos.w;
+  return In.LightSpacePos.z/In.LightSpacePos.w;
 }
 
 float PointShadow_PS( GS_POINTSHADOW_OUTPUT In ) : SV_Depth
 {
   return In.Depth.x/In.Depth.y;
+}
+
+float4 Color_PS( VS_RTS_OUTPUT In ) : SV_Target
+{
+  return In.Color;
 }
 
 //--------------------------------------------------------------------------------------
@@ -774,5 +812,18 @@ technique10 PointShadowMap
     SetDepthStencilState( dssEnableDepth, 0 );
     SetRasterizerState( rsCullNone );
     SetBlendState( bsNoColorWrite, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
+  }
+}
+
+technique10 RenderToScreen
+{
+  pass P0
+  {
+    SetVertexShader( CompileShader( vs_4_0, RenderToScreen_VS() ) );
+    SetGeometryShader( NULL );
+    SetPixelShader( CompileShader( ps_4_0, Color_PS() ) );
+    SetDepthStencilState( NULL, 0 );
+    SetRasterizerState( rsCullNone );
+    SetBlendState( NULL, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
   }
 }

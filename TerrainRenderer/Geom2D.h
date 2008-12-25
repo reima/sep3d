@@ -48,12 +48,13 @@ class LineAngleMetric2D : public Metric2D {
 
 class ConvexPolygon2D {
  public:
-   ConvexPolygon2D(void);
+  ConvexPolygon2D(void);
   ~ConvexPolygon2D(void);
 
   void AddPoint(const D3DXVECTOR2 &point);
   void AddPoint(const D3DXVECTOR3 &point);
   void MakeConvexHull(void);
+  UINT GetPointCount(void) { return points_.size(); }
 
   void ClipToLine(const Line2D &line);
   void ClipToRect(const D3DXVECTOR2 &min, const D3DXVECTOR2 &max);
@@ -64,6 +65,8 @@ class ConvexPolygon2D {
                          float *neg_extreme_value,
                          D3DXVECTOR2 *neg_extreme_point) const;
 
+  const std::vector<D3DXVECTOR2> &GetPoints(void) const { return points_; }
+
  private:
-   std::vector<D3DXVECTOR2> points_;
+  std::vector<D3DXVECTOR2> points_;
 };

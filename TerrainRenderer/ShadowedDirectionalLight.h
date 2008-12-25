@@ -26,7 +26,7 @@ class ShadowedDirectionalLight : public DirectionalLight {
   void SetShaderVariables(void);
   void UpdateMatrices(void);
   void TSM_UpdateMatrices(void);
-  void TSM_TrapezoidToSquare(const D3DXVECTOR2 &t0,
+  D3DXMATRIX TSM_TrapezoidToSquare(const D3DXVECTOR2 &t0,
                              const D3DXVECTOR2 &t1,
                              const D3DXVECTOR2 &t2,
                              const D3DXVECTOR2 &t3);
@@ -43,9 +43,11 @@ class ShadowedDirectionalLight : public DirectionalLight {
   ID3D10ShaderResourceView *shader_resource_view_;
 
   D3DXMATRIX light_space_transform_;
+  D3DXMATRIX trapezoid_to_square_;
 
   ID3D10EffectTechnique *technique_;
   ID3D10EffectScalarVariable *shadowed_idx_ev_;
   ID3D10EffectMatrixVariable *lst_ev_;
+  ID3D10EffectMatrixVariable *tts_ev_;
   ID3D10EffectShaderResourceVariable *shadow_map_ev_;
 };
