@@ -89,8 +89,7 @@ Tile::~Tile(void) {
 
 void Tile::Init(float roughness) {
   // Zufallsgenerator initialisieren
-  //srand(static_cast<unsigned int>(time(0)));
-  srand(12345);
+  srand(static_cast<unsigned int>(time(0)));
 
   // Ecken mit Zufallshöhenwerten initialisieren
   int block_size = size_ - 1;
@@ -351,6 +350,93 @@ float Tile::GetHeightAt(const D3DXVECTOR3 &pos) const {
     //float height_w = yfactor*height_sw + (1-yfactor)*height_nw;
     //float height_e = yfactor*height_se + (1-yfactor)*height_ne;
     //return xfactor*height_e + (1-xfactor)*height_w;
+  }
+}
+
+// TODO: Duplizierten Code in GetNormalAt und GetHeightAt reduzieren
+D3DXVECTOR3 Tile::GetNormalAt(const D3DXVECTOR3 &pos) const {
+  D3DXVECTOR2 pos2d = D3DXVECTOR2(pos.x, pos.z);
+  if (num_lod_ > 0) {
+    D3DXVECTOR2 mid = D3DXVECTOR2(0.5f*scale_, 0.5f*scale_) + translation_;
+    if (pos2d.x < mid.x) {
+      if (pos2d.y < mid.y) return children_[NW]->GetNormalAt(pos);
+      else return children_[SW]->GetNormalAt(pos);
+    } else {
+      if (pos2d.y < mid.y) return children_[NE]->GetNormalAt(pos);
+      else return children_[SE]->GetNormalAt(pos);
+    }
+  } else {
+    // Zwischen den 4 nähesten Vertices interpolieren
+    //
+    // NW--+-----NE \
+    // |   |   /  |  } yfactor
+    // +---o-/----+ /
+    // |   /      |
+    // | / |      |
+    // SW--+-----SE
+    // \_ _/
+    //   V
+    // xfactor
+
+    D3DXVECTOR2 texel_coords = (pos2d - translation_) / scale_ *
+                               static_cast<float>(size_ - 1);
+    // Out of bounds check
+    if (texel_coords.x < 0 || texel_coords.x > size_ - 1 ||
+        texel_coords.y < 0 || texel_coords.y > size_ - 1) {
+      // Strategie 1: Höhe = 0
+      //return 0.0f;
+      // Strategie 2: Clamping
+      texel_coords.x = std::max(std::min(texel_coords.x, (float)size_ - 1), 0.0f);
+      texel_coords.y = std::max(std::min(texel_coords.y, (float)size_ - 1), 0.0f);
+    }
+
+    float xfactor = std::modf(texel_coords.x, &texel_coords.x);
+    float yfactor = std::modf(texel_coords.y, &texel_coords.y);
+
+    if (xfactor == 0.0f) {
+      // NW-SW-Linie
+      D3DXVECTOR3 normal_nw = vertex_normals_[I(texel_coords.x, texel_coords.y)];
+      if (yfactor == 0.0f) return normal_nw;
+      D3DXVECTOR3 normal_sw = vertex_normals_[I(texel_coords.x, texel_coords.y + 1)];
+      return yfactor*normal_sw + (1-yfactor)*normal_nw;
+    } else if (yfactor == 0.0f) {
+      // NW-NE-Linie
+      D3DXVECTOR3 normal_nw = vertex_normals_[I(texel_coords.x, texel_coords.y)];
+      D3DXVECTOR3 normal_ne = vertex_normals_[I(texel_coords.x + 1, texel_coords.y)];
+      return xfactor*normal_ne + (1-xfactor)*normal_nw;
+    }
+
+    //
+    // Interpolation im jeweiligen Dreieck
+    //
+    if (xfactor + yfactor <= 1.0f) {
+      // SW-NE-NW-Dreieck
+      D3DXVECTOR3 normal_nw = vertex_normals_[I(texel_coords.x, texel_coords.y)];
+      D3DXVECTOR3 normal_sw = vertex_normals_[I(texel_coords.x, texel_coords.y + 1)];
+      D3DXVECTOR3 normal_ne = vertex_normals_[I(texel_coords.x + 1, texel_coords.y)];
+      D3DXVECTOR3 normal_w = yfactor*normal_sw + (1-yfactor)*normal_nw;
+      D3DXVECTOR3 normal_e = yfactor*normal_sw + (1-yfactor)*normal_ne;
+      return (xfactor*normal_e + (1-yfactor-xfactor)*normal_w)/(1-yfactor);
+    } else {
+      // SW-SE-NE-Dreieck
+      D3DXVECTOR3 normal_sw = vertex_normals_[I(texel_coords.x, texel_coords.y + 1)];
+      D3DXVECTOR3 normal_ne = vertex_normals_[I(texel_coords.x + 1, texel_coords.y)];
+      D3DXVECTOR3 normal_se = vertex_normals_[I(texel_coords.x + 1, texel_coords.y + 1)];
+      D3DXVECTOR3 normal_w = yfactor*normal_sw + (1-yfactor)*normal_ne;
+      D3DXVECTOR3 normal_e = yfactor*normal_se + (1-yfactor)*normal_ne;
+      return ((1-xfactor)*normal_w + (yfactor-(1-xfactor))*normal_e)/yfactor;
+    }
+
+    //
+    // Bilineare Interpolation im Quadrat
+    //
+    //D3DXVECTOR3 normal_nw = vertex_normals_[I(texel_coords.x, texel_coords.y)];
+    //D3DXVECTOR3 normal_sw = vertex_normals_[I(texel_coords.x, texel_coords.y + 1)];
+    //D3DXVECTOR3 normal_ne = vertex_normals_[I(texel_coords.x + 1, texel_coords.y)];
+    //D3DXVECTOR3 normal_se = vertex_normals_[I(texel_coords.x + 1, texel_coords.y + 1)];
+    //D3DXVECTOR3 normal_w = yfactor*normal_sw + (1-yfactor)*normal_nw;
+    //D3DXVECTOR3 normal_e = yfactor*normal_se + (1-yfactor)*normal_ne;
+    //return xfactor*normal_e + (1-xfactor)*normal_w;
   }
 }
 

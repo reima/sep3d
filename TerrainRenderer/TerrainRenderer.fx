@@ -640,7 +640,7 @@ float TreesShadowMap_PS( VS_TREES_OUTPUT In ) : SV_Depth
   float4 vColor = g_tMesh.Sample(g_ssLinear, In.TexCoord);
   if (vColor.a < 0.05) discard;
 
-  return In.Position.z/In.Position.w;
+  return In.LightSpacePos.z/In.LightSpacePos.w;
 }
 
 float4 Environment_PS( float4 vPos : SV_Position ) : SV_Target
@@ -740,6 +740,18 @@ technique10 PhongShading
   }
 }
 
+technique10 LODColoring
+{
+  pass P0
+  {
+    SetVertexShader( CompileShader( vs_4_0, PhongShading_VS() ) );
+    SetGeometryShader( NULL );
+    SetPixelShader( CompileShader( ps_4_0, PhongShading_PS(true) ) );
+    SetRasterizerState( NULL );
+    SetBlendState( NULL, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
+  }
+}
+
 technique10 Trees
 {
   pass P0
@@ -762,18 +774,6 @@ technique10 TreesShadowMap
     SetDepthStencilState( dssEnableDepth, 0 );
     SetRasterizerState( rsCullNone );
     SetBlendState( bsNoColorWrite, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
-  }
-}
-
-technique10 LODColoring
-{
-  pass P0
-  {
-    SetVertexShader( CompileShader( vs_4_0, PhongShading_VS() ) );
-    SetGeometryShader( NULL );
-    SetPixelShader( CompileShader( ps_4_0, PhongShading_PS(true) ) );
-    SetRasterizerState( NULL );
-    SetBlendState( NULL, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
   }
 }
 
@@ -815,6 +815,7 @@ technique10 PointShadowMap
   }
 }
 
+// Nur für Debug-Zwecke gebraucht
 technique10 RenderToScreen
 {
   pass P0

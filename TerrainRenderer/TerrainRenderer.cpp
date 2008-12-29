@@ -32,8 +32,8 @@
 //--------------------------------------------------------------------------------------
 int   g_nTerrainN = 7;
 float g_fTerrainR = 1.0f;
-int   g_nTerrainLOD = 0;
-float g_fTerrainScale = 10.0f;
+int   g_nTerrainLOD = 2;
+float g_fTerrainScale = 50.0f;
 
 const float g_fFOV = D3DX_PI / 4;
 
@@ -77,7 +77,7 @@ ShadowedPointLight*         g_pShadowedPointLight = NULL;
 
 bool                        g_bShowSettings = false;
 bool                        g_bWireframe = false;
-bool                        g_bPaused = true;
+bool                        g_bPaused = false;
 float                       g_fScreenError = 1.0f;
 UINT                        g_uiScreenHeight = 600;
 ID3D10RasterizerState*      g_pRSWireframe = NULL;
@@ -158,7 +158,6 @@ ID3D10Effect* LoadEffect(ID3D10Device* pd3dDevice,
                          const D3D10_SHADER_MACRO *Shader_Macros = NULL,
                          const bool bDebugCompile = false);
 
-#include "Geom2D.h"
 //--------------------------------------------------------------------------------------
 // Entry point to the program. Initializes everything and goes into a message processing
 // loop. Idle time is used to render the scene.
@@ -305,6 +304,7 @@ void RenderText() {
   g_pTxtHelper->DrawTextLine(DXUTGetDeviceStats());
 
   if (g_bShowSettings) {
+    g_pTxtHelper->SetForegroundColor(D3DXCOLOR(1.0f, 1.0f, 1.0f, 1.0f));
     g_pTxtHelper->DrawTextLine(L"Terrain Settings:");
     WCHAR sz[100];
     StringCchPrintf(sz, 100, L"Size: %dx%d", (1<<g_nTerrainN)+1, (1<<g_nTerrainN)+1);
@@ -316,6 +316,13 @@ void RenderText() {
     D3DXVECTOR3 cam_pos = *g_Camera.GetEyePt();
     StringCchPrintf(sz, 100, L"Camera: (%f, %f, %f)", cam_pos.x, cam_pos.y, cam_pos.z);
     g_pTxtHelper->DrawTextLine(sz);
+    StringCchPrintf(sz, 100, L"Trees: %d", g_pScene->GetTerrain()->GetNumTrees());
+    g_pTxtHelper->DrawTextLine(sz);
+    if (g_bTSM) {
+      g_pTxtHelper->DrawTextLine(L"Shadow Mapping Technique: Trapezoidal (EXPERIMENTAL)");
+    } else {
+      g_pTxtHelper->DrawTextLine(L"Shadow Mapping Technique: naive");
+    }
   }
 
   g_pTxtHelper->End();

@@ -62,6 +62,8 @@ class Terrain {
 
   float GetHeightAt(const D3DXVECTOR3 &pos) const;
 
+  int GetNumTrees(void) const { return num_trees_[0] + num_trees_[1]; }
+
  private:
   // Kopierkonstruktor und Zuweisungsoperator verbieten.
   Terrain(const Terrain &t);
@@ -69,7 +71,7 @@ class Terrain {
 
   void DrawTile(float scale, D3DXVECTOR2 &translate, UINT lod,
                 ID3D10ShaderResourceView *srv);
-  void DrawMesh(bool shadow_pass=false);
+  void DrawMesh(int num=0, bool shadow_pass=false);
 
   /**
    * Reserviert Speicher für den Index Buffer.
@@ -104,8 +106,9 @@ class Terrain {
    * Zeiger auf den D3D10-Index-Buffer.
    */
   ID3D10Buffer *index_buffer_;
-  ID3D10Buffer *tree_buffer_; // bäume positionen/rotationen
-  UINT num_trees_;
+  ID3D10Buffer *tree_buffer_; // Bäume Transformationsmatrizen
+  UINT num_trees_[2];
+  UINT tree_offset_[2];
 
   ID3D10EffectScalarVariable *tile_scale_ev_;
   ID3D10EffectVectorVariable *tile_translate_ev_;
@@ -122,10 +125,10 @@ class Terrain {
    */
   unsigned int *indices_;
 
-  CDXUTSDKMesh *mesh_;
+  CDXUTSDKMesh *mesh_[2];
   ID3D10InputLayout *mesh_vertex_layout_;
   ID3D10EffectShaderResourceVariable *mesh_texture_ev_;
-  ID3D10ShaderResourceView *mesh_texture_srv_;
+  ID3D10ShaderResourceView *mesh_texture_srv_[2];
   ID3D10EffectPass *mesh_pass_;
   ID3D10EffectPass *mesh_shadow_pass_;
 };

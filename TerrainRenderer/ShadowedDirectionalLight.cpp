@@ -7,6 +7,7 @@
 
 extern CFirstPersonCamera g_Camera;
 extern bool g_bTSM;
+extern float g_fTerrainScale;
 
 ShadowedDirectionalLight::ShadowedDirectionalLight(
     const D3DXVECTOR3 &direction,
@@ -113,10 +114,6 @@ void ShadowedDirectionalLight::SetShadowMapPrecision(bool high_precision) {
   OnCreateDevice(device_);
 }
 
-bool IsLeft(const D3DXVECTOR3 *p0, const D3DXVECTOR3 *p1, const D3DXVECTOR3 *p2) {
-  return p0->x*(p1->y-p2->y) + p1->x*(p2->y-p0->y) + p2->x*(p0->y-p1->y) > 0;
-}
-
 void ShadowedDirectionalLight::UpdateMatrices(void) {
   //
   // Calculate light space transform
@@ -201,7 +198,10 @@ void ShadowedDirectionalLight::TSM_UpdateMatrices(void) {
   // Clip frustum to light space
   //poly.ClipToRect(D3DXVECTOR2(-1, -1), D3DXVECTOR2(1, 1));
 
-  if (poly.GetPointCount() == 0) return;
+  if (poly.GetPointCount() == 0) {
+    D3DXMatrixIdentity(&trapezoid_to_square_);
+    return;
+  }
 
   D3DXVECTOR2 near_center = (frustum[0] + frustum[2]) * 0.5f;
   D3DXVECTOR2 far_center =  (frustum[4] + frustum[6]) * 0.5f;
@@ -226,7 +226,7 @@ void ShadowedDirectionalLight::TSM_UpdateMatrices(void) {
   // Calculation of q according to paper
   float lambda = max_dist + (-min_dist);
   D3DXVECTOR2 temp = near_center - far_center;
-  float delta = 0.05f * D3DXVec2Length(&temp);
+  float delta = 0.05f * D3DXVec2Length(&temp) * g_fTerrainScale / 100.0f;
   float xi = -0.6f;
   float eta = lambda*delta*(1+xi)/(lambda-2*delta-lambda*xi);
   D3DXVECTOR2 q = eye_line.PointAt(-(max_dist + eta));
