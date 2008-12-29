@@ -32,7 +32,7 @@ Terrain::Terrain(int n, float roughness, int num_lod, float scale, bool water)
       technique_(NULL),
       indices_(NULL),
       mesh_vertex_layout_(NULL),
-      mesh_texture_ev_(NULL),      
+      mesh_texture_ev_(NULL),
       mesh_pass_(NULL),
       mesh_shadow_pass_(NULL),
       tree_buffer_(NULL) {
@@ -169,7 +169,7 @@ HRESULT Terrain::InitTrees(void) {
     D3DXVECTOR3 seed(randf() * 0.5f, 0, randf() * 0.5f);
     seed *= tile_->scale_;
     seed.y = GetHeightAt(seed);
-    
+
     // Keine Bäume im Wasser
     if (seed.y < 0.05f) continue;
      // Keine Bäume im Gebirge
@@ -198,7 +198,7 @@ HRESULT Terrain::InitTrees(void) {
       tree_transforms[0].push_back(transform);
     }
   }
-  
+
   num_trees_[0] = tree_transforms[0].size();
   num_trees_[1] = tree_transforms[1].size();
   tree_offset_[0] = 0;
@@ -206,7 +206,7 @@ HRESULT Terrain::InitTrees(void) {
   tree_transforms[0].insert(tree_transforms[0].end(),
                             tree_transforms[1].begin(),
                             tree_transforms[1].end());
-  
+
   if (num_trees_[0] + num_trees_[1] > 0) {
     D3D10_BUFFER_DESC buffer_desc;
     buffer_desc.Usage = D3D10_USAGE_DEFAULT;
@@ -303,7 +303,7 @@ void Terrain::Draw(ID3D10EffectTechnique *technique, LODSelector *lod_selector,
   device_->IASetInputLayout(vertex_layout_);
 
   technique_ = technique;
-  tile_->Draw(lod_selector, camera);  
+  tile_->Draw(lod_selector, camera);
   technique_ = NULL;
 
   if (tree_buffer_) {
