@@ -2,6 +2,7 @@
 #include "Terrain.h"
 #include "Tile.h"
 #include "SDKmesh.h"
+#include "Gras.h"
 
 // Makro, um die Indexberechnungen für das "flachgeklopfte" 2D-Array von
 // Vertices zu vereinfachen
@@ -153,6 +154,8 @@ HRESULT Terrain::CreateBuffers(ID3D10Device *device) {
 
   V_RETURN(InitTrees());
 
+  Gras::CreateStaticBuffers(device);
+
   return S_OK;
 }
 
@@ -221,6 +224,8 @@ HRESULT Terrain::InitTrees(void) {
     V_RETURN(device_->CreateBuffer(&buffer_desc, &init_data, &tree_buffer_));
   }
 
+  InitVegetation();
+
   return S_OK;
 }
 
@@ -232,6 +237,7 @@ void Terrain::ReleaseBuffers(void) {
   SAFE_RELEASE(mesh_texture_srv_[0]);
   SAFE_RELEASE(mesh_texture_srv_[1]);
   SAFE_RELEASE(tree_buffer_);
+  Gras::ReleaseStaticBuffers();
 }
 
 void Terrain::GetShaderHandles(ID3D10Effect *effect) {
@@ -278,6 +284,8 @@ void Terrain::GetShaderHandles(ID3D10Effect *effect) {
   terrain_size_ev_->SetInt(size_);
   mesh_texture_ev_ =
       effect->GetVariableByName("g_tMesh")->AsShaderResource();
+
+  Gras::GetStaticShaderHandles(device_, effect);
 }
 
 void Terrain::GetBoundingBox(D3DXVECTOR3 *out, D3DXVECTOR3 *mid) const {
@@ -310,6 +318,7 @@ void Terrain::Draw(ID3D10EffectTechnique *technique, LODSelector *lod_selector,
     if (mesh_[0]) DrawMesh(0, shadow_pass);
     if (mesh_[1]) DrawMesh(1, shadow_pass);
   }
+  if(!shadow_pass) tile_->DrawVegetation();
 }
 
 void Terrain::DrawMesh(int num, bool shadow_pass) {
@@ -388,4 +397,13 @@ float Terrain::GetMaxHeight() const {
 
 float Terrain::GetHeightAt(const D3DXVECTOR3 &pos) const {
   return tile_->GetHeightAt(pos);
+}
+
+void Terrain::InitVegetation(void) {
+  for (int i = 0; i < 1000000; ++i) { // EINE MILLION
+    D3DXVECTOR3 seed(randf() * 0.5f, 0, randf() * 0.5f);
+    seed *= tile_->scale_;
+    tile_->PlaceVegetation(seed);
+  }
+  tile_->GrowVegetation();
 }

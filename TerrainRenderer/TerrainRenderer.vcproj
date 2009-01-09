@@ -828,6 +828,14 @@
 			>
 		</File>
 		<File
+			RelativePath=".\Gras.cpp"
+			>
+		</File>
+		<File
+			RelativePath=".\Gras.h"
+			>
+		</File>
+		<File
 			RelativePath=".\LoadEffect.cpp"
 			>
 		</File>
@@ -849,6 +857,14 @@
 		</File>
 		<File
 			RelativePath=".\TerrainRenderer.fx"
+			>
+		</File>
+		<File
+			RelativePath=".\Vegetation.cpp"
+			>
+		</File>
+		<File
+			RelativePath=".\Vegetation.h"
 			>
 		</File>
 	</Files>

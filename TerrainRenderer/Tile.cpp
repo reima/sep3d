@@ -4,6 +4,8 @@
 #include "Tile.h"
 #include "LODSelector.h"
 #include "Terrain.h"
+#include "Vegetation.h"
+#include "Gras.h"
 
 #include <D3DX10Math.h>
 
@@ -40,7 +42,8 @@ Tile::Tile(Terrain *terrain, int n, float roughness, int num_lod, float scale,
       scale_(scale),
       translation_(D3DXVECTOR2(-.5f*scale_, -.5f*scale)),
       height_map_(NULL),
-      shader_resource_view_(NULL) {
+      shader_resource_view_(NULL),
+      vegetation_(NULL) {
   heights_ = new float[size_*size_];
   Init(roughness);
   InitChildren(roughness, NULL, NULL);
@@ -62,7 +65,8 @@ Tile::Tile(Tile *parent, Tile::Direction direction,
       scale_(parent->scale_*0.5f),
       translation_(parent->translation_),
       height_map_(NULL),
-      shader_resource_view_(NULL){
+      shader_resource_view_(NULL),
+      vegetation_(NULL) {
   switch (direction) {
     case NW: translation_ += D3DXVECTOR2(     0,      0); break;
     case NE: translation_ += D3DXVECTOR2(scale_,      0); break;
@@ -73,12 +77,13 @@ Tile::Tile(Tile *parent, Tile::Direction direction,
   InitFromParent();
   Refine(2, roughness);
   FixEdges(north, west);
-  InitChildren(roughness, north, west);
+  InitChildren(roughness, north, west);  
 }
 
 Tile::~Tile(void) {
   SAFE_DELETE_ARRAY(heights_);
   SAFE_DELETE_ARRAY(vertex_normals_);
+  SAFE_DELETE(vegetation_);
   if (num_lod_ > 0) {
     for (int dir = 0; dir < 4; ++dir) {
       delete children_[dir];
@@ -444,6 +449,7 @@ HRESULT Tile::CreateBuffers(ID3D10Device *device) {
   assert(heights_ != NULL);
   assert(vertex_normals_ != NULL);
   HRESULT hr;
+  device_ = device;
 
   // Evtl. bereits vorhandene Buffer freigeben
   ReleaseBuffers();
@@ -519,6 +525,16 @@ void Tile::Draw(LODSelector *lod_selector, const CBaseCamera *camera) {
       children_[dir]->Draw(lod_selector, camera);
     }
   }
+}
+
+void Tile::DrawVegetation(void){
+ if (num_lod_ > 0) {
+    for (int dir = 0; dir < 4; ++dir) {
+      children_[dir]->DrawVegetation();
+    }
+  }
+ else if (vegetation_ != NULL) vegetation_->Draw();
+
 }
 
 void Tile::CalculateNormals(unsigned int *indices) {
@@ -641,4 +657,36 @@ void Tile::GetBoundingBox(D3DXVECTOR3 *box, D3DXVECTOR3 *mid) const {
 
 float Tile::GetWorldError(void) const {
   return scale_ / (size_ - 1);
+}
+
+void Tile::PlaceVegetation(const D3DXVECTOR3 &position) {
+  D3DXVECTOR2 pos2d = D3DXVECTOR2(position.x, position.z);
+  if (num_lod_ > 0) {
+    D3DXVECTOR2 mid = D3DXVECTOR2(0.5f*scale_, 0.5f*scale_) + translation_;
+    if (pos2d.x < mid.x) {
+      if (pos2d.y < mid.y) return children_[NW]->PlaceVegetation(position);
+      else return children_[SW]->PlaceVegetation(position);
+    } else {
+      if (pos2d.y < mid.y) return children_[NE]->PlaceVegetation(position);
+      else return children_[SE]->PlaceVegetation(position);
+    }
+  } else {
+    float height = GetHeightAt(position);
+    D3DXVECTOR3 pos = position;
+    pos.y = height;
+    D3DXVECTOR3 normal = GetNormalAt(position);
+    if (vegetation_ == NULL) vegetation_ = new Gras();
+    vegetation_->PlaceSeed(pos, height, normal);
+  }
+}
+
+void Tile::GrowVegetation(void) {
+  if (num_lod_ > 0) {
+    for (int dir = 0; dir < 4; ++dir) {
+      children_[dir]->GrowVegetation();
+    }
+  } else if (vegetation_ != NULL) {
+    assert(device_ != NULL);
+    vegetation_->CreateBuffers(device_);
+  }
 }

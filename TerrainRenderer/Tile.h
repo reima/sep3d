@@ -5,6 +5,7 @@
 
 class LODSelector;
 class Terrain;
+class Vegetation;
 
 /**
  * Höhenfeld-Tile
@@ -68,7 +69,7 @@ class Tile {
    *          erzeugt werden.
    */
   void Draw(LODSelector *lod_selector, const CBaseCamera *camera);
-
+  void DrawVegetation(void);
   /**
    * Gibt den für die interne Darstellung reservierten Speicher frei (auch
    * rekursiv für alle Kind-Tiles).
@@ -78,7 +79,7 @@ class Tile {
    *          Methode weiterarbeiten, sofern vorher Tile::CreateBuffers
    *          aufgerufen wurde.
    */
-  void FreeMemory(void);
+ void FreeMemory(void);
 
   /**
    * Berechnet die Normalen des Terrains.
@@ -160,6 +161,10 @@ class Tile {
 
   void CalculateHeights(void);
 
+  void PlaceVegetation(const D3DXVECTOR3 &position);
+
+  void GrowVegetation(void);
+
   /**
    * Terrain, zu der dieses Tile gehört
    */
@@ -206,5 +211,8 @@ class Tile {
 
   ID3D10Texture2D *height_map_;
   ID3D10ShaderResourceView *shader_resource_view_;
+
+  Vegetation *vegetation_;
+  ID3D10Device *device_;
 };
 

@@ -71,6 +71,7 @@ Texture2D g_tMesh; // Tree texture
 TextureCube g_tCubeMap;
 Texture2D g_tDirectionalShadowMap;
 Texture2DArray g_tPointShadowMap;
+Texture2D g_tGrass;
 
 SamplerState g_ssLinear
 {
@@ -200,6 +201,26 @@ struct PHONG
 {
   float3 DiffuseLight;
   float3 SpecularLight;
+};
+
+
+struct PLANT_VERTEX
+{
+  float4 pos : SV_POSITION;
+  float2 tex : TEXCOORD0;
+  uint   pid : PLANTID;
+};
+
+struct VS_SEED
+{
+  float3 pos: POSITION;
+  uint   vid: SV_VertexID;
+};
+
+struct GS_SEED
+{
+  float3 pos: POSITION;
+  uint   pid: POINTID;
 };
 
 //--------------------------------------------------------------------------------------
@@ -541,6 +562,14 @@ VS_RTS_OUTPUT RenderToScreen_VS( float2 vPosition : POSITION, uint iVertex : SV_
   return Output;
 }
 
+GS_SEED Grass_VS(VS_SEED Input)
+{
+  GS_SEED Output;
+  Output.pos = Input.pos;
+  Output.pid = Input.vid;
+  return Output;
+}
+
 //--------------------------------------------------------------------------------------
 // Geometry Shaders
 //--------------------------------------------------------------------------------------
@@ -558,6 +587,59 @@ void PointShadow_GS( triangle GS_POINTSHADOW_INPUT In[3],
     }
     MeshStream.RestartStrip();
   }
+}
+
+[maxvertexcount(8)]
+void Grass_GS( point GS_SEED input[1], inout TriangleStream <PLANT_VERTEX> PlantStream){
+PLANT_VERTEX output;
+output.pid = input[0].pid;
+const float billboardSize = 0.2;
+float4 vec;
+vec.w = 1;
+//links oben
+vec.xyz = input[0].pos-float3(1,0,0)* billboardSize/2 + float3(0,1,0)*billboardSize ;
+output.pos = mul(vec, g_mWorldViewProjection);
+output.tex = float2(0,0);
+PlantStream.Append(output);
+//rechtsoben
+vec.xyz = input[0].pos+float3(1,0,0)* billboardSize/2 + float3(0,1,0)*billboardSize ;
+output.pos = mul(vec, g_mWorldViewProjection);
+output.tex = float2(1,0);
+PlantStream.Append(output);
+//links unten
+vec.xyz = input[0].pos-float3(1,0,0)* billboardSize/2 ;
+output.pos = mul(vec, g_mWorldViewProjection);
+output.tex = float2(0,1);
+PlantStream.Append(output);
+//rechts untn
+vec.xyz = input[0].pos+float3(1,0,0)* billboardSize/2 ;
+output.pos = mul(vec, g_mWorldViewProjection);
+output.tex = float2(1,1);
+PlantStream.Append(output);
+PlantStream.RestartStrip();
+
+//links oben
+vec.xyz = input[0].pos-float3(0,0,1)* billboardSize/2 + float3(0,1,0)*billboardSize ;
+output.pos = mul(vec, g_mWorldViewProjection);
+output.tex = float2(0,0);
+PlantStream.Append(output);
+//rechtsoben
+vec.xyz = input[0].pos+float3(0,0,1)* billboardSize/2 + float3(0,1,0)*billboardSize ;
+output.pos = mul(vec, g_mWorldViewProjection);
+output.tex = float2(1,0);
+PlantStream.Append(output);
+//links unten
+vec.xyz = input[0].pos-float3(0,0,1)* billboardSize/2 ;
+output.pos = mul(vec, g_mWorldViewProjection);
+output.tex = float2(0,1);
+PlantStream.Append(output);
+//rechts untn
+vec.xyz = input[0].pos+float3(0,0,1)* billboardSize/2 ;
+output.pos = mul(vec, g_mWorldViewProjection);
+output.tex = float2(1,1);
+PlantStream.Append(output);
+
+PlantStream.RestartStrip();
 }
 
 //--------------------------------------------------------------------------------------
@@ -674,6 +756,15 @@ float4 Color_PS( VS_RTS_OUTPUT In ) : SV_Target
   return In.Color;
 }
 
+float4 Grass_PS( PLANT_VERTEX In ) : SV_Target
+{
+  int type = In.pid % 4;
+  float4 vColor = g_tGrass.Sample(g_ssLinear, float2(In.tex.x*0.25 + 0.25*type, In.tex.y));
+  if (vColor.a < 0.05) discard;
+  return vColor;
+}
+
+
 //--------------------------------------------------------------------------------------
 // States
 //--------------------------------------------------------------------------------------
@@ -681,6 +772,13 @@ DepthStencilState dssEnableDepth
 {
   DepthEnable = TRUE;
   DepthWriteMask = ALL;
+  DepthFunc = LESS;
+};
+
+DepthStencilState dssEnableDepthNoWrite
+{
+  DepthEnable = TRUE;
+  DepthWriteMask = 0;
   DepthFunc = LESS;
 };
 
@@ -699,6 +797,15 @@ BlendState bsNoColorWrite
 BlendState bsAlphaToCov
 {
   AlphaToCoverageEnable = TRUE;
+  RenderTargetWriteMask[0] = 0x0F;
+};
+
+BlendState SrcAlphaBlendingAdd
+{
+  BlendEnable[0] = TRUE;// „0“ steht für das 0-te Render Target
+  SrcBlend= SRC_ALPHA;// SourceBlendFactor*)
+  DestBlend= ONE;// DestinationBlendFactor*)
+  BlendOp= ADD;
   RenderTargetWriteMask[0] = 0x0F;
 };
 
@@ -823,6 +930,19 @@ technique10 RenderToScreen
     SetVertexShader( CompileShader( vs_4_0, RenderToScreen_VS() ) );
     SetGeometryShader( NULL );
     SetPixelShader( CompileShader( ps_4_0, Color_PS() ) );
+    SetDepthStencilState( NULL, 0 );
+    SetRasterizerState( rsCullNone );
+    SetBlendState( NULL, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
+  }
+}
+
+technique10 Grass
+{
+  pass P0
+  {
+    SetVertexShader( CompileShader( vs_4_0, Grass_VS() ) );
+    SetGeometryShader( CompileShader( gs_4_0, Grass_GS() ) );
+    SetPixelShader( CompileShader( ps_4_0, Grass_PS() ) );
     SetDepthStencilState( NULL, 0 );
     SetRasterizerState( rsCullNone );
     SetBlendState( NULL, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );

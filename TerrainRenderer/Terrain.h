@@ -84,8 +84,8 @@ class Terrain {
   void TriangulateZOrder0(int x1, int y1, int x2, int y2, int &i);
 
   void InitMeshes(void);
-
   HRESULT InitTrees(void);
+  void InitVegetation(void);
 
   /**
    * Zeiger auf das Wurzel-Tile
