@@ -23,7 +23,14 @@ class Gras :  public Vegetation {
 
   ID3D10Buffer *seeds_buffer_;
   ID3D10Device *device_;
-  std::vector<D3DXVECTOR3> seeds_;
+
+  typedef struct {
+    D3DXVECTOR3 position;
+    float       rotation;
+    D3DXVECTOR3 surface_normal;
+  } SEED;
+
+  std::vector<SEED> seeds_;
 
   static ID3D10EffectTechnique *technique_;
   static ID3D10InputLayout* vertex_layout_;

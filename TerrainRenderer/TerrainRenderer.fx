@@ -206,20 +206,29 @@ struct PHONG
 struct VS_SEED
 {
   float3 Position : POSITION;
+  float  Rotation : ROTATION;
+  float3 Normal   : NORMAL;
   uint   VertexID : SV_VertexID;
 };
 
 struct GS_SEED
 {
   float3 Position : POSITION;
+  float  Rotation : ROTATION;
+  float3 Normal   : NORMAL;
   uint   PlantID  : PLANTID;
 };
 
 struct PLANT_VERTEX
 {
-  float4 Position : SV_Position;
-  float2 TexCoord : TEXCOORD0;
-  uint   PlantID  : PLANTID;
+  float4 Position       : SV_Position;
+  //float3 Normal         : NORMAL;
+  //float3 WorldPosition  : WORLDPOS;
+  //float4 LightSpacePos  : LIGHTSPACEPOS;
+  //float4 TSMPos         : TSMPOS;
+  PHONG  Phong          : PHONG;
+  float2 TexCoord       : TEXCOORD0;
+  uint   PlantID        : PLANTID;
 };
 
 //--------------------------------------------------------------------------------------
@@ -261,7 +270,7 @@ float2 Phong(float3 vPos, float3 vLightDir, float3 vNormal, float4 vMaterial)
   return float2(fDiffuse, fSpecular);
 }
 
-PHONG PhongLighting(float3 vPos, float3 vNormal, float4 vMaterial)
+PHONG PhongLighting(float3 vPos, float3 vNormal, float4 vMaterial, uniform bool bDeferShadowed=true)
 {
   float3 vDiffuseLight = float3(0, 0, 0);
   float3 vSpecularLight = float3(0, 0, 0);
@@ -272,7 +281,7 @@ PHONG PhongLighting(float3 vPos, float3 vNormal, float4 vMaterial)
   float2 vPhong;
   for (i = 0; i < g_nPointLights; i++) {
     // Defer shadowed lighting
-    if (g_bShadowedPointLight && i == g_iShadowedPointLight) continue;
+    if (bDeferShadowed && g_bShadowedPointLight && i == g_iShadowedPointLight) continue;
     d = length(vPos - g_vPointLight_Position[i]);
     fAttenuation = 1 / dot(vAttenuation, float3(1, d, d*d));
     vPhong = Phong(vPos, g_vPointLight_Position[i] - vPos, vNormal, vMaterial);
@@ -283,7 +292,7 @@ PHONG PhongLighting(float3 vPos, float3 vNormal, float4 vMaterial)
   // Directional lights
   for (i = 0; i < g_nDirectionalLights; i++) {
     // Defer shadowed lighting
-    if (g_bShadowedDirectionalLight &&i == g_iShadowedDirectionalLight) continue;
+    if (bDeferShadowed && g_bShadowedDirectionalLight &&i == g_iShadowedDirectionalLight) continue;
     vPhong = Phong(vPos, g_vDirectionalLight_Direction[i], vNormal,
                           vMaterial);
     vDiffuseLight += vPhong.x * g_vDirectionalLight_Color[i];
@@ -565,6 +574,8 @@ GS_SEED Grass_VS(VS_SEED Input)
 {
   GS_SEED Output;
   Output.Position = Input.Position;
+  Output.Rotation = Input.Rotation;
+  Output.Normal = Input.Normal;
   Output.PlantID = Input.VertexID;
   return Output;
 }
@@ -588,13 +599,10 @@ void PointShadow_GS( triangle GS_POINTSHADOW_INPUT In[3],
   }
 }
 
-void CreatePlantQuad(float3 vBase, float3 vUp, float3 vRight, uint uPlantID,
+void CreatePlantQuad(float3 vBase, float3 vUp, float3 vRight, PLANT_VERTEX Output,
                      inout TriangleStream <PLANT_VERTEX> PlantStream,
                      float4x4 mTransform)
 {
-  PLANT_VERTEX Output;
-  Output.PlantID = uPlantID;
-
   float4 vVertex;
   vVertex.w = 1;
 
@@ -622,7 +630,7 @@ void CreatePlantQuad(float3 vBase, float3 vUp, float3 vRight, uint uPlantID,
   PlantStream.RestartStrip();
 }
 
-[maxvertexcount(8)]
+[MaxVertexCount(8)]
 void Grass_GS(point GS_SEED input[1], inout TriangleStream <PLANT_VERTEX> PlantStream)
 {
   const float billboardSize = 0.2; // TODO: Als Shader-Variable
@@ -634,11 +642,22 @@ void Grass_GS(point GS_SEED input[1], inout TriangleStream <PLANT_VERTEX> PlantS
       vSeed.x < -1.2 || vSeed.x > 1.2 ||
       vSeed.y < -2.0 || vSeed.y > 1.2) return;
 
+  float s = 0.5*sin(input[0].Rotation);
+  float c = 0.5*cos(input[0].Rotation);
+
+  PLANT_VERTEX Output;
+  Output.PlantID = input[0].PlantID;
+  //Output.Normal = input[0].Normal;
+  //Output.WorldPosition = input[0].Position;
+  //Output.LightSpacePos = mul(float4(input[0].Position, 1), g_mDirectionalLightSpaceTransform);
+  //Output.TSMPos = mul(Output.LightSpacePos, g_mDirectionalTrapezoidToSquare);
+  Output.Phong = PhongLighting(input[0].Position, input[0].Normal, float4(0.05, 0.9, 0.05, 50), false);
+
   CreatePlantQuad(input[0].Position, float3(sin(g_fTime)/5, 1, 0) * billboardSize,
-                  float3(0, 0, 0.5) * billboardSize, input[0].PlantID,
+                  float3(s, 0, c) * billboardSize, Output,
                   PlantStream, g_mWorldViewProjection);
   CreatePlantQuad(input[0].Position, float3(sin(g_fTime)/5, 1, 0) * billboardSize,
-                  float3(0.5, 0, 0) * billboardSize, input[0].PlantID,
+                  float3(-c, 0, s) * billboardSize, Output,
                   PlantStream, g_mWorldViewProjection);
 }
 
@@ -762,6 +781,18 @@ float4 Grass_PS( PLANT_VERTEX In ) : SV_Target
   In.TexCoord.x += type;
   In.TexCoord.x *= 0.25;
   float4 vColor = g_tGrass.Sample(g_ssLinear, In.TexCoord);
+
+  //vColor.rgb = FullLighting(vColor.rgb,
+  //                          In.WorldPosition,
+  //                          In.LightSpacePos,
+  //                          In.TSMPos,
+  //                          In.Normal,
+  //                          float4(0.05, 0.9, 0.0, 50));
+
+  //PHONG phong = PhongLighting(In.WorldPosition, In.Normal, float4(0.05, 0.9, 0.05, 50));
+  //vColor.rgb = vColor.rgb * 0.05 + vColor.rgb * phong.DiffuseLight + phong.SpecularLight;
+  vColor.rgb = vColor.rgb * 0.05 + vColor.rgb * In.Phong.DiffuseLight + In.Phong.SpecularLight;
+
   return vColor;
 }
 

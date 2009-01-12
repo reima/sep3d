@@ -427,7 +427,7 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   g_pScene = new Scene();
   g_pScene->OnCreateDevice(pd3dDevice);
   g_pScene->GetShaderHandles(g_pEffect10);
-  g_pScene->SetMaterial(0.05f, 0.9f, 0.0f, 50);
+  g_pScene->SetMaterial(0.05f, 0.9f, 0.05f, 50);
   g_pScene->SetCamera(&g_Camera);
   g_pScene->SetLODSelector(g_pLODSelector);
 

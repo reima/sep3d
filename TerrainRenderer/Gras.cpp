@@ -81,7 +81,14 @@ void Gras::PlaceSeed(const D3DXVECTOR3 &position,
   float prob = std::exp(-0.5f*std::pow((normalized_height-0.3f)*8.0f, 2)) *
     std::pow(std::cos(slope*D3DX_PI)*0.5f+0.5f, 4);
   float random = (float)std::rand() / RAND_MAX;
-  if (random <= prob) seeds_.push_back(position);
+  if (random <= prob) {
+    SEED seed = {
+      position,
+      ((float)std::rand() / RAND_MAX) * D3DX_PI,
+      normal
+    };
+    seeds_.push_back(seed);
+  }
 }
 
 HRESULT Gras::CreateStaticBuffers(ID3D10Device *device) {
@@ -106,9 +113,11 @@ void Gras::GetStaticShaderHandles(ID3D10Device *device,
   texture_ev_ = effect->GetVariableByName("g_tGrass")->AsShaderResource();
 
   const D3D10_INPUT_ELEMENT_DESC layout[] = {
-    { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
-      D3D10_INPUT_PER_VERTEX_DATA, 0 },
+    { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,  0, D3D10_INPUT_PER_VERTEX_DATA, 0 },
+    { "ROTATION", 0, DXGI_FORMAT_R32_FLOAT,       0, 12, D3D10_INPUT_PER_VERTEX_DATA, 0 },
+    { "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 16, D3D10_INPUT_PER_VERTEX_DATA, 0 },
   };
+
   UINT num_elements = sizeof(layout) / sizeof(layout[0]);
   D3D10_PASS_DESC pass_desc;
   technique_->GetPassByIndex(0)->GetDesc(&pass_desc);
@@ -131,7 +140,7 @@ HRESULT Gras::CreateBuffers(ID3D10Device *device) {
 
   D3D10_BUFFER_DESC buffer_desc;
   buffer_desc.Usage = D3D10_USAGE_DEFAULT;
-  buffer_desc.ByteWidth = sizeof(D3DXVECTOR3) * seeds_.size();
+  buffer_desc.ByteWidth = sizeof(SEED) * seeds_.size();
   buffer_desc.BindFlags = D3D10_BIND_VERTEX_BUFFER;
   buffer_desc.CPUAccessFlags = 0;
   buffer_desc.MiscFlags = 0;
@@ -150,7 +159,7 @@ void Gras::GetShaderHandles(ID3D10Effect *effect) {
 void Gras::Draw(void) {
   if (seeds_buffer_ == NULL) return;
 
-  UINT stride = sizeof(D3DXVECTOR3);
+  UINT stride = sizeof(SEED);
   UINT offset = 0;
   device_->IASetVertexBuffers(0, 1, &seeds_buffer_, &stride, &offset);
 
@@ -163,6 +172,6 @@ void Gras::Draw(void) {
   technique_->GetDesc(&tech_desc);
   for (UINT p = 0; p < tech_desc.Passes; ++p) {
     technique_->GetPassByIndex(p)->Apply(0);
-    device_->Draw(seeds_.size(),0);
+    device_->Draw(seeds_.size(), 0);
   }
 }
