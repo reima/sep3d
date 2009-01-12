@@ -6,7 +6,7 @@ class Gras :  public Vegetation {
  public:
   Gras(void);
   virtual ~Gras(void);
-    
+
   virtual void PlaceSeed(const D3DXVECTOR3 &position,
                          float normalized_height,
                          const D3DXVECTOR3 &normal);

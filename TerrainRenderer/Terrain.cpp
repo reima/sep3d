@@ -403,7 +403,7 @@ float Terrain::GetHeightAt(const D3DXVECTOR3 &pos) const {
 }
 
 void Terrain::InitVegetation(void) {
-  for (int i = 0; i < 1000000; ++i) {
+  for (int i = 0; i < 1000000; ++i) { // EINE MILLION
     D3DXVECTOR3 seed(randf() * 0.5f, 0, randf() * 0.5f);
     seed *= tile_->scale_;
     tile_->PlaceVegetation(seed);

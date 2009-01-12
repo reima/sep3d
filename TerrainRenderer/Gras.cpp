@@ -87,7 +87,7 @@ void Gras::PlaceSeed(const D3DXVECTOR3 &position,
 HRESULT Gras::CreateStaticBuffers(ID3D10Device *device) {
   HRESULT hr;
   ReleaseStaticBuffers();
-  
+
   V_RETURN(D3DX10CreateShaderResourceViewFromFile(device,
       L"Textures\\Billboards\\GrassPack.dds", NULL, NULL,
       &texture_srv_, NULL));
@@ -144,7 +144,7 @@ HRESULT Gras::CreateBuffers(ID3D10Device *device) {
   return S_OK;
 }
 
-void Gras::GetShaderHandles(ID3D10Effect *effect) {  
+void Gras::GetShaderHandles(ID3D10Effect *effect) {
 }
 
 void Gras::Draw(void) {
@@ -158,7 +158,7 @@ void Gras::Draw(void) {
   device_->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_POINTLIST);
   // Vertex Layout setzen
   device_->IASetInputLayout(vertex_layout_);
-  
+
   D3D10_TECHNIQUE_DESC tech_desc;
   technique_->GetDesc(&tech_desc);
   for (UINT p = 0; p < tech_desc.Passes; ++p) {

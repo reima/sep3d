@@ -205,13 +205,13 @@ struct PHONG
 
 struct VS_SEED
 {
-  float4 Position : POSITION;
+  float3 Position : POSITION;
   uint   VertexID : SV_VertexID;
 };
 
 struct GS_SEED
 {
-  float4 Position : POSITION;
+  float3 Position : POSITION;
   uint   PlantID  : PLANTID;
 };
 
@@ -594,10 +594,10 @@ void CreatePlantQuad(float3 vBase, float3 vUp, float3 vRight, uint uPlantID,
 {
   PLANT_VERTEX Output;
   Output.PlantID = uPlantID;
-  
+
   float4 vVertex;
   vVertex.w = 1;
-  
+
   // Links oben
   vVertex.xyz = vBase - vRight + vUp;
   Output.Position = mul(vVertex, mTransform);
@@ -618,9 +618,8 @@ void CreatePlantQuad(float3 vBase, float3 vUp, float3 vRight, uint uPlantID,
   Output.Position = mul(vVertex, mTransform);
   Output.TexCoord = float2(1,1);
   PlantStream.Append(Output);
-  
-  PlantStream.RestartStrip();
 
+  PlantStream.RestartStrip();
 }
 
 [maxvertexcount(8)]
@@ -628,10 +627,17 @@ void Grass_GS(point GS_SEED input[1], inout TriangleStream <PLANT_VERTEX> PlantS
 {
   const float billboardSize = 0.2; // TODO: Als Shader-Variable
 
-  CreatePlantQuad(input[0].Position, float3(sin(g_fTime)/10, 1, 0) * billboardSize,
+  // Culling
+  float4 vSeed = mul(float4(input[0].Position, 1), g_mWorldViewProjection);
+  vSeed /= vSeed.w;
+  if (vSeed.z < 0 ||
+      vSeed.x < -1.2 || vSeed.x > 1.2 ||
+      vSeed.y < -2.0 || vSeed.y > 1.2) return;
+
+  CreatePlantQuad(input[0].Position, float3(sin(g_fTime)/5, 1, 0) * billboardSize,
                   float3(0, 0, 0.5) * billboardSize, input[0].PlantID,
-                  PlantStream, g_mWorldViewProjection);  
-  CreatePlantQuad(input[0].Position, float3(sin(g_fTime)/10, 1, 0) * billboardSize,
+                  PlantStream, g_mWorldViewProjection);
+  CreatePlantQuad(input[0].Position, float3(sin(g_fTime)/5, 1, 0) * billboardSize,
                   float3(0.5, 0, 0) * billboardSize, input[0].PlantID,
                   PlantStream, g_mWorldViewProjection);
 }
@@ -792,7 +798,7 @@ BlendState bsNoColorWrite
 BlendState bsAlphaToCov
 {
   AlphaToCoverageEnable = TRUE;
-  RenderTargetWriteMask[0] = 0x0F;  
+  RenderTargetWriteMask[0] = 0x0F;
 };
 
 BlendState bsSrcAlphaBlendingAdd
