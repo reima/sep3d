@@ -35,7 +35,7 @@ float g_fTerrainR = 1.0f;
 int   g_nTerrainLOD = 2;
 float g_fTerrainScale = 50.0f;
 
-const float g_fFOV = D3DX_PI / 4;
+extern const float g_fFOV = D3DX_PI / 4;
 
 CFirstPersonCamera          g_Camera;               // A first person camera
 CDXUTDialogResourceManager  g_DialogResourceManager; // manager for shared resources of dialogs
@@ -70,7 +70,6 @@ ID3D10EffectScalarVariable* g_pbPCF = NULL;
 
 LODSelector*                g_pLODSelector = NULL;
 Scene*                      g_pScene = NULL;
-Environment*                g_pEnvironment = NULL;
 
 ShadowedDirectionalLight*   g_pShadowedDirectionalLight = NULL;
 ShadowedPointLight*         g_pShadowedPointLight = NULL;
@@ -479,10 +478,6 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   //    D3DXVECTOR3(0, 1, 0),
   //    true);
 
-  // Environment erstellen
-  g_pEnvironment = new Environment(pd3dDevice);
-  g_pEnvironment->GetShaderHandles(g_pEffect10);
-
   return S_OK;
 }
 
@@ -515,16 +510,15 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain(ID3D10Device* pd3dDevice,
   g_TerrainUI.SetLocation(pBackBufferSurfaceDesc->Width - 320, 0);
   g_TerrainUI.SetSize(150, 300);
 
-  if (g_pEnvironment) {
-    g_pEnvironment->SetBackBufferSize(pBackBufferSurfaceDesc->Width,
-                                      pBackBufferSurfaceDesc->Height);
-  }
-
   g_uiScreenHeight = pBackBufferSurfaceDesc->Height;
   SAFE_DELETE(g_pLODSelector);
   g_pLODSelector = new DynamicLODSelector(g_fFOV, g_uiScreenHeight,
                                           g_fScreenError);
-  if (g_pScene) g_pScene->SetLODSelector(g_pLODSelector);
+  if (g_pScene) {
+    g_pScene->SetLODSelector(g_pLODSelector);
+    g_pScene->OnResizedSwapChain(pBackBufferSurfaceDesc->Width,
+                                 pBackBufferSurfaceDesc->Height);
+  }
 
   return S_OK;
 }
@@ -574,14 +568,6 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   g_pScene->Draw(g_pTechnique);
   DXUT_EndPerfEvent();
 
-  //
-  // Render the environment
-  //
-  DXUT_BeginPerfEvent(DXUT_PERFEVENTCOLOR, L"Environment");
-  g_pEnvironment->OnFrameMove(&mView, g_fFOV);
-  g_pEnvironment->Draw();
-  DXUT_EndPerfEvent();
-
   if (g_bWireframe) pd3dDevice->RSSetState(NULL);
 
   DXUT_BeginPerfEvent(DXUT_PERFEVENTCOLOR, L"HUD / Stats");
@@ -619,7 +605,6 @@ void CALLBACK OnD3D10DestroyDevice(void* pUserContext) {
   SAFE_DELETE(g_pTxtHelper);
   SAFE_DELETE(g_pLODSelector);
   SAFE_DELETE(g_pScene);
-  SAFE_DELETE(g_pEnvironment);
 }
 
 

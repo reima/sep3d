@@ -312,13 +312,16 @@ void Terrain::Draw(ID3D10EffectTechnique *technique, LODSelector *lod_selector,
 
   technique_ = technique;
   tile_->Draw(lod_selector, camera);
-  technique_ = NULL;
+  technique_ = NULL;  
+}
 
+void Terrain::DrawPlants(bool shadow_pass) {
   if (tree_buffer_) {
     if (mesh_[0]) DrawMesh(0, shadow_pass);
     if (mesh_[1]) DrawMesh(1, shadow_pass);
   }
-  if(!shadow_pass) tile_->DrawVegetation();
+
+  if (!shadow_pass) tile_->DrawVegetation();
 }
 
 void Terrain::DrawMesh(int num, bool shadow_pass) {
@@ -400,7 +403,7 @@ float Terrain::GetHeightAt(const D3DXVECTOR3 &pos) const {
 }
 
 void Terrain::InitVegetation(void) {
-  for (int i = 0; i < 1000000; ++i) { // EINE MILLION
+  for (int i = 0; i < 1000000; ++i) {
     D3DXVECTOR3 seed(randf() * 0.5f, 0, randf() * 0.5f);
     seed *= tile_->scale_;
     tile_->PlaceVegetation(seed);

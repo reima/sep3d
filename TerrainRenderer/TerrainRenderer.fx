@@ -203,24 +203,23 @@ struct PHONG
   float3 SpecularLight;
 };
 
-
-struct PLANT_VERTEX
-{
-  float4 pos : SV_POSITION;
-  float2 tex : TEXCOORD0;
-  uint   pid : PLANTID;
-};
-
 struct VS_SEED
 {
-  float3 pos: POSITION;
-  uint   vid: SV_VertexID;
+  float4 Position : POSITION;
+  uint   VertexID : SV_VertexID;
 };
 
 struct GS_SEED
 {
-  float3 pos: POSITION;
-  uint   pid: POINTID;
+  float4 Position : POSITION;
+  uint   PlantID  : PLANTID;
+};
+
+struct PLANT_VERTEX
+{
+  float4 Position : SV_Position;
+  float2 TexCoord : TEXCOORD0;
+  uint   PlantID  : PLANTID;
 };
 
 //--------------------------------------------------------------------------------------
@@ -565,8 +564,8 @@ VS_RTS_OUTPUT RenderToScreen_VS( float2 vPosition : POSITION, uint iVertex : SV_
 GS_SEED Grass_VS(VS_SEED Input)
 {
   GS_SEED Output;
-  Output.pos = Input.pos;
-  Output.pid = Input.vid;
+  Output.Position = Input.Position;
+  Output.PlantID = Input.VertexID;
   return Output;
 }
 
@@ -589,57 +588,52 @@ void PointShadow_GS( triangle GS_POINTSHADOW_INPUT In[3],
   }
 }
 
+void CreatePlantQuad(float3 vBase, float3 vUp, float3 vRight, uint uPlantID,
+                     inout TriangleStream <PLANT_VERTEX> PlantStream,
+                     float4x4 mTransform)
+{
+  PLANT_VERTEX Output;
+  Output.PlantID = uPlantID;
+  
+  float4 vVertex;
+  vVertex.w = 1;
+  
+  // Links oben
+  vVertex.xyz = vBase - vRight + vUp;
+  Output.Position = mul(vVertex, mTransform);
+  Output.TexCoord = float2(0,0);
+  PlantStream.Append(Output);
+  // Rechts oben
+  vVertex.xyz = vBase + vRight + vUp;
+  Output.Position = mul(vVertex, mTransform);
+  Output.TexCoord = float2(1,0);
+  PlantStream.Append(Output);
+  // Links unten
+  vVertex.xyz = vBase - vRight;
+  Output.Position = mul(vVertex, mTransform);
+  Output.TexCoord = float2(0,1);
+  PlantStream.Append(Output);
+  // Rechts unten
+  vVertex.xyz = vBase + vRight;
+  Output.Position = mul(vVertex, mTransform);
+  Output.TexCoord = float2(1,1);
+  PlantStream.Append(Output);
+  
+  PlantStream.RestartStrip();
+
+}
+
 [maxvertexcount(8)]
-void Grass_GS( point GS_SEED input[1], inout TriangleStream <PLANT_VERTEX> PlantStream){
-PLANT_VERTEX output;
-output.pid = input[0].pid;
-const float billboardSize = 0.2;
-float4 vec;
-vec.w = 1;
-//links oben
-vec.xyz = input[0].pos-float3(1,0,0)* billboardSize/2 + float3(0,1,0)*billboardSize ;
-output.pos = mul(vec, g_mWorldViewProjection);
-output.tex = float2(0,0);
-PlantStream.Append(output);
-//rechtsoben
-vec.xyz = input[0].pos+float3(1,0,0)* billboardSize/2 + float3(0,1,0)*billboardSize ;
-output.pos = mul(vec, g_mWorldViewProjection);
-output.tex = float2(1,0);
-PlantStream.Append(output);
-//links unten
-vec.xyz = input[0].pos-float3(1,0,0)* billboardSize/2 ;
-output.pos = mul(vec, g_mWorldViewProjection);
-output.tex = float2(0,1);
-PlantStream.Append(output);
-//rechts untn
-vec.xyz = input[0].pos+float3(1,0,0)* billboardSize/2 ;
-output.pos = mul(vec, g_mWorldViewProjection);
-output.tex = float2(1,1);
-PlantStream.Append(output);
-PlantStream.RestartStrip();
+void Grass_GS(point GS_SEED input[1], inout TriangleStream <PLANT_VERTEX> PlantStream)
+{
+  const float billboardSize = 0.2; // TODO: Als Shader-Variable
 
-//links oben
-vec.xyz = input[0].pos-float3(0,0,1)* billboardSize/2 + float3(0,1,0)*billboardSize ;
-output.pos = mul(vec, g_mWorldViewProjection);
-output.tex = float2(0,0);
-PlantStream.Append(output);
-//rechtsoben
-vec.xyz = input[0].pos+float3(0,0,1)* billboardSize/2 + float3(0,1,0)*billboardSize ;
-output.pos = mul(vec, g_mWorldViewProjection);
-output.tex = float2(1,0);
-PlantStream.Append(output);
-//links unten
-vec.xyz = input[0].pos-float3(0,0,1)* billboardSize/2 ;
-output.pos = mul(vec, g_mWorldViewProjection);
-output.tex = float2(0,1);
-PlantStream.Append(output);
-//rechts untn
-vec.xyz = input[0].pos+float3(0,0,1)* billboardSize/2 ;
-output.pos = mul(vec, g_mWorldViewProjection);
-output.tex = float2(1,1);
-PlantStream.Append(output);
-
-PlantStream.RestartStrip();
+  CreatePlantQuad(input[0].Position, float3(sin(g_fTime)/10, 1, 0) * billboardSize,
+                  float3(0, 0, 0.5) * billboardSize, input[0].PlantID,
+                  PlantStream, g_mWorldViewProjection);  
+  CreatePlantQuad(input[0].Position, float3(sin(g_fTime)/10, 1, 0) * billboardSize,
+                  float3(0.5, 0, 0) * billboardSize, input[0].PlantID,
+                  PlantStream, g_mWorldViewProjection);
 }
 
 //--------------------------------------------------------------------------------------
@@ -668,7 +662,7 @@ float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In, uniform bool bLODColoring ) 
       float3 vNormalPertubation = normalize(vWave0 + vWave1 +
                                             vWave2 + vWave3 - 2);
       vNormalPertubation = vNormalPertubation.xzy;
-      N = normalize(float3(0, 1, 0) + vNormalPertubation * 0.1f);
+      N = normalize(float3(0, 1, 0) + vNormalPertubation * 0.1);
     }
     vTerrainColor = g_vWaterColor;
   } else {
@@ -758,9 +752,10 @@ float4 Color_PS( VS_RTS_OUTPUT In ) : SV_Target
 
 float4 Grass_PS( PLANT_VERTEX In ) : SV_Target
 {
-  int type = In.pid % 4;
-  float4 vColor = g_tGrass.Sample(g_ssLinear, float2(In.tex.x*0.25 + 0.25*type, In.tex.y));
-  if (vColor.a < 0.05) discard;
+  int type = In.PlantID % 4;
+  In.TexCoord.x += type;
+  In.TexCoord.x *= 0.25;
+  float4 vColor = g_tGrass.Sample(g_ssLinear, In.TexCoord);
   return vColor;
 }
 
@@ -797,15 +792,15 @@ BlendState bsNoColorWrite
 BlendState bsAlphaToCov
 {
   AlphaToCoverageEnable = TRUE;
-  RenderTargetWriteMask[0] = 0x0F;
+  RenderTargetWriteMask[0] = 0x0F;  
 };
 
-BlendState SrcAlphaBlendingAdd
+BlendState bsSrcAlphaBlendingAdd
 {
-  BlendEnable[0] = TRUE;// „0“ steht für das 0-te Render Target
-  SrcBlend= SRC_ALPHA;// SourceBlendFactor*)
-  DestBlend= ONE;// DestinationBlendFactor*)
-  BlendOp= ADD;
+  BlendEnable[0] = TRUE;
+  SrcBlend = SRC_ALPHA;
+  DestBlend = INV_SRC_ALPHA;
+  BlendOp = ADD;
   RenderTargetWriteMask[0] = 0x0F;
 };
 
@@ -943,8 +938,8 @@ technique10 Grass
     SetVertexShader( CompileShader( vs_4_0, Grass_VS() ) );
     SetGeometryShader( CompileShader( gs_4_0, Grass_GS() ) );
     SetPixelShader( CompileShader( ps_4_0, Grass_PS() ) );
-    SetDepthStencilState( NULL, 0 );
+    SetDepthStencilState( dssEnableDepthNoWrite, 0 );
     SetRasterizerState( rsCullNone );
-    SetBlendState( NULL, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
+    SetBlendState( bsSrcAlphaBlendingAdd, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
   }
 }

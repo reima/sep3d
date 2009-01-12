@@ -8,9 +8,12 @@
 #include "Terrain.h"
 #include "LODSelector.h"
 #include "DXUTCamera.h"
+#include "Environment.h"
 
 #undef min
 #undef max
+
+extern const float g_fFOV;
 
 Scene::Scene(void)
     : cam_pos_(D3DXVECTOR3(0, 0, 0)),
@@ -38,6 +41,7 @@ Scene::~Scene(void) {
     delete (*it);
   }
   SAFE_DELETE(terrain_);
+  SAFE_DELETE(environment_);
 }
 
 void Scene::SetMaterial(float ambient, float diffuse, float specular,
@@ -107,7 +111,7 @@ void Scene::OnFrameMove(float elapsed_time) {
   assert(pCameraPosition != NULL);
 
   cam_pos_ = *camera_->GetEyePt();
-  float terrain_height = terrain_->GetHeightAt(cam_pos_) + 0.1f;
+  float terrain_height = terrain_->GetHeightAt(cam_pos_) + 0.5f;
   if (movement_ == SCENE_MOVEMENT_WALK ||
       (movement_ == SCENE_MOVEMENT_FLY && cam_pos_.y < terrain_height)) {
     D3DXVECTOR3 lookat = *camera_->GetLookAtPt();
@@ -122,6 +126,11 @@ void Scene::OnFrameMove(float elapsed_time) {
   for (it = light_sources_.begin(); it != light_sources_.end(); ++it) {
     (*it)->OnFrameMove(elapsed_time);
   }
+
+  if (environment_) {
+    D3DXMATRIX mView = *camera_->GetViewMatrix();
+    environment_->OnFrameMove(&mView, g_fFOV);
+  }
 }
 
 HRESULT Scene::OnCreateDevice(ID3D10Device *device) {
@@ -134,7 +143,12 @@ HRESULT Scene::OnCreateDevice(ID3D10Device *device) {
   if (terrain_) {
     V_RETURN(terrain_->CreateBuffers(device_));
   }
+  environment_ = new Environment(device);
   return S_OK;
+}
+
+void Scene::OnResizedSwapChain(UINT width, UINT height) {
+  if (environment_) environment_->SetBackBufferSize(width, height);
 }
 
 void Scene::GetShaderHandles(ID3D10Effect* effect) {
@@ -142,6 +156,7 @@ void Scene::GetShaderHandles(ID3D10Effect* effect) {
   PointLight::GetHandles(effect);
   DirectionalLight::GetHandles(effect);
   SpotLight::GetHandles(effect);
+  environment_->GetShaderHandles(effect);
   if (shadowed_point_light_)
     shadowed_point_light_->GetShaderHandles(effect);
   if (shadowed_directional_light_)
@@ -212,6 +227,12 @@ void Scene::Draw(ID3D10EffectTechnique *technique, bool shadow_pass) {
   if (terrain_) {
     assert(lod_selector_ != NULL);
     terrain_->Draw(technique, lod_selector_, camera_, shadow_pass);
+  }
+  if (environment_) {
+    environment_->Draw();
+  }
+  if (terrain_) {
+    terrain_->DrawPlants(shadow_pass);
   }
 }
 

@@ -675,8 +675,11 @@ void Tile::PlaceVegetation(const D3DXVECTOR3 &position) {
     D3DXVECTOR3 pos = position;
     pos.y = height;
     D3DXVECTOR3 normal = GetNormalAt(position);
+    float normalized_height =
+        (height - terrain_->GetMinHeight()) /
+        (terrain_->GetMaxHeight() - terrain_->GetMinHeight());
     if (vegetation_ == NULL) vegetation_ = new Gras();
-    vegetation_->PlaceSeed(pos, height, normal);
+    vegetation_->PlaceSeed(pos, normalized_height, normal);
   }
 }
 

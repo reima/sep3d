@@ -1,5 +1,5 @@
+#include <cmath>
 #include "Gras.h"
-#define voide void
 
 ID3D10InputLayout* Gras::vertex_layout_ = NULL;
 ID3D10EffectTechnique* Gras::technique_ = NULL;
@@ -22,8 +22,66 @@ void Gras::ReleaseBuffers(void) {
 void Gras::PlaceSeed(const D3DXVECTOR3 &position,
                      float normalized_height,
                      const D3DXVECTOR3 &normal) {
-  if (normalized_height < 0.05) return;
-  seeds_.push_back(position);
+  if (normalized_height < 0.05f) return;
+  float slope = 1.0f - normal.y; // 0 = plain, 1 = steep face
+
+  //
+  // prob(h, 0)
+  //
+  //1 +                   AAAAA
+  //  +                 AAA    A
+  //  +                AA       AA
+  //  +                A         AA
+  //0.8               A           A
+  //  +              A             A
+  //  +             AA              A
+  //  +            AA               AA
+  //0.6            A                 AA
+  //  +           A                   A
+  //  +          A                     A
+  //  +         AA                      A
+  //0.4         A                       AA
+  //  +       AA                         AA
+  //  +       A                           AA
+  //  +      A                              A
+  //0.2    AA                                A
+  //  +  AAA                                  AA
+  //  + AA                                      AA
+  //  *A                                          AAAA
+  //  +--+--+--+--+--+--+--+--+--+--+--+--+-+--+--+--****************************
+  //0               0.2            0.4           0.6            0.8             1
+
+
+  //
+  // prob(0.3, s)
+  //
+  //1 *AAA
+  //  +   AAA
+  //  +      AA
+  //  +        AA
+  //0.8          A
+  //  +           AA
+  //  +            AA
+  //  +              AA
+  //0.6               AA
+  //  +                 A
+  //  +                  AA
+  //  +                   AA
+  //0.4                     A
+  //  +                      AA
+  //  +                        A
+  //  +                         AAA
+  //0.2                           AAA
+  //  +                             AAA
+  //  +                                AAA
+  //  +                                   AAAAAA
+  //  +--+--+--+--+--+--+--+--+--+--+--+--+-+--+*********************************
+  //0               0.2            0.4           0.6            0.8             1
+
+  float prob = std::exp(-0.5f*std::pow((normalized_height-0.3f)*8.0f, 2)) *
+    std::pow(std::cos(slope*D3DX_PI)*0.5f+0.5f, 4);
+  float random = (float)std::rand() / RAND_MAX;
+  if (random <= prob) seeds_.push_back(position);
 }
 
 HRESULT Gras::CreateStaticBuffers(ID3D10Device *device) {
@@ -91,6 +149,7 @@ void Gras::GetShaderHandles(ID3D10Effect *effect) {
 
 void Gras::Draw(void) {
   if (seeds_buffer_ == NULL) return;
+
   UINT stride = sizeof(D3DXVECTOR3);
   UINT offset = 0;
   device_->IASetVertexBuffers(0, 1, &seeds_buffer_, &stride, &offset);
@@ -106,6 +165,4 @@ void Gras::Draw(void) {
     technique_->GetPassByIndex(p)->Apply(0);
     device_->Draw(seeds_.size(),0);
   }
-
-
 }

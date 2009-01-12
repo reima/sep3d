@@ -3,6 +3,7 @@
 #include "DXUT.h"
 #include "LightSource.h"
 
+class Environment;
 class CFirstPersonCamera;
 class Terrain;
 class LODSelector;
@@ -73,6 +74,7 @@ class Scene {
   void OnDestroyDevice(void);
   void SetShadowMapDimensions(UINT width, UINT height);
   void SetShadowMapPrecision(bool high_precision);
+  void OnResizedSwapChain(UINT width, UINT height);
 
   void Draw(ID3D10EffectTechnique *technique, bool shadow_pass=false);
 
@@ -106,4 +108,6 @@ class Scene {
   ID3D10EffectScalarVariable *pShadowedDirectionalLight;
 
   SceneMovement movement_;
+
+  Environment *environment_;
 };
