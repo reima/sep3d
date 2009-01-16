@@ -5,6 +5,8 @@ ID3D10InputLayout* Gras::vertex_layout_ = NULL;
 ID3D10EffectTechnique* Gras::technique_ = NULL;
 ID3D10EffectShaderResourceVariable* Gras::texture_ev_ = NULL;
 ID3D10ShaderResourceView* Gras::texture_srv_ = NULL;
+ID3D10EffectShaderResourceVariable* Gras::noise_ev_ = NULL;
+ID3D10ShaderResourceView* Gras::noise_srv_ = NULL;
 
 Gras::Gras(void)
     : seeds_buffer_(NULL),
@@ -85,6 +87,7 @@ void Gras::PlaceSeed(const D3DXVECTOR3 &position,
     SEED seed = {
       position,
       ((float)std::rand() / RAND_MAX) * D3DX_PI,
+      ((float)std::rand() / RAND_MAX) * 0.1f + 0.15f,
       normal
     };
     seeds_.push_back(seed);
@@ -98,6 +101,9 @@ HRESULT Gras::CreateStaticBuffers(ID3D10Device *device) {
   V_RETURN(D3DX10CreateShaderResourceViewFromFile(device,
       L"Textures\\Billboards\\GrassPack.dds", NULL, NULL,
       &texture_srv_, NULL));
+  V_RETURN(D3DX10CreateShaderResourceViewFromFile(device,
+      L"Textures\\Billboards\\legendary_noise.png", NULL, NULL,
+      &noise_srv_, NULL));
 
   return S_OK;
 }
@@ -105,17 +111,20 @@ HRESULT Gras::CreateStaticBuffers(ID3D10Device *device) {
 void Gras::ReleaseStaticBuffers(void) {
   SAFE_RELEASE(vertex_layout_);
   SAFE_RELEASE(texture_srv_);
+  SAFE_RELEASE(noise_srv_);
 }
 
 void Gras::GetStaticShaderHandles(ID3D10Device *device,
                                   ID3D10Effect *effect) {
   technique_ = effect->GetTechniqueByName("Grass");
   texture_ev_ = effect->GetVariableByName("g_tGrass")->AsShaderResource();
+  noise_ev_ = effect->GetVariableByName("g_tNoise")->AsShaderResource();
 
   const D3D10_INPUT_ELEMENT_DESC layout[] = {
     { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,  0, D3D10_INPUT_PER_VERTEX_DATA, 0 },
     { "ROTATION", 0, DXGI_FORMAT_R32_FLOAT,       0, 12, D3D10_INPUT_PER_VERTEX_DATA, 0 },
-    { "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 16, D3D10_INPUT_PER_VERTEX_DATA, 0 },
+    { "SIZE",     0, DXGI_FORMAT_R32_FLOAT,       0, 16, D3D10_INPUT_PER_VERTEX_DATA, 0 },
+    { "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 20, D3D10_INPUT_PER_VERTEX_DATA, 0 },
   };
 
   UINT num_elements = sizeof(layout) / sizeof(layout[0]);
@@ -125,6 +134,7 @@ void Gras::GetStaticShaderHandles(ID3D10Device *device,
                             pass_desc.IAInputSignatureSize, &vertex_layout_);
 
   texture_ev_->SetResource(texture_srv_);
+  noise_ev_->SetResource(noise_srv_);
 }
 
 HRESULT Gras::CreateBuffers(ID3D10Device *device) {

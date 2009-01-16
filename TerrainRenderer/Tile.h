@@ -214,5 +214,7 @@ class Tile {
 
   Vegetation *vegetation_;
   ID3D10Device *device_;
+
+  bool should_cull_;
 };
 

@@ -43,7 +43,8 @@ Tile::Tile(Terrain *terrain, int n, float roughness, int num_lod, float scale,
       translation_(D3DXVECTOR2(-.5f*scale_, -.5f*scale)),
       height_map_(NULL),
       shader_resource_view_(NULL),
-      vegetation_(NULL) {
+      vegetation_(NULL),
+      should_cull_(false) {
   heights_ = new float[size_*size_];
   Init(roughness);
   InitChildren(roughness, NULL, NULL);
@@ -66,7 +67,8 @@ Tile::Tile(Tile *parent, Tile::Direction direction,
       translation_(parent->translation_),
       height_map_(NULL),
       shader_resource_view_(NULL),
-      vegetation_(NULL) {
+      vegetation_(NULL),
+      should_cull_(false) {
   switch (direction) {
     case NW: translation_ += D3DXVECTOR2(     0,      0); break;
     case NE: translation_ += D3DXVECTOR2(scale_,      0); break;
@@ -518,6 +520,24 @@ void Tile::FreeMemory(void) {
 void Tile::Draw(LODSelector *lod_selector, const CBaseCamera *camera) {
   assert(terrain_ != NULL);
   assert(shader_resource_view_ != NULL);
+
+  D3DXVECTOR3 bbox[8];
+  GetBoundingBox(bbox, NULL);
+  D3DXVec3TransformCoordArray(bbox, sizeof(D3DXVECTOR3),
+                              bbox, sizeof(D3DXVECTOR3),
+                              camera->GetViewMatrix(), 8);
+  should_cull_ = true;
+  for (UINT i = 0; i < 8; ++i) {
+    if (bbox[i].z >= 0) {
+      should_cull_ = false;
+      break;
+    }
+  }
+  if (should_cull_) {
+    DXTRACE_MSG(L"I AM THE CULLER!");
+    return;
+  }
+
   if (lod_selector->IsLODSufficient(this, camera) || num_lod_ == 0) {
     terrain_->DrawTile(scale_, translation_, lod_, shader_resource_view_);
   } else {
@@ -528,13 +548,13 @@ void Tile::Draw(LODSelector *lod_selector, const CBaseCamera *camera) {
 }
 
 void Tile::DrawVegetation(void){
- if (num_lod_ > 0) {
+  if (should_cull_) return;
+  if (num_lod_ > 0) {
     for (int dir = 0; dir < 4; ++dir) {
       children_[dir]->DrawVegetation();
     }
   }
- else if (vegetation_ != NULL) vegetation_->Draw();
-
+  else if (vegetation_ != NULL) vegetation_->Draw();
 }
 
 void Tile::CalculateNormals(unsigned int *indices) {

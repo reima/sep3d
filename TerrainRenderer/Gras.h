@@ -27,6 +27,7 @@ class Gras :  public Vegetation {
   typedef struct {
     D3DXVECTOR3 position;
     float       rotation;
+    float       size;
     D3DXVECTOR3 surface_normal;
   } SEED;
 
@@ -36,4 +37,6 @@ class Gras :  public Vegetation {
   static ID3D10InputLayout* vertex_layout_;
   static ID3D10EffectShaderResourceVariable *texture_ev_;
   static ID3D10ShaderResourceView *texture_srv_;
+  static ID3D10EffectShaderResourceVariable *noise_ev_;
+  static ID3D10ShaderResourceView *noise_srv_;
 };

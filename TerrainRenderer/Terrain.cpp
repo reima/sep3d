@@ -312,7 +312,7 @@ void Terrain::Draw(ID3D10EffectTechnique *technique, LODSelector *lod_selector,
 
   technique_ = technique;
   tile_->Draw(lod_selector, camera);
-  technique_ = NULL;  
+  technique_ = NULL;
 }
 
 void Terrain::DrawPlants(bool shadow_pass) {

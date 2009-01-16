@@ -72,6 +72,7 @@ TextureCube g_tCubeMap;
 Texture2D g_tDirectionalShadowMap;
 Texture2DArray g_tPointShadowMap;
 Texture2D g_tGrass;
+Texture2D g_tNoise;
 
 SamplerState g_ssLinear
 {
@@ -207,6 +208,7 @@ struct VS_SEED
 {
   float3 Position : POSITION;
   float  Rotation : ROTATION;
+  float  Size     : SIZE;
   float3 Normal   : NORMAL;
   uint   VertexID : SV_VertexID;
 };
@@ -215,6 +217,7 @@ struct GS_SEED
 {
   float3 Position : POSITION;
   float  Rotation : ROTATION;
+  float  Size     : SIZE;
   float3 Normal   : NORMAL;
   uint   PlantID  : PLANTID;
 };
@@ -575,6 +578,7 @@ GS_SEED Grass_VS(VS_SEED Input)
   GS_SEED Output;
   Output.Position = Input.Position;
   Output.Rotation = Input.Rotation;
+  Output.Size = Input.Size;
   Output.Normal = Input.Normal;
   Output.PlantID = Input.VertexID;
   return Output;
@@ -633,17 +637,12 @@ void CreatePlantQuad(float3 vBase, float3 vUp, float3 vRight, PLANT_VERTEX Outpu
 [MaxVertexCount(8)]
 void Grass_GS(point GS_SEED input[1], inout TriangleStream <PLANT_VERTEX> PlantStream)
 {
-  const float billboardSize = 0.2; // TODO: Als Shader-Variable
-
   // Culling
   float4 vSeed = mul(float4(input[0].Position, 1), g_mWorldViewProjection);
   vSeed /= vSeed.w;
   if (vSeed.z < 0 ||
       vSeed.x < -1.2 || vSeed.x > 1.2 ||
       vSeed.y < -2.0 || vSeed.y > 1.2) return;
-
-  float s = 0.5*sin(input[0].Rotation);
-  float c = 0.5*cos(input[0].Rotation);
 
   PLANT_VERTEX Output;
   Output.PlantID = input[0].PlantID;
@@ -653,10 +652,22 @@ void Grass_GS(point GS_SEED input[1], inout TriangleStream <PLANT_VERTEX> PlantS
   //Output.TSMPos = mul(Output.LightSpacePos, g_mDirectionalTrapezoidToSquare);
   Output.Phong = PhongLighting(input[0].Position, input[0].Normal, float4(0.05, 0.9, 0.05, 50), false);
 
-  CreatePlantQuad(input[0].Position, float3(sin(g_fTime)/5, 1, 0) * billboardSize,
+  const float s = 0.5*sin(input[0].Rotation);
+  const float c = 0.5*cos(input[0].Rotation);
+
+  const float skew = 0.05*(sin(1*(input[0].Position.x+0.5*g_fTime)) +
+                           sin(2*(input[0].Position.x+0.5*g_fTime)) +
+                           sin(4*(input[0].Position.x+0.5*g_fTime)) +
+                           sin(1*(input[0].Position.y+0.5*g_fTime)) +
+                           sin(2*(input[0].Position.y+0.5*g_fTime)) +
+                           sin(4*(input[0].Position.y+0.5*g_fTime)));
+
+  const float billboardSize = input[0].Size;
+
+  CreatePlantQuad(input[0].Position, float3(skew, 1, 0) * billboardSize,
                   float3(s, 0, c) * billboardSize, Output,
                   PlantStream, g_mWorldViewProjection);
-  CreatePlantQuad(input[0].Position, float3(sin(g_fTime)/5, 1, 0) * billboardSize,
+  CreatePlantQuad(input[0].Position, float3(skew, 1, 0) * billboardSize,
                   float3(-c, 0, s) * billboardSize, Output,
                   PlantStream, g_mWorldViewProjection);
 }
@@ -777,10 +788,12 @@ float4 Color_PS( VS_RTS_OUTPUT In ) : SV_Target
 
 float4 Grass_PS( PLANT_VERTEX In ) : SV_Target
 {
-  int type = In.PlantID % 4;
+  float fNoise = g_tNoise.Sample(g_ssLinear, In.TexCoord);
+  const int type = In.PlantID % 4;
   In.TexCoord.x += type;
   In.TexCoord.x *= 0.25;
   float4 vColor = g_tGrass.Sample(g_ssLinear, In.TexCoord);
+  vColor.a *= saturate(fNoise+0.1);
 
   //vColor.rgb = FullLighting(vColor.rgb,
   //                          In.WorldPosition,
