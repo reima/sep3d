@@ -68,7 +68,7 @@ class Tile {
    * @warning Vor dem Aufruf müssen die D3D10-Buffer mit Tile::CreateBuffers
    *          erzeugt werden.
    */
-  void Draw(LODSelector *lod_selector, const CBaseCamera *camera);
+  void Draw(LODSelector *lod_selector, const CBaseCamera *camera, bool culling=true);
   void DrawVegetation(void);
   /**
    * Gibt den für die interne Darstellung reservierten Speicher frei (auch

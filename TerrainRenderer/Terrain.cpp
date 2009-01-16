@@ -311,7 +311,7 @@ void Terrain::Draw(ID3D10EffectTechnique *technique, LODSelector *lod_selector,
   device_->IASetInputLayout(vertex_layout_);
 
   technique_ = technique;
-  tile_->Draw(lod_selector, camera);
+  tile_->Draw(lod_selector, camera, !shadow_pass);
   technique_ = NULL;
 }
 

@@ -517,28 +517,27 @@ void Tile::FreeMemory(void) {
   }
 }
 
-void Tile::Draw(LODSelector *lod_selector, const CBaseCamera *camera) {
+void Tile::Draw(LODSelector *lod_selector, const CBaseCamera *camera, bool culling) {
   assert(terrain_ != NULL);
   assert(shader_resource_view_ != NULL);
 
-  D3DXVECTOR3 bbox[8];
-  GetBoundingBox(bbox, NULL);
-  D3DXVec3TransformCoordArray(bbox, sizeof(D3DXVECTOR3),
-                              bbox, sizeof(D3DXVECTOR3),
-                              camera->GetViewMatrix(), 8);
-  should_cull_ = true;
-  for (UINT i = 0; i < 8; ++i) {
-    if (bbox[i].z >= 0) {
-      should_cull_ = false;
-      break;
+  if (culling) {
+    D3DXVECTOR3 bbox[8];
+    GetBoundingBox(bbox, NULL);
+    D3DXVec3TransformCoordArray(bbox, sizeof(D3DXVECTOR3),
+                                bbox, sizeof(D3DXVECTOR3),
+                                camera->GetViewMatrix(), 8);
+    should_cull_ = true;
+    for (UINT i = 0; i < 8; ++i) {
+      if (bbox[i].z >= 0) {
+        should_cull_ = false;
+        break;
+      }
     }
-  }
-  if (should_cull_) {
-    DXTRACE_MSG(L"I AM THE CULLER!");
-    return;
+    if (should_cull_) return;
   }
 
-  if (lod_selector->IsLODSufficient(this, camera) || num_lod_ == 0) {
+  if (num_lod_ == 0 || lod_selector->IsLODSufficient(this, camera)) {
     terrain_->DrawTile(scale_, translation_, lod_, shader_resource_view_);
   } else {
     for (int dir = 0; dir < 4; ++dir) {

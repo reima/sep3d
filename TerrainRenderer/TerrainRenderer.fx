@@ -735,7 +735,7 @@ float4 Trees_PS( VS_TREES_OUTPUT In ) : SV_Target
   float3 N = normalize(In.Normal);
   float4 vColor = g_tMesh.Sample(g_ssLinear, In.TexCoord);
 
-  if (vColor.a < 0.05) discard;
+  if (vColor.a < 0.15) discard;
 
   vColor.rgb = FullLighting(vColor.rgb,
                             In.WorldPosition,
