@@ -49,7 +49,7 @@ class Terrain {
   void GetBoundingBox(D3DXVECTOR3 *out, D3DXVECTOR3 *mid) const;
   void Draw(ID3D10EffectTechnique *technique, LODSelector *lod_selector,
             const CBaseCamera *camera, bool shadow_pass=false);
-  void DrawPlants(bool shadow_pass=false);
+  void DrawVegetation(bool shadow_pass=false);
 
   /**
    * Ermittelt die minimale Höhe im Terrain und gibt sie zurück.

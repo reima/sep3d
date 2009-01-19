@@ -1,8 +1,8 @@
 #pragma once
 #include <vector>
-#include "vegetation.h"
+#include "Vegetation.h"
 
-class Gras :  public Vegetation {
+class Gras : public Vegetation {
  public:
   Gras(void);
   virtual ~Gras(void);

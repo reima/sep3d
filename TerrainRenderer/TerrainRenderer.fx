@@ -531,7 +531,6 @@ VS_TREES_OUTPUT Trees_VS( VS_TREES_INPUT Input ) {
   return Output;
 }
 
-// TODO: neue Struktur nur mit Position und TexCoord
 VS_TREES_OUTPUT TreesShadowMap_VS( VS_TREES_INPUT Input ) {
   VS_TREES_OUTPUT Output;
 
@@ -640,7 +639,7 @@ void Grass_GS(point GS_SEED input[1], inout TriangleStream <PLANT_VERTEX> PlantS
   // Culling
   float4 vSeed = mul(float4(input[0].Position, 1), g_mWorldViewProjection);
   vSeed /= vSeed.w;
-  if (vSeed.z < 0 ||
+  if (vSeed.z < 0 || vSeed.z > 1 ||
       vSeed.x < -1.2 || vSeed.x > 1.2 ||
       vSeed.y < -2.0 || vSeed.y > 1.2) return;
 

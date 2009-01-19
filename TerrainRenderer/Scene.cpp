@@ -232,7 +232,7 @@ void Scene::Draw(ID3D10EffectTechnique *technique, bool shadow_pass) {
     environment_->Draw();
   }
   if (terrain_) {
-    terrain_->DrawPlants(shadow_pass);
+    terrain_->DrawVegetation(shadow_pass);
   }
 }
 
