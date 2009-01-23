@@ -5,6 +5,15 @@
 //--------------------------------------------------------------------------------------
 // Global variables
 //--------------------------------------------------------------------------------------
+#define PI (3.14159265)
+
+cbuffer cbPerPointEmitter
+{
+  float3 g_vPEPosition;
+  float3 g_vPEDirection;
+  float g_fPESpread;
+}
+
 cbuffer cbPerTilePass
 {
   float    g_fTileScale;
@@ -16,9 +25,11 @@ cbuffer cbPerFrame
 {
   // Misc
   float    g_fTime;                   // App's time in seconds
+  float    g_fElapsedTime;            // Elapsed time since last frame
   float4x4 g_mWorld;                  // World matrix for object
   float4x4 g_mWorldViewProjection;    // World * View * Projection matrix
   float3   g_vCamPos;                 // Camera position
+  float4x4 g_mViewInv;
   // Lights
   float3   g_vPointLight_Position[8];
   float3   g_vDirectionalLight_Direction[8]; // Guaranteed to be normalized
@@ -73,6 +84,7 @@ Texture2D g_tDirectionalShadowMap;
 Texture2DArray g_tPointShadowMap;
 Texture2D g_tGrass;
 Texture2D g_tNoise;
+Texture1D g_tRandom;
 
 SamplerState g_ssLinear
 {
@@ -80,6 +92,13 @@ SamplerState g_ssLinear
   AddressU = Wrap;
   AddressV = Wrap;
   AddressW = Clamp;
+};
+
+SamplerState g_ssPoint
+{
+  Filter = MIN_MAG_MIP_POINT;
+  AddressU = Wrap;
+  AddressV = Wrap;
 };
 
 #define NUM_SPOTS 8
@@ -118,7 +137,7 @@ const float4 g_LODColors[] = {
 const float3 vAttenuation = float3(0, 0, 1); // Constant, linear, quadratic
 
 const float4 g_vWaterColor = float4(0, 0.25, 0.5, 1.0);
-const float4 g_vWaterMaterial = float4(0.05, 0.7, 0.25, 200);
+const float4 g_vWaterMaterial = float4(0.05, 0.15, 0.8, 200);
 const float4 g_vTreeMaterial = float4(0.05, 0.8, 0.15, 10);
 
 //--------------------------------------------------------------------------------------
@@ -232,6 +251,20 @@ struct PLANT_VERTEX
   PHONG  Phong          : PHONG;
   float2 TexCoord       : TEXCOORD0;
   uint   PlantID        : PLANTID;
+};
+
+struct PARTICLE
+{
+  float3 Position : POSITION;
+  float3 Velocity : VELOCITY;
+  float  Age      : AGE;
+};
+
+struct PARTICLE_BILLBOARD
+{
+  float4 Position : SV_Position;
+  float2 TexCoord : TEXCOORD0;
+  float  Age      : AGE;
 };
 
 //--------------------------------------------------------------------------------------
@@ -583,6 +616,16 @@ GS_SEED Grass_VS(VS_SEED Input)
   return Output;
 }
 
+PARTICLE Particles_VS(PARTICLE Input)
+{
+  return Input;
+}
+
+float4 ParticlePoint_VS(PARTICLE Input) : SV_Position
+{
+  return mul(float4(Input.Position, 1), g_mWorldViewProjection);
+}
+
 //--------------------------------------------------------------------------------------
 // Geometry Shaders
 //--------------------------------------------------------------------------------------
@@ -669,6 +712,105 @@ void Grass_GS(point GS_SEED input[1], inout TriangleStream <PLANT_VERTEX> PlantS
   CreatePlantQuad(input[0].Position, float3(skew, 1, 0) * billboardSize,
                   float3(-c, 0, s) * billboardSize, Output,
                   PlantStream, g_mWorldViewProjection);
+}
+
+PARTICLE EulerStep(PARTICLE In)
+{
+  In.Position += g_fElapsedTime * In.Velocity;
+  In.Velocity += g_fElapsedTime * float3(0, -0.6, 0);
+  return In;
+}
+
+PARTICLE CollisionDetect(PARTICLE In)
+{
+  float2 vTexCoord = (In.Position.xz - g_vTileTranslate) / g_fTileScale;
+  if (vTexCoord >= float2(0, 0) && vTexCoord <= float2(1, 1)) {
+    float4 vHeightMap = g_tTerrain.SampleLevel(g_ssLinear, vTexCoord, 0);
+    if (vHeightMap.w >= In.Position.y) {
+      In.Position.y = vHeightMap.w;
+      float fLength = length(In.Velocity);
+      float3 vDir = In.Velocity/fLength;
+      In.Velocity = reflect(vDir, vHeightMap.xyz) * (fLength * 0.9);
+    }
+  }
+  return In;
+}
+
+float Random(float fOffset)
+{
+  return g_tRandom.SampleLevel(g_ssPoint, (g_fTime + fOffset)/4096, 0);
+}
+
+const float g_fMaxParticleAge = 60;
+
+PARTICLE PointEmitterCreate(float fRandomOffset)
+{
+  PARTICLE p;
+  p.Position = g_vPEPosition;
+  float fAzimuth = Random(fRandomOffset)*PI*2;
+  float fZenith = Random(fRandomOffset+23)*g_fPESpread;
+  float3 vDir = float3(cos(fAzimuth)*sin(fZenith), cos(fZenith), sin(fAzimuth)*sin(fZenith));
+  p.Velocity = vDir*0.1;
+  p.Age = -Random(fRandomOffset+107)*g_fMaxParticleAge;
+  return p;
+}
+
+[MaxVertexCount(1)]
+void Particles_GS(point PARTICLE input[1], uint ID : SV_PrimitiveID,
+                  inout PointStream<PARTICLE> ParticleStream)
+{
+  PARTICLE p = input[0];
+  p.Age += g_fElapsedTime;
+  if (p.Age > g_fMaxParticleAge) {
+    p = PointEmitterCreate(ID);
+  } else if (p.Age >= 0) {
+    p = EulerStep(p);
+    p = CollisionDetect(p);
+  }
+  ParticleStream.Append(p);
+}
+
+[MaxVertexCount(4)]
+void ParticleBillboard_GS(point PARTICLE input[1], inout TriangleStream<PARTICLE_BILLBOARD> ParticleStream)
+{
+  // Culling
+  //float4 vParticle = mul(float4(input[0].Position, 1), g_mWorldViewProjection);
+  //vParticle /= vParticle.w;
+  //if (vParticle.z < 0 || vParticle.z > 1 ||
+  //    vParticle.x < -1.2 || vParticle.x > 1.2 ||
+  //    vParticle.y < -2.0 || vParticle.y > 1.2) return;
+
+  PARTICLE_BILLBOARD Output;
+  Output.Age = input[0].Age / g_fMaxParticleAge;
+  float4 vVertex;
+  vVertex.w = 1;
+  const float fParticleSize = 0.01;
+  float3 vBase = input[0].Position;
+  float3 vRight = float3(1, 0, 0) * fParticleSize;
+  float3 vUp = float3(0, 1, 0) * fParticleSize;
+
+  // Links oben
+  vVertex.xyz = vBase + mul(-vRight + 2*vUp, (float3x3)g_mViewInv);
+  Output.Position = mul(vVertex, g_mWorldViewProjection);
+  Output.TexCoord = float2(0,0);
+  ParticleStream.Append(Output);
+  // Rechts oben
+  vVertex.xyz = vBase + mul(vRight + 2*vUp, (float3x3)g_mViewInv);
+  Output.Position = mul(vVertex, g_mWorldViewProjection);
+  Output.TexCoord = float2(1,0);
+  ParticleStream.Append(Output);
+  // Links unten
+  vVertex.xyz = vBase + mul(-vRight, (float3x3)g_mViewInv);
+  Output.Position = mul(vVertex, g_mWorldViewProjection);
+  Output.TexCoord = float2(0,1);
+  ParticleStream.Append(Output);
+  // Rechts unten
+  vVertex.xyz = vBase + mul(vRight, (float3x3)g_mViewInv);
+  Output.Position = mul(vVertex, g_mWorldViewProjection);
+  Output.TexCoord = float2(1,1);
+  ParticleStream.Append(Output);
+
+  ParticleStream.RestartStrip();
 }
 
 //--------------------------------------------------------------------------------------
@@ -808,6 +950,17 @@ float4 Grass_PS( PLANT_VERTEX In ) : SV_Target
   return vColor;
 }
 
+float4 ParticlePoint_PS( ) : SV_Target
+{
+  return float4(1, 0, 0, 0);
+}
+
+float4 ParticleBillboard_PS( PARTICLE_BILLBOARD In ) : SV_Target
+{
+  float l = length(In.TexCoord * 2 - 1);
+  if (l > 1 || In.Age < 0) discard;
+  return float4(1 - In.Age, In.Age, In.Age, 1 - l);
+}
 
 //--------------------------------------------------------------------------------------
 // States
@@ -817,6 +970,12 @@ DepthStencilState dssEnableDepth
   DepthEnable = TRUE;
   DepthWriteMask = ALL;
   DepthFunc = LESS;
+};
+
+DepthStencilState dssDisableDepthStencil
+{
+  DepthEnable = FALSE;
+  StencilEnable = FALSE;
 };
 
 DepthStencilState dssEnableDepthNoWrite
@@ -886,6 +1045,7 @@ technique10 PhongShading
     SetVertexShader( CompileShader( vs_4_0, PhongShading_VS() ) );
     SetGeometryShader( NULL );
     SetPixelShader( CompileShader( ps_4_0, PhongShading_PS(false) ) );
+    SetDepthStencilState( NULL, 0 );
     SetRasterizerState( NULL );
     SetBlendState( NULL, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
   }
@@ -898,6 +1058,7 @@ technique10 LODColoring
     SetVertexShader( CompileShader( vs_4_0, PhongShading_VS() ) );
     SetGeometryShader( NULL );
     SetPixelShader( CompileShader( ps_4_0, PhongShading_PS(true) ) );
+    SetDepthStencilState( NULL, 0 );
     SetRasterizerState( NULL );
     SetBlendState( NULL, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
   }
@@ -910,6 +1071,7 @@ technique10 Trees
     SetVertexShader( CompileShader( vs_4_0, Trees_VS() ) );
     SetGeometryShader( NULL );
     SetPixelShader( CompileShader( ps_4_0, Trees_PS() ) );
+    SetDepthStencilState( NULL, 0 );
     SetRasterizerState( rsCullNone );
     SetBlendState( bsAlphaToCov, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
   }
@@ -987,6 +1149,47 @@ technique10 Grass
     SetVertexShader( CompileShader( vs_4_0, Grass_VS() ) );
     SetGeometryShader( CompileShader( gs_4_0, Grass_GS() ) );
     SetPixelShader( CompileShader( ps_4_0, Grass_PS() ) );
+    SetDepthStencilState( dssEnableDepthNoWrite, 0 );
+    SetRasterizerState( rsCullNone );
+    SetBlendState( bsSrcAlphaBlendingAdd, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
+  }
+}
+
+GeometryShader gsParticleSim = ConstructGSWithSO(
+  CompileShader( gs_4_0, Particles_GS() ),
+  "POSITION.xyz; VELOCITY.xyz; AGE.x");
+
+technique10 Particles
+{
+  pass P0
+  {
+    SetVertexShader( CompileShader( vs_4_0, Particles_VS() ) );
+    SetGeometryShader( gsParticleSim );
+    SetPixelShader( NULL );
+    SetDepthStencilState( dssDisableDepthStencil, 0 );
+  }
+}
+
+technique10 RenderParticlesPoint
+{
+  pass P0
+  {
+    SetVertexShader( CompileShader( vs_4_0, ParticlePoint_VS() ) );
+    SetGeometryShader( NULL );
+    SetPixelShader( CompileShader( ps_4_0, ParticlePoint_PS() ) );
+    SetDepthStencilState( dssEnableDepthNoWrite, 0 );
+    SetRasterizerState( rsCullNone );
+    SetBlendState( NULL, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
+  }
+}
+
+technique10 RenderParticlesBillboard
+{
+  pass P0
+  {
+    SetVertexShader( CompileShader( vs_4_0, Particles_VS() ) );
+    SetGeometryShader( CompileShader( gs_4_0, ParticleBillboard_GS() ) );
+    SetPixelShader( CompileShader( ps_4_0, ParticleBillboard_PS() ) );
     SetDepthStencilState( dssEnableDepthNoWrite, 0 );
     SetRasterizerState( rsCullNone );
     SetBlendState( bsSrcAlphaBlendingAdd, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );

@@ -316,6 +316,10 @@ void Terrain::Draw(ID3D10EffectTechnique *technique, LODSelector *lod_selector,
   tile_->Draw(lod_selector, camera, !shadow_pass);
   technique_ = NULL;
 
+  tile_scale_ev_->SetFloat(tile_->scale_);
+  tile_translate_ev_->SetFloatVector(tile_->translation_);
+  tile_heightmap_ev_->SetResource(tile_->shader_resource_view_);
+
   if (tree_buffer_) {
     if (mesh_[0]) DrawMesh(0, shadow_pass);
     if (mesh_[1]) DrawMesh(1, shadow_pass);

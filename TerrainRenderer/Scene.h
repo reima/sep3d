@@ -104,6 +104,7 @@ class Scene {
 
   ID3D10EffectVectorVariable *pMaterialParameters;
   ID3D10EffectVectorVariable *pCameraPosition;
+  ID3D10EffectMatrixVariable *pViewInv;
   ID3D10EffectScalarVariable *pShadowedPointLight;
   ID3D10EffectScalarVariable *pShadowedDirectionalLight;
 

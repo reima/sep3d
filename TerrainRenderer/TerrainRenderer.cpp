@@ -23,6 +23,7 @@
 #include "Environment.h"
 #include "ShadowedDirectionalLight.h"
 #include "ShadowedPointLight.h"
+#include "PointEmitter.h"
 
 //#define DEBUG_VS   // Uncomment this line to debug D3D9 vertex shaders
 //#define DEBUG_PS   // Uncomment this line to debug D3D9 pixel shaders
@@ -81,6 +82,7 @@ float                       g_fScreenError = 1.0f;
 UINT                        g_uiScreenHeight = 600;
 ID3D10RasterizerState*      g_pRSWireframe = NULL;
 bool                        g_bTSM = false;
+PointEmitter*               g_pPointEmitter = NULL;
 
 //--------------------------------------------------------------------------------------
 // UI control IDs
@@ -429,7 +431,7 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   g_pScene->GetShaderHandles(g_pEffect10);
   g_pScene->SetMaterial(0.05f, 0.9f, 0.05f, 50);
   g_pScene->SetCamera(&g_Camera);
-  g_pScene->SetLODSelector(g_pLODSelector);
+  g_pScene->SetLODSelector(g_pLODSelector);  
 
   // Terrain erzeugen
   g_pScene->CreateTerrain(g_nTerrainN, g_fTerrainR, g_nTerrainLOD, g_fTerrainScale);
@@ -477,6 +479,10 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   //    D3DXVECTOR3(1, 0, 0),
   //    D3DXVECTOR3(0, 1, 0),
   //    true);
+
+  g_pPointEmitter = new PointEmitter(D3DXVECTOR3(0, 5, 0), D3DXVECTOR3(0, 1, 0), D3DX_PI/2, 4000);
+  g_pPointEmitter->CreateBuffers(pd3dDevice);
+  g_pPointEmitter->GetShaderHandles(g_pEffect10, g_pEffect10->GetTechniqueByName("Particles"));
 
   return S_OK;
 }
@@ -568,6 +574,8 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   g_pScene->Draw(g_pTechnique);
   DXUT_EndPerfEvent();
 
+  g_pPointEmitter->Draw(g_pEffect10->GetTechniqueByName("RenderParticlesBillboard"));
+
   if (g_bWireframe) pd3dDevice->RSSetState(NULL);
 
   DXUT_BeginPerfEvent(DXUT_PERFEVENTCOLOR, L"HUD / Stats");
@@ -605,6 +613,7 @@ void CALLBACK OnD3D10DestroyDevice(void* pUserContext) {
   SAFE_DELETE(g_pTxtHelper);
   SAFE_DELETE(g_pLODSelector);
   SAFE_DELETE(g_pScene);
+  SAFE_DELETE(g_pPointEmitter);
 }
 
 
@@ -639,6 +648,7 @@ void CALLBACK OnFrameMove(double fTime, float fElapsedTime,
   g_Camera.FrameMove(fElapsedTime);
   if (g_bPaused) fElapsedTime = 0;
   g_pScene->OnFrameMove(fElapsedTime);
+  g_pPointEmitter->SimulationStep(fElapsedTime);
 }
 
 

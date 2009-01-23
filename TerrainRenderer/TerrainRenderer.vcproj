@@ -811,6 +811,26 @@
 				>
 			</File>
 		</Filter>
+		<Filter
+			Name="Particles"
+			>
+			<File
+				RelativePath=".\ParticleEmitter.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\ParticleEmitter.h"
+				>
+			</File>
+			<File
+				RelativePath=".\PointEmitter.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\PointEmitter.h"
+				>
+			</File>
+		</Filter>
 		<File
 			RelativePath=".\Environment.cpp"
 			>

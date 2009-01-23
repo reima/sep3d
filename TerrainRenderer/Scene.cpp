@@ -9,6 +9,7 @@
 #include "LODSelector.h"
 #include "DXUTCamera.h"
 #include "Environment.h"
+#include "ParticleEmitter.h"
 
 #undef min
 #undef max
@@ -122,6 +123,10 @@ void Scene::OnFrameMove(float elapsed_time) {
   }
 
   pCameraPosition->SetFloatVector(cam_pos_);
+  D3DXMATRIX view_inv = *camera_->GetViewMatrix();
+  D3DXMatrixInverse(&view_inv, NULL, &view_inv);
+  pViewInv->SetMatrix(view_inv);
+
   std::vector<LightSource *>::iterator it;
   for (it = light_sources_.begin(); it != light_sources_.end(); ++it) {
     (*it)->OnFrameMove(elapsed_time);
@@ -167,6 +172,7 @@ void Scene::GetShaderHandles(ID3D10Effect* effect) {
       effect->GetVariableByName("g_vMaterialParameters")->AsVector();
   pCameraPosition =
       effect->GetVariableByName("g_vCamPos")->AsVector();
+  pViewInv = effect->GetVariableByName("g_mViewInv")->AsMatrix();
   pShadowedPointLight =
       effect->GetVariableByName("g_bShadowedPointLight")->AsScalar();
   pShadowedPointLight->SetBool(shadowed_point_light_ != NULL);
@@ -180,6 +186,7 @@ void Scene::OnDestroyDevice(void) {
   for (it = light_sources_.begin(); it != light_sources_.end(); ++it) {
     (*it)->OnDestroyDevice();
   }
+  ParticleEmitter::ReleaseResources();
   device_ = NULL;
 }
 
