@@ -704,6 +704,34 @@ void CALLBACK OnKeyboard(UINT nChar, bool bKeyDown, bool bAltDown,
       g_bTSM = !g_bTSM;
       break;
   }
+  if (bAltDown) {
+    switch (nChar) {
+      case 'w':
+      case 'W':
+        g_pPointEmitter->SetPosition(*g_pPointEmitter->GetPosition() + D3DXVECTOR3(0, 0, 0.25f));
+        break;
+      case 's':
+      case 'S':
+        g_pPointEmitter->SetPosition(*g_pPointEmitter->GetPosition() + D3DXVECTOR3(0, 0, -0.25f));
+        break;
+      case 'a':
+      case 'A':
+        g_pPointEmitter->SetPosition(*g_pPointEmitter->GetPosition() + D3DXVECTOR3(0.25f, 0, 0));
+        break;
+      case 'd':
+      case 'D':
+        g_pPointEmitter->SetPosition(*g_pPointEmitter->GetPosition() + D3DXVECTOR3(-0.25f, 0, 0));
+        break;
+      case 'q':
+      case 'Q':
+        g_pPointEmitter->SetPosition(*g_pPointEmitter->GetPosition() + D3DXVECTOR3(0, 0.25f, 0));
+        break;
+      case 'e':
+      case 'E':
+        g_pPointEmitter->SetPosition(*g_pPointEmitter->GetPosition() + D3DXVECTOR3(0, -0.25f, 0));
+        break;
+    }
+  }
 }
 
 

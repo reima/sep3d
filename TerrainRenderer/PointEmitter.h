@@ -8,6 +8,12 @@ class PointEmitter : public ParticleEmitter {
                float spread, UINT num);
   virtual ~PointEmitter(void);
 
+  void SetPosition(const D3DXVECTOR3 &pos) { position_ = pos; }
+  const D3DXVECTOR3 *GetPosition(void) const { return &position_; }
+
+  void SetDirection(const D3DXVECTOR3 &dir) { direction_ = dir; }
+  const D3DXVECTOR3 *GetDirection(void) const { return &direction_; }
+
  protected:
   virtual void GetShaderHandles0(ID3D10Effect *effect,
                                  ID3D10EffectTechnique *technique);

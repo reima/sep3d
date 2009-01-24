@@ -724,13 +724,13 @@ PARTICLE EulerStep(PARTICLE In)
 PARTICLE CollisionDetect(PARTICLE In)
 {
   float2 vTexCoord = (In.Position.xz - g_vTileTranslate) / g_fTileScale;
-  if (vTexCoord >= float2(0, 0) && vTexCoord <= float2(1, 1)) {
+  if (all(vTexCoord >= float2(0, 0) && vTexCoord <= float2(1, 1))) {
     float4 vHeightMap = g_tTerrain.SampleLevel(g_ssLinear, vTexCoord, 0);
     if (vHeightMap.w >= In.Position.y) {
       In.Position.y = vHeightMap.w;
       float fLength = length(In.Velocity);
       float3 vDir = In.Velocity/fLength;
-      In.Velocity = reflect(vDir, vHeightMap.xyz) * (fLength * 0.9);
+      In.Velocity = reflect(vDir, vHeightMap.xyz) * (fLength * 0.8);
     }
   }
   return In;
@@ -741,7 +741,7 @@ float Random(float fOffset)
   return g_tRandom.SampleLevel(g_ssPoint, (g_fTime + fOffset)/4096, 0);
 }
 
-const float g_fMaxParticleAge = 60;
+const float g_fMaxParticleAge = 20;
 
 PARTICLE PointEmitterCreate(float fRandomOffset)
 {
@@ -750,7 +750,7 @@ PARTICLE PointEmitterCreate(float fRandomOffset)
   float fAzimuth = Random(fRandomOffset)*PI*2;
   float fZenith = Random(fRandomOffset+23)*g_fPESpread;
   float3 vDir = float3(cos(fAzimuth)*sin(fZenith), cos(fZenith), sin(fAzimuth)*sin(fZenith));
-  p.Velocity = vDir*0.1;
+  p.Velocity = vDir;
   p.Age = -Random(fRandomOffset+107)*g_fMaxParticleAge;
   return p;
 }
@@ -761,11 +761,13 @@ void Particles_GS(point PARTICLE input[1], uint ID : SV_PrimitiveID,
 {
   PARTICLE p = input[0];
   p.Age += g_fElapsedTime;
-  if (p.Age > g_fMaxParticleAge) {
+  if (p.Age > g_fMaxParticleAge || p.Position.y <= 0) {
     p = PointEmitterCreate(ID);
   } else if (p.Age >= 0) {
     p = EulerStep(p);
     p = CollisionDetect(p);
+  } else {
+    p.Position = g_vPEPosition;
   }
   ParticleStream.Append(p);
 }
@@ -784,7 +786,7 @@ void ParticleBillboard_GS(point PARTICLE input[1], inout TriangleStream<PARTICLE
   Output.Age = input[0].Age / g_fMaxParticleAge;
   float4 vVertex;
   vVertex.w = 1;
-  const float fParticleSize = 0.01;
+  const float fParticleSize = 0.05;
   float3 vBase = input[0].Position;
   float3 vRight = float3(1, 0, 0) * fParticleSize;
   float3 vUp = float3(0, 1, 0) * fParticleSize;
