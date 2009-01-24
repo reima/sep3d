@@ -14,6 +14,12 @@ cbuffer cbPerPointEmitter
   float g_fPESpread;
 }
 
+cbuffer cbPerBoxEmitter
+{
+  float3 g_vBEMinVertex;
+  float3 g_vBEMaxVertex;
+}
+
 cbuffer cbPerTilePass
 {
   float    g_fTileScale;
@@ -755,6 +761,19 @@ PARTICLE PointEmitterCreate(float fRandomOffset)
   return p;
 }
 
+PARTICLE BoxEmitterCreate(float fRandomOffset)
+{
+  PARTICLE p;
+  p.Position = lerp(g_vBEMinVertex,
+                    g_vBEMaxVertex,
+                    float3(Random(fRandomOffset),
+                           Random(fRandomOffset+17),
+                           Random(fRandomOffset+109)));
+  p.Velocity = float3(0, 0, 0);
+  p.Age = -Random(fRandomOffset+107)*g_fMaxParticleAge;
+  return p;
+}
+
 [MaxVertexCount(1)]
 void Particles_GS(point PARTICLE input[1], uint ID : SV_PrimitiveID,
                   inout PointStream<PARTICLE> ParticleStream)
@@ -762,12 +781,12 @@ void Particles_GS(point PARTICLE input[1], uint ID : SV_PrimitiveID,
   PARTICLE p = input[0];
   p.Age += g_fElapsedTime;
   if (p.Age > g_fMaxParticleAge || p.Position.y <= 0) {
-    p = PointEmitterCreate(ID);
+    p = BoxEmitterCreate(ID);
   } else if (p.Age >= 0) {
     p = EulerStep(p);
     p = CollisionDetect(p);
   } else {
-    p.Position = g_vPEPosition;
+    //p.Position = g_vPEPosition;
   }
   ParticleStream.Append(p);
 }

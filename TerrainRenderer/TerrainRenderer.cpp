@@ -24,6 +24,7 @@
 #include "ShadowedDirectionalLight.h"
 #include "ShadowedPointLight.h"
 #include "PointEmitter.h"
+#include "BoxEmitter.h"
 
 //#define DEBUG_VS   // Uncomment this line to debug D3D9 vertex shaders
 //#define DEBUG_PS   // Uncomment this line to debug D3D9 pixel shaders
@@ -83,6 +84,8 @@ UINT                        g_uiScreenHeight = 600;
 ID3D10RasterizerState*      g_pRSWireframe = NULL;
 bool                        g_bTSM = false;
 PointEmitter*               g_pPointEmitter = NULL;
+BoxEmitter*                 g_pBoxEmitter = NULL;
+ParticleEmitter*            g_pParticleEmitter = NULL;
 
 //--------------------------------------------------------------------------------------
 // UI control IDs
@@ -480,9 +483,10 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   //    D3DXVECTOR3(0, 1, 0),
   //    true);
 
-  g_pPointEmitter = new PointEmitter(D3DXVECTOR3(0, 5, 0), D3DXVECTOR3(0, 1, 0), D3DX_PI/2, 4000);
-  g_pPointEmitter->CreateBuffers(pd3dDevice);
-  g_pPointEmitter->GetShaderHandles(g_pEffect10, g_pEffect10->GetTechniqueByName("Particles"));
+  //g_pParticleEmitter = new PointEmitter(D3DXVECTOR3(0, 5, 0), D3DXVECTOR3(0, 1, 0), D3DX_PI/2, 4000);
+  g_pParticleEmitter = new BoxEmitter(D3DXVECTOR3(-25, 10, -25), D3DXVECTOR3(25, 10, 25), 4000);
+  g_pParticleEmitter->CreateBuffers(pd3dDevice);
+  g_pParticleEmitter->GetShaderHandles(g_pEffect10, g_pEffect10->GetTechniqueByName("Particles"));
 
   return S_OK;
 }
@@ -574,7 +578,7 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   g_pScene->Draw(g_pTechnique);
   DXUT_EndPerfEvent();
 
-  g_pPointEmitter->Draw(g_pEffect10->GetTechniqueByName("RenderParticlesBillboard"));
+  g_pParticleEmitter->Draw(g_pEffect10->GetTechniqueByName("RenderParticlesBillboard"));
 
   if (g_bWireframe) pd3dDevice->RSSetState(NULL);
 
@@ -613,7 +617,7 @@ void CALLBACK OnD3D10DestroyDevice(void* pUserContext) {
   SAFE_DELETE(g_pTxtHelper);
   SAFE_DELETE(g_pLODSelector);
   SAFE_DELETE(g_pScene);
-  SAFE_DELETE(g_pPointEmitter);
+  SAFE_DELETE(g_pParticleEmitter);
 }
 
 
@@ -648,7 +652,7 @@ void CALLBACK OnFrameMove(double fTime, float fElapsedTime,
   g_Camera.FrameMove(fElapsedTime);
   if (g_bPaused) fElapsedTime = 0;
   g_pScene->OnFrameMove(fElapsedTime);
-  g_pPointEmitter->SimulationStep(fElapsedTime);
+  g_pParticleEmitter->SimulationStep(fElapsedTime);
 }
 
 
