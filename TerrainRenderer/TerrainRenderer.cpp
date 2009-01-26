@@ -478,7 +478,7 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   g_pScene->AddDirectionalLight(
       D3DXVECTOR3(1.0f, 0.8f, 0.0f),
       D3DXVECTOR3(1, 0.75f, 0.5f),
-      D3DXVECTOR3(0, 0.2f, 0),
+      D3DXVECTOR3(0, 0.05f, 0),
       true);
   //g_pScene->AddPointLight(
   //    D3DXVECTOR3(-1, 1, 0),
