@@ -17,6 +17,8 @@ void PointEmitter::GetShaderHandles0(ID3D10Effect *effect,
   position_ev_ = effect->GetVariableByName("g_vPEPosition")->AsVector();
   direction_ev_ = effect->GetVariableByName("g_vPEDirection")->AsVector();
   spread_ev_ = effect->GetVariableByName("g_fPESpread")->AsScalar();
+
+  AddResource(effect, "g_tVulcanoFire", L"Textures\\Billboards\\waterfall0080.png");  
 }
 
 void PointEmitter::SetShaderVariables(void) {

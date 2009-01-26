@@ -123,9 +123,12 @@ void Scene::OnFrameMove(float elapsed_time) {
   }
 
   pCameraPosition->SetFloatVector(cam_pos_);
-  D3DXMATRIX view_inv = *camera_->GetViewMatrix();
-  D3DXMatrixInverse(&view_inv, NULL, &view_inv);
-  pViewInv->SetMatrix(view_inv);
+  // const_cast is evil, but so is using float* when it should be const float*.
+  pCameraRight->SetFloatVector(*const_cast<D3DXVECTOR3 *>(camera_->GetWorldRight()));
+  pCameraUp->SetFloatVector(*const_cast<D3DXVECTOR3 *>(camera_->GetWorldUp()));
+  D3DXMATRIX view_inv;
+  D3DXMatrixInverse(&view_inv, NULL, camera_->GetViewMatrix());
+  pCameraViewInv->SetMatrix(view_inv);
 
   std::vector<LightSource *>::iterator it;
   for (it = light_sources_.begin(); it != light_sources_.end(); ++it) {
@@ -170,9 +173,14 @@ void Scene::GetShaderHandles(ID3D10Effect* effect) {
     terrain_->GetShaderHandles(effect);
   pMaterialParameters =
       effect->GetVariableByName("g_vMaterialParameters")->AsVector();
+  pCameraViewInv =
+      effect->GetVariableByName("g_mViewInv")->AsMatrix();
   pCameraPosition =
       effect->GetVariableByName("g_vCamPos")->AsVector();
-  pViewInv = effect->GetVariableByName("g_mViewInv")->AsMatrix();
+  pCameraRight =
+      effect->GetVariableByName("g_vCamRight")->AsVector();
+  pCameraUp =
+      effect->GetVariableByName("g_vCamUp")->AsVector();
   pShadowedPointLight =
       effect->GetVariableByName("g_bShadowedPointLight")->AsScalar();
   pShadowedPointLight->SetBool(shadowed_point_light_ != NULL);

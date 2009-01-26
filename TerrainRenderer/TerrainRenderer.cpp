@@ -327,6 +327,9 @@ void RenderText() {
     } else {
       g_pTxtHelper->DrawTextLine(L"Shadow Mapping Technique: naive");
     }
+    D3DXVECTOR3 pe_pos = *g_pPointEmitter->GetPosition();
+    StringCchPrintf(sz, 100, L"Volcano: (%f, %f, %f)", pe_pos.x, pe_pos.y, pe_pos.z);
+    g_pTxtHelper->DrawTextLine(sz);
   }
 
   g_pTxtHelper->End();
@@ -483,10 +486,11 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   //    D3DXVECTOR3(0, 1, 0),
   //    true);
 
-  //g_pParticleEmitter = new PointEmitter(D3DXVECTOR3(0, 5, 0), D3DXVECTOR3(0, 1, 0), D3DX_PI/2, 4000);
-  g_pParticleEmitter = new BoxEmitter(D3DXVECTOR3(-25, 10, -25), D3DXVECTOR3(25, 10, 25), 4000);
+  g_pPointEmitter = new PointEmitter(D3DXVECTOR3(0, 10, 0), D3DXVECTOR3(0, 1, 0), 0.5*D3DX_PI, 10000);
+  g_pParticleEmitter = g_pPointEmitter;
+  //g_pParticleEmitter = new BoxEmitter(D3DXVECTOR3(-25, 10, -25), D3DXVECTOR3(25, 10, 25), 4000);
   g_pParticleEmitter->CreateBuffers(pd3dDevice);
-  g_pParticleEmitter->GetShaderHandles(g_pEffect10, g_pEffect10->GetTechniqueByName("Particles"));
+  g_pParticleEmitter->GetShaderHandles(g_pEffect10, g_pEffect10->GetTechniqueByName("Particles"));  
 
   return S_OK;
 }
@@ -579,6 +583,7 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   DXUT_EndPerfEvent();
 
   g_pParticleEmitter->Draw(g_pEffect10->GetTechniqueByName("RenderParticlesBillboard"));
+  g_pParticleEmitter->Draw(g_pEffect10->GetTechniqueByName("RenderParticlesBillboardIntense"));
 
   if (g_bWireframe) pd3dDevice->RSSetState(NULL);
 
@@ -712,27 +717,27 @@ void CALLBACK OnKeyboard(UINT nChar, bool bKeyDown, bool bAltDown,
     switch (nChar) {
       case 'w':
       case 'W':
-        g_pPointEmitter->SetPosition(*g_pPointEmitter->GetPosition() + D3DXVECTOR3(0, 0, 0.25f));
+        g_pPointEmitter->SetPosition(*g_pPointEmitter->GetPosition() + D3DXVECTOR3(0, 0, 0.1f));
         break;
       case 's':
       case 'S':
-        g_pPointEmitter->SetPosition(*g_pPointEmitter->GetPosition() + D3DXVECTOR3(0, 0, -0.25f));
+        g_pPointEmitter->SetPosition(*g_pPointEmitter->GetPosition() + D3DXVECTOR3(0, 0, -0.1f));
         break;
       case 'a':
       case 'A':
-        g_pPointEmitter->SetPosition(*g_pPointEmitter->GetPosition() + D3DXVECTOR3(0.25f, 0, 0));
+        g_pPointEmitter->SetPosition(*g_pPointEmitter->GetPosition() + D3DXVECTOR3(0.1f, 0, 0));
         break;
       case 'd':
       case 'D':
-        g_pPointEmitter->SetPosition(*g_pPointEmitter->GetPosition() + D3DXVECTOR3(-0.25f, 0, 0));
+        g_pPointEmitter->SetPosition(*g_pPointEmitter->GetPosition() + D3DXVECTOR3(-0.1f, 0, 0));
         break;
       case 'q':
       case 'Q':
-        g_pPointEmitter->SetPosition(*g_pPointEmitter->GetPosition() + D3DXVECTOR3(0, 0.25f, 0));
+        g_pPointEmitter->SetPosition(*g_pPointEmitter->GetPosition() + D3DXVECTOR3(0, 0.1f, 0));
         break;
       case 'e':
       case 'E':
-        g_pPointEmitter->SetPosition(*g_pPointEmitter->GetPosition() + D3DXVECTOR3(0, -0.25f, 0));
+        g_pPointEmitter->SetPosition(*g_pPointEmitter->GetPosition() + D3DXVECTOR3(0, -0.1f, 0));
         break;
     }
   }

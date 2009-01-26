@@ -815,6 +815,14 @@
 			Name="Particles"
 			>
 			<File
+				RelativePath=".\BoxEmitter.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\BoxEmitter.h"
+				>
+			</File>
+			<File
 				RelativePath=".\ParticleEmitter.cpp"
 				>
 			</File>
@@ -831,14 +839,14 @@
 				>
 			</File>
 		</Filter>
-		<File
-			RelativePath=".\BoxEmitter.cpp"
+		<Filter
+			Name="Effects"
 			>
-		</File>
-		<File
-			RelativePath=".\BoxEmitter.h"
-			>
-		</File>
+			<File
+				RelativePath=".\TerrainRenderer.fx"
+				>
+			</File>
+		</Filter>
 		<File
 			RelativePath=".\Environment.cpp"
 			>
@@ -881,10 +889,6 @@
 		</File>
 		<File
 			RelativePath=".\TerrainRenderer.cpp"
-			>
-		</File>
-		<File
-			RelativePath=".\TerrainRenderer.fx"
 			>
 		</File>
 		<File

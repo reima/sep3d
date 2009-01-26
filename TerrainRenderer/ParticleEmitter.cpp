@@ -10,7 +10,8 @@ ParticleEmitter::ParticleEmitter(UINT num_particles)
       technique_(NULL),
       elapsed_time_ev_(NULL),
       input_layout_(NULL),
-      device_(NULL) {
+      device_(NULL),
+      first_step_(true) {
   particle_buffers_[0] = NULL;
   particle_buffers_[1] = NULL;
 }
@@ -19,6 +20,11 @@ ParticleEmitter::~ParticleEmitter(void) {
   SAFE_RELEASE(particle_buffers_[0]);
   SAFE_RELEASE(particle_buffers_[1]);
   SAFE_RELEASE(input_layout_);
+
+  std::vector<BOUND_RESOURCE>::iterator it;
+  for (it = resources_.begin(); it != resources_.end(); ++it) {
+    SAFE_RELEASE(it->second);
+  }
 }
 
 HRESULT ParticleEmitter::CreateBuffers(ID3D10Device *device) {
@@ -33,9 +39,7 @@ HRESULT ParticleEmitter::CreateBuffers(ID3D10Device *device) {
   buffer_desc.MiscFlags = 0;
 
   PARTICLE *data = new PARTICLE[num_particles_];
-  for (UINT i = 0; i < num_particles_; ++i) {
-    data[i].age = 100;
-  }
+  data[0].type = -1;
   D3D10_SUBRESOURCE_DATA init_data;
   init_data.pSysMem = data;
   init_data.SysMemPitch = 0;
@@ -49,6 +53,8 @@ HRESULT ParticleEmitter::CreateBuffers(ID3D10Device *device) {
     CreateRandomTexture(device);
   }
 
+  V_RETURN(CreateBuffers0(device));
+
   return S_OK;
 }
 
@@ -60,7 +66,11 @@ void ParticleEmitter::GetShaderHandles(ID3D10Effect *effect,
   const D3D10_INPUT_ELEMENT_DESC layout[] = {
     { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,  0, D3D10_INPUT_PER_VERTEX_DATA, 0 },
     { "VELOCITY", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D10_INPUT_PER_VERTEX_DATA, 0 },
-    { "AGE",      0, DXGI_FORMAT_R32_FLOAT,       0, 24, D3D10_INPUT_PER_VERTEX_DATA, 0 },
+    { "LIFE",     0, DXGI_FORMAT_R32_FLOAT,       0, 24, D3D10_INPUT_PER_VERTEX_DATA, 0 },
+    { "MAXLIFE",  0, DXGI_FORMAT_R32_FLOAT,       0, 28, D3D10_INPUT_PER_VERTEX_DATA, 0 },
+    { "SIZE",     0, DXGI_FORMAT_R32_FLOAT,       0, 32, D3D10_INPUT_PER_VERTEX_DATA, 0 },
+    { "ROTATION", 0, DXGI_FORMAT_R32_FLOAT,       0, 36, D3D10_INPUT_PER_VERTEX_DATA, 0 },
+    { "TYPE",     0, DXGI_FORMAT_R32_UINT,        0, 40, D3D10_INPUT_PER_VERTEX_DATA, 0 },
   };
 
   UINT num_elements = sizeof(layout) / sizeof(layout[0]);
@@ -99,7 +109,12 @@ void ParticleEmitter::SimulationStep(float elapsed_time) {
   technique_->GetDesc(&tech_desc);
   for (UINT p = 0; p < tech_desc.Passes; ++p) {
     technique_->GetPassByIndex(p)->Apply(0);
-    device_->Draw(num_particles_, 0);
+    if (first_step_) {
+      device_->Draw(1, 0);
+      first_step_ = false;
+    } else {
+      device_->DrawAuto();
+    }
   }
 
   ID3D10Buffer *no_buffer = NULL;
@@ -118,12 +133,34 @@ void ParticleEmitter::Draw(ID3D10EffectTechnique *technique) {
   device_->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_POINTLIST);
   device_->IASetInputLayout(input_layout_);
 
+  std::vector<BOUND_RESOURCE>::const_iterator it;
+  for (it = resources_.begin(); it != resources_.end(); ++it) {
+    it->first->SetResource(it->second);
+  }
+
   D3D10_TECHNIQUE_DESC tech_desc;
   technique->GetDesc(&tech_desc);
   for (UINT p = 0; p < tech_desc.Passes; ++p) {
     technique->GetPassByIndex(p)->Apply(0);
-    device_->Draw(num_particles_, 0);
+    device_->DrawAuto();
   }
+}
+
+HRESULT ParticleEmitter::AddResource(ID3D10Effect *effect,
+                                     LPCSTR effect_variable,
+                                     LPCWSTR resource_path) {
+  assert(device_ != NULL);
+  HRESULT hr;
+
+  ID3D10EffectShaderResourceVariable *variable =
+    effect->GetVariableByName(effect_variable)->AsShaderResource();
+  ID3D10ShaderResourceView *srv = NULL;
+  V_RETURN(D3DX10CreateShaderResourceViewFromFile(device_, resource_path,
+    NULL, NULL, &srv, NULL));
+
+  resources_.push_back(BOUND_RESOURCE(variable, srv));
+
+  return S_OK;
 }
 
 HRESULT ParticleEmitter::CreateRandomTexture(ID3D10Device *device) {
