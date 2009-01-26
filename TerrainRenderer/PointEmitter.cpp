@@ -19,6 +19,7 @@ void PointEmitter::GetShaderHandles0(ID3D10Effect *effect,
   spread_ev_ = effect->GetVariableByName("g_fPESpread")->AsScalar();
 
   AddResource(effect, "g_tVulcanoFire", L"Textures\\Billboards\\waterfall0080.png");  
+  AddResource(effect, "g_tVulcanoHighlight", L"Textures\\Billboards\\ice.png");
 }
 
 void PointEmitter::SetShaderVariables(void) {

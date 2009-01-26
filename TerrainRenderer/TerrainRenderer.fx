@@ -95,6 +95,7 @@ Texture2D g_tNoise;
 Texture1D g_tRandom;
 
 Texture2D g_tVulcanoFire;
+Texture2D g_tVulcanoHighlight;
 
 SamplerState g_ssLinear
 {
@@ -279,6 +280,7 @@ struct PARTICLE_BILLBOARD
   float4 Position : SV_Position;
   float2 TexCoord : TEXCOORD0;
   float4 Color    : COLOR;
+  uint   Type     : TYPE;
 };
 
 //--------------------------------------------------------------------------------------
@@ -790,20 +792,46 @@ float4 Smoke_Color(float fAge)
   return vColor;
 }
 
+float Highlight_Size(float fAge)
+{
+  return 2-2*exp2(-20*fAge);
+}
+
+float Highlight_Velocity(float fAge)
+{
+  if (fAge < 0.04) return 1 - 20*fAge;
+  else return lerp(0.2, 0, (fAge-0.04)/0.96);
+}
+
+float4 Highlight_Color(float fAge)
+{
+  float4 vColor;
+  vColor.rgb = float3(1, 1, 1);
+  if (fAge < 0.2) vColor.a = 1;
+  else vColor.a = lerp(1, 0, (fAge - 0.2) / 0.8);
+  vColor.a *= 0.05;
+  return vColor;
+}
+
 PARTICLE_TYPE Smoke =
 {
   6.0, 0.0,
   5.0, 0.2,
-  0.15, 0.48,
-//  float4(0.0223, 0.0211, 0.0156, 1)
+  0.15, 0.48
 };
 
 PARTICLE_TYPE Fire =
 {
   1.0, 1.5,
   3.0, 1.5,
-  0.0, 0.12,
-//  float4(1, 0.435, 0.212, 1)
+  0.0, 0.12
+};
+
+PARTICLE_TYPE Highlight =
+{
+  5.0, 1.0,
+  4.8, 0.1,
+  0.15, 0.48
 };
 
 PARTICLE EulerStep(PARTICLE In)
@@ -815,6 +843,9 @@ PARTICLE EulerStep(PARTICLE In)
       break;
     case 2:
       vVelocity = Smoke_Velocity(1-In.Life/In.MaxLife)*In.Velocity;
+      break;
+    case 3:
+      vVelocity = Highlight_Velocity(1-In.Life/In.MaxLife)*In.Velocity;
       break;
     default:
       vVelocity = In.Velocity;
@@ -865,12 +896,16 @@ PARTICLE SecondaryParticleCreate(float3 vPosition, float fRandomOffset)
   float3 vDir = float3(cos(fAzimuth)*sin(fZenith), cos(fZenith), sin(fAzimuth)*sin(fZenith));
 
   PARTICLE_TYPE pt = (PARTICLE_TYPE)0;
-  if (Random(fRandomOffset+1245) < 0.5) {
+  float fRand = Random(fRandomOffset+1245);
+  if (fRand < 0.45) {
     p.Type = 1;
     pt = Fire;    
-  } else {
+  } else if (fRand < 0.9) {
     p.Type = 2;
     pt = Smoke;
+  } else {
+    p.Type = 3;
+    pt = Highlight;
   }
 
   p.Velocity = vDir * (pt.Velocity + (Random(fRandomOffset+731)*2-1)*pt.VelocityVariation);
@@ -929,13 +964,21 @@ void ParticleBillboard_GS(point PARTICLE input[1], inout TriangleStream<PARTICLE
   //    vParticle.x < -1.2 || vParticle.x > 1.2 ||
   //    vParticle.y < -2.0 || vParticle.y > 1.2) return;
 
-  if (input[0].Type != type) return;
+  switch (type) {
+    case 1:
+      if (input[0].Type != 1 && input[0].Type != 3) return;
+      break;
+    default:
+      if (input[0].Type != type) return;
+      break;
+  }
 
   PARTICLE_BILLBOARD Output;
+  Output.Type = input[0].Type;
   float fAge = 1 - input[0].Life / input[0].MaxLife;
   float fParticleSize = 0.1 * input[0].Size;  
   
-  switch (type) {    
+  switch (input[0].Type) {    
     case 1:
       Output.Color = Fire_Color(fAge);
       fParticleSize *= Fire_Size(fAge);
@@ -943,6 +986,10 @@ void ParticleBillboard_GS(point PARTICLE input[1], inout TriangleStream<PARTICLE
     case 2:
       Output.Color = Smoke_Color(fAge);
       fParticleSize *= Smoke_Size(fAge);
+      break;
+    case 3:
+      Output.Color = Highlight_Color(fAge);
+      fParticleSize *= Highlight_Size(fAge);
       break;
     default:
       return;
@@ -1124,7 +1171,15 @@ float4 ParticlePoint_PS( ) : SV_Target
 
 float4 ParticleBillboard_PS( PARTICLE_BILLBOARD In ) : SV_Target
 {
-  float4 vColor = g_tVulcanoFire.Sample(g_ssLinear, In.TexCoord);
+  float4 vColor;
+  switch (In.Type) {
+    case 3:
+      vColor = g_tVulcanoHighlight.Sample(g_ssLinear, In.TexCoord);
+      break;
+    default:
+      vColor = g_tVulcanoFire.Sample(g_ssLinear, In.TexCoord);
+      break;
+  }
   vColor *= In.Color;
   return vColor;
 }
