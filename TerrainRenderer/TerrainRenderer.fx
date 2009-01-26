@@ -1065,6 +1065,12 @@ struct PARTICLE_BILLBOARD
   uint   Type     : TYPE;
 };
 
+struct PARTICLE_POINT
+{
+  float4 Position : SV_Position;
+  float4 Color    : COLOR;
+};
+
 struct PARTICLE_TYPE
 {
   float Life;
@@ -1072,7 +1078,9 @@ struct PARTICLE_TYPE
   float Size;
   float SizeVariation;
   float Velocity;
-  float VelocityVariation;  
+  float VelocityVariation;
+  bool  Visible;
+  bool  Intense;
 };
 
 //--------------------------------------------------------------------------------------
@@ -1085,11 +1093,25 @@ Texture2D g_tVulcanoHighlight;
 //--------------------------------------------------------------------------------------
 // Particle types
 //--------------------------------------------------------------------------------------
-PARTICLE_TYPE Fire =
+#define PT_SPAWNER   0
+#define PT_FIRE      1
+#define PT_SMOKE     2
+#define PT_HIGHLIGHT 3
+
+const PARTICLE_TYPE ptSpawner =
+{
+  5.0, 2.5,
+  0, 0,
+  2, 1,
+  false, false
+};
+
+const PARTICLE_TYPE ptFire =
 {
   1.0, 1.5,
   3.0, 1.5,
-  0.0, 0.12
+  0.0, 0.12,
+  true, true
 };
 
 float Fire_Size(float fAge)
@@ -1111,11 +1133,12 @@ float4 Fire_Color(float fAge)
 }
 
 
-PARTICLE_TYPE Smoke =
+const PARTICLE_TYPE ptSmoke =
 {
   6.0, 0.0,
   5.0, 0.2,
-  0.15, 0.48
+  0.15, 0.48,
+  true, false
 };
 
 float Smoke_Size(float fAge)
@@ -1143,11 +1166,12 @@ float4 Smoke_Color(float fAge)
 }
 
 
-PARTICLE_TYPE Highlight =
+const PARTICLE_TYPE ptHighlight =
 {
   5.0, 1.0,
   4.8, 0.1,
-  0.15, 0.48
+  0.15, 0.48,
+  true, true
 };
 
 float Highlight_Size(float fAge)
@@ -1171,6 +1195,27 @@ float4 Highlight_Color(float fAge)
   return vColor;
 }
 
+PARTICLE_TYPE ParticleType(uint uiType)
+{
+  switch (uiType) {
+    case PT_SPAWNER:   return ptSpawner;
+    case PT_FIRE:      return ptFire;
+    case PT_SMOKE:     return ptSmoke;
+    case PT_HIGHLIGHT: return ptHighlight;
+    default:           return (PARTICLE_TYPE)0;
+  }
+}
+
+float4 ParticleColor(PARTICLE p, float fAge)
+{
+  switch (p.Type) {
+    case PT_FIRE:      return Fire_Color(fAge);
+    case PT_SMOKE:     return Smoke_Color(fAge);
+    case PT_HIGHLIGHT: return Highlight_Color(fAge);
+    default:           return 0;
+  }
+}
+
 //--------------------------------------------------------------------------------------
 // Global functions
 //--------------------------------------------------------------------------------------
@@ -1184,6 +1229,11 @@ float UniformRandom(float fOffset, float fMin, float fMax)
   return fMin + Random(fOffset) * (fMax - fMin);
 }
 
+float UniformRandomWithVariation(float fOffset, float fMean, float fVariation)
+{
+  return UniformRandom(fOffset, fMean - fVariation, fMean + fVariation);
+}
+
 //
 // Simulation functions
 //
@@ -1191,20 +1241,20 @@ PARTICLE EulerStep(PARTICLE In)
 {
   float3 vVelocity;
   switch (In.Type) {
-    case 1:
+    case PT_FIRE:
       vVelocity = Fire_Velocity(1-In.Life/In.MaxLife)*In.Velocity;
       break;
-    case 2:
+    case PT_SMOKE:
       vVelocity = Smoke_Velocity(1-In.Life/In.MaxLife)*In.Velocity;
       break;
-    case 3:
+    case PT_HIGHLIGHT:
       vVelocity = Highlight_Velocity(1-In.Life/In.MaxLife)*In.Velocity;
       break;
     default:
       vVelocity = In.Velocity;
       In.Velocity += g_fElapsedTime * float3(0, -0.6, 0);
       break;
-  } 
+  }
   In.Position += g_fElapsedTime * vVelocity;
   return In;
 }
@@ -1228,61 +1278,52 @@ PARTICLE CollisionDetect(PARTICLE In)
 //--------------------------------------------------------------------------------------
 // Emitters
 //--------------------------------------------------------------------------------------
-PARTICLE PointEmitterCreate(float fRandomOffset)
+PARTICLE InitParticle(float fRandomOffset, PARTICLE p)
 {
-  PARTICLE p;
-  p.Position = g_vPEPosition;
-  float fAzimuth = Random(fRandomOffset)*PI*2;
-  float fZenith = Random(fRandomOffset+23)*g_fPESpread;
-  float3 vDir = float3(cos(fAzimuth)*sin(fZenith), cos(fZenith), sin(fAzimuth)*sin(fZenith));
-  //p.Velocity = vDir;
-  p.Velocity = vDir * 2;
-  p.Life = p.MaxLife = UniformRandom(fRandomOffset+45, 5, 12);
-  p.Size = 1;
-  p.Rotation = 0;
-  p.Type = 0;
+  PARTICLE_TYPE pt = ParticleType(p.Type);
+  p.Size = UniformRandomWithVariation(fRandomOffset+731, pt.Size, pt.SizeVariation);
+  p.Velocity *= UniformRandomWithVariation(fRandomOffset+107, pt.Velocity, pt.VelocityVariation);
+  p.MaxLife = UniformRandomWithVariation(fRandomOffset+541, pt.Life, pt.LifeVariation);
+  p.Life = p.MaxLife;
+  p.Rotation = Random(fRandomOffset+381)*2*PI;
   return p;
 }
 
-PARTICLE SecondaryParticleCreate(float3 vPosition, float fRandomOffset)
+PARTICLE PointEmitterCreate(float fRandomOffset, uint uiType, float3 vPosition,
+                            float3 vDirection, float fSpread)
 {
   PARTICLE p;
+  p.Type = uiType;
   p.Position = vPosition;
   float fAzimuth = Random(fRandomOffset)*PI*2;
-  float fZenith = Random(fRandomOffset+23)*g_fPESpread;
+  float fZenith = Random(fRandomOffset+23)*fSpread;
   float3 vDir = float3(cos(fAzimuth)*sin(fZenith), cos(fZenith), sin(fAzimuth)*sin(fZenith));
-
-  PARTICLE_TYPE pt = (PARTICLE_TYPE)0;
-  float fRand = Random(fRandomOffset+1245);
-  if (fRand < 0.45) {
-    p.Type = 1;
-    pt = Fire;    
-  } else if (fRand < 0.9) {
-    p.Type = 2;
-    pt = Smoke;
-  } else {
-    p.Type = 3;
-    pt = Highlight;
-  }
-
-  p.Velocity = vDir * (pt.Velocity + (Random(fRandomOffset+731)*2-1)*pt.VelocityVariation);
-  p.MaxLife = p.Life = pt.Life + (Random(fRandomOffset+107)*2-1)*pt.LifeVariation;
-  p.Size = pt.Size + (Random(fRandomOffset+541)*2-1)*pt.SizeVariation;
-  p.Rotation = Random(fRandomOffset+381)*PI*2; 
-  return p;
+  p.Velocity = vDir;
+  return InitParticle(fRandomOffset, p);
 }
 
-PARTICLE BoxEmitterCreate(float fRandomOffset)
+PARTICLE VolcanoParticleCreate(float3 vPosition, float fRandomOffset)
+{
+  float fRand = Random(fRandomOffset+1245);
+  uint uiType = 0;
+  if (fRand < 0.45)      uiType = 1;
+  else if (fRand < 0.9)  uiType = 2;
+  else                   uiType = 3;
+  return PointEmitterCreate(fRandomOffset, uiType, vPosition, float3(0, 1, 0), PI*2);
+}
+
+PARTICLE BoxEmitterCreate(float fRandomOffset, uint uiType, float3 vMinVertex,
+                          float3 vMaxVertex)
 {
   PARTICLE p;
-  p.Position = lerp(g_vBEMinVertex,
-                    g_vBEMaxVertex,
+  p.Type = uiType;
+  p.Position = lerp(vMinVertex,
+                    vMaxVertex,
                     float3(Random(fRandomOffset),
                            Random(fRandomOffset+17),
                            Random(fRandomOffset+109)));
   p.Velocity = float3(0, 0, 0);
-  p.Life = Random(fRandomOffset+107);
-  return p;
+  return InitParticle(fRandomOffset, p);
 }
 
 //--------------------------------------------------------------------------------------
@@ -1293,9 +1334,13 @@ PARTICLE Particles_VS(PARTICLE Input)
   return Input;
 }
 
-float4 ParticlePoint_VS(PARTICLE Input) : SV_Position
+PARTICLE_POINT ParticlePoint_VS(PARTICLE Input)
 {
-  return mul(float4(Input.Position, 1), g_mWorldViewProjection);
+  PARTICLE_POINT Output;
+  Output.Position = mul(float4(Input.Position, 1), g_mWorldViewProjection);
+  float fAge = 1 - Input.Life / Input.MaxLife;
+  Output.Color = ParticleColor(Input, fAge);
+  return Output;
 }
 
 //--------------------------------------------------------------------------------------
@@ -1309,16 +1354,18 @@ void Particles_GS(point PARTICLE input[1], uint ID : SV_PrimitiveID,
   if (p.Type == -1) {
     // First simulation step, create some particles
     [unroll] for (uint i = 0; i < 10; ++i) {
-      ParticleStream.Append(PointEmitterCreate(ID+i));
+      PARTICLE p = PointEmitterCreate(ID+i, PT_SPAWNER, g_vPEPosition, g_vPEDirection, g_fPESpread);      
+      ParticleStream.Append(p);
     }
     return;
-  } else if (p.Type == 0) {
-    if (Random(ID) > 0.1 && g_fElapsedTime > 0) ParticleStream.Append(SecondaryParticleCreate(p.Position, ID));
+  } else if (p.Type == PT_SPAWNER) {
+    if (Random(ID) > 0.1 && g_fElapsedTime > 0) ParticleStream.Append(VolcanoParticleCreate(p.Position, ID));
   }
   p.Life -= g_fElapsedTime;
   if (p.Life < 0 || p.Position.y < 0.1) {
-    if (p.Type == 0) {
-      ParticleStream.Append(PointEmitterCreate(ID));
+    if (p.Type == PT_SPAWNER) {
+      PARTICLE p = PointEmitterCreate(ID, PT_SPAWNER, g_vPEPosition, g_vPEDirection, g_fPESpread);      
+      ParticleStream.Append(p);
     }
     return;
   }
@@ -1328,40 +1375,38 @@ void Particles_GS(point PARTICLE input[1], uint ID : SV_PrimitiveID,
 }
 
 [MaxVertexCount(4)]
-void ParticleBillboard_GS(point PARTICLE input[1], inout TriangleStream<PARTICLE_BILLBOARD> ParticleStream, uniform uint type)
+void ParticleBillboard_GS(point PARTICLE input[1], inout TriangleStream<PARTICLE_BILLBOARD> ParticleStream, uniform bool bIntense)
 {
   // Culling
-  //float4 vParticle = mul(float4(input[0].Position, 1), g_mWorldViewProjection);
-  //vParticle /= vParticle.w;
-  //if (vParticle.z < 0 || vParticle.z > 1 ||
-  //    vParticle.x < -1.2 || vParticle.x > 1.2 ||
-  //    vParticle.y < -2.0 || vParticle.y > 1.2) return;
+  float4 vParticle = mul(float4(input[0].Position, 1), g_mWorldViewProjection);
+  vParticle /= vParticle.w;
+  if (vParticle.z < 0 || vParticle.z > 1 ||
+      vParticle.x < -1.2 || vParticle.x > 1.2 ||
+      vParticle.y < -2.0 || vParticle.y > 1.2) return;
 
-  switch (type) {
-    case 1:
-      if (input[0].Type != 1 && input[0].Type != 3) return;
-      break;
-    default:
-      if (input[0].Type != type) return;
-      break;
+  PARTICLE_TYPE pt = ParticleType(input[0].Type);
+  if (!pt.Visible) return;
+  if (bIntense) {
+    if (!pt.Intense) return;
+  } else {
+    if (pt.Intense) return;
   }
 
   PARTICLE_BILLBOARD Output;
-  Output.Type = input[0].Type;
-  float fAge = 1 - input[0].Life / input[0].MaxLife;
-  float fParticleSize = 0.1 * input[0].Size;  
+  PARTICLE p = input[0];
+  Output.Type = p.Type;
+  float fAge = 1 - p.Life / p.MaxLife;
+  float fParticleSize = 0.1 * p.Size;
+  Output.Color = ParticleColor(p, fAge);
   
   switch (input[0].Type) {    
-    case 1:
-      Output.Color = Fire_Color(fAge);
+    case PT_FIRE:
       fParticleSize *= Fire_Size(fAge);
       break;
-    case 2:
-      Output.Color = Smoke_Color(fAge);
+    case PT_SMOKE:
       fParticleSize *= Smoke_Size(fAge);
       break;
-    case 3:
-      Output.Color = Highlight_Color(fAge);
+    case PT_HIGHLIGHT:
       fParticleSize *= Highlight_Size(fAge);
       break;
     default:
@@ -1370,9 +1415,9 @@ void ParticleBillboard_GS(point PARTICLE input[1], inout TriangleStream<PARTICLE
   
   float4 vVertex;
   vVertex.w = 1;  
-  const float s = sin(input[0].Rotation);
-  const float c = cos(input[0].Rotation);
-  float3 vBase = input[0].Position;
+  const float s = sin(p.Rotation);
+  const float c = cos(p.Rotation);
+  float3 vBase = p.Position;
   float3 vRight = normalize(mul(float3(s, c, 0), (float3x3)g_mViewInv)) * fParticleSize;
   float3 vUp = normalize(mul(float3(-c, s, 0), (float3x3)g_mViewInv)) * fParticleSize;
 
@@ -1403,9 +1448,9 @@ void ParticleBillboard_GS(point PARTICLE input[1], inout TriangleStream<PARTICLE
 //--------------------------------------------------------------------------------------
 // Pixel Shaders
 //--------------------------------------------------------------------------------------
-float4 ParticlePoint_PS( ) : SV_Target
+float4 ParticlePoint_PS( PARTICLE_POINT In ) : SV_Target
 {
-  return float4(1, 0, 0, 0);
+  return In.Color;
 }
 
 float4 ParticleBillboard_PS( PARTICLE_BILLBOARD In ) : SV_Target
@@ -1459,7 +1504,7 @@ technique10 RenderParticlesBillboard
   pass P0
   {
     SetVertexShader( CompileShader( vs_4_0, Particles_VS() ) );
-    SetGeometryShader( CompileShader( gs_4_0, ParticleBillboard_GS(2) ) );
+    SetGeometryShader( CompileShader( gs_4_0, ParticleBillboard_GS(false) ) );
     SetPixelShader( CompileShader( ps_4_0, ParticleBillboard_PS() ) );
     SetDepthStencilState( dssEnableDepthNoWrite, 0 );
     SetRasterizerState( rsCullNone );
@@ -1472,7 +1517,7 @@ technique10 RenderParticlesBillboardIntense
   pass P0
   {
     SetVertexShader( CompileShader( vs_4_0, Particles_VS() ) );
-    SetGeometryShader( CompileShader( gs_4_0, ParticleBillboard_GS(1) ) );
+    SetGeometryShader( CompileShader( gs_4_0, ParticleBillboard_GS(true) ) );
     SetPixelShader( CompileShader( ps_4_0, ParticleBillboard_PS() ) );
     SetDepthStencilState( dssEnableDepthNoWrite, 0 );
     SetRasterizerState( rsCullNone );

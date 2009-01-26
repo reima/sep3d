@@ -584,6 +584,7 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
 
   g_pParticleEmitter->Draw(g_pEffect10->GetTechniqueByName("RenderParticlesBillboard"));
   g_pParticleEmitter->Draw(g_pEffect10->GetTechniqueByName("RenderParticlesBillboardIntense"));
+  //g_pParticleEmitter->Draw(g_pEffect10->GetTechniqueByName("RenderParticlesPoint"));
 
   if (g_bWireframe) pd3dDevice->RSSetState(NULL);
 
