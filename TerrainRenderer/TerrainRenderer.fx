@@ -131,7 +131,7 @@ const float4 g_LODColors[] = {
 const float3 vAttenuation = float3(0, 0, 1); // Constant, linear, quadratic
 
 const float4 g_vWaterColor = float4(0, 0.25, 0.5, 1.0);
-const float4 g_vWaterMaterial = float4(0.05, 0.15, 0.8, 200);
+const float4 g_vWaterMaterial = float4(0.05, 0.45, 0.5, 200);
 const float4 g_vTreeMaterial = float4(0.05, 0.8, 0.15, 10);
 
 //--------------------------------------------------------------------------------------
@@ -1036,22 +1036,23 @@ technique10 Grass
 cbuffer cbPerPointEmitter
 {
   float3 g_vPEPosition;
-  float3 g_vPEDirection;
   float g_fPESpread;
+  float4x4 g_mPETransform;
 }
 
 cbuffer cbPerBoxEmitter
 {
   float3 g_vBEMinVertex;
   float3 g_vBEMaxVertex;
+  float3 g_vBEVelocity;
 }
 
 struct PARTICLE
 {
   float3 Position : POSITION;
   float3 Velocity : VELOCITY;
-  float  Life     : LIFE;
-  float  MaxLife  : MAXLIFE;
+  float  Age      : AGE;
+  float  MaxAge   : MAXAGE;
   float  Size     : SIZE;
   float  Rotation : ROTATION;
   uint   Type     : TYPE;
@@ -1071,24 +1072,17 @@ struct PARTICLE_POINT
   float4 Color    : COLOR;
 };
 
-struct PARTICLE_TYPE
-{
-  float Life;
-  float LifeVariation;
-  float Size;
-  float SizeVariation;
-  float Velocity;
-  float VelocityVariation;
-  bool  Visible;
-  bool  Intense;
-};
+const float3x3 g_mId3 = float3x3(1, 0, 0, 0, 1, 0, 0, 0, 1);
+
+const float3 g_vGravity = float3(0, -1, 0);
 
 //--------------------------------------------------------------------------------------
 // Texture resources
 //--------------------------------------------------------------------------------------
-Texture1D g_tRandom;
+Texture2D g_tRandom;
 Texture2D g_tVulcanoFire;
 Texture2D g_tVulcanoHighlight;
+Texture2D g_tRainDrop;
 
 //--------------------------------------------------------------------------------------
 // Particle types
@@ -1097,12 +1091,30 @@ Texture2D g_tVulcanoHighlight;
 #define PT_FIRE      1
 #define PT_SMOKE     2
 #define PT_HIGHLIGHT 3
+#define PT_CHILD_SPAWNER 4
+
+#define PT_RAIN_DROP 5
+
+struct PARTICLE_TYPE
+{
+  float Life;
+  float LifeVariation;
+  float Size;
+  float SizeVariation;
+  float Velocity;
+  float VelocityVariation;
+  float Rotation;
+  float RotationVariation;
+  bool  Visible;
+  bool  Intense;
+};
 
 const PARTICLE_TYPE ptSpawner =
 {
-  5.0, 2.5,
+  5.0, 1.0,
   0, 0,
   2, 1,
+  0, 0,
   false, false
 };
 
@@ -1111,6 +1123,7 @@ const PARTICLE_TYPE ptFire =
   1.0, 1.5,
   3.0, 1.5,
   0.0, 0.12,
+  0, PI,
   true, true
 };
 
@@ -1138,6 +1151,7 @@ const PARTICLE_TYPE ptSmoke =
   6.0, 0.0,
   5.0, 0.2,
   0.15, 0.48,
+  0, PI,
   true, false
 };
 
@@ -1171,7 +1185,8 @@ const PARTICLE_TYPE ptHighlight =
   5.0, 1.0,
   4.8, 0.1,
   0.15, 0.48,
-  true, true
+  0, PI,
+  true, false
 };
 
 float Highlight_Size(float fAge)
@@ -1191,17 +1206,37 @@ float4 Highlight_Color(float fAge)
   vColor.rgb = float3(1, 1, 1);
   if (fAge < 0.2) vColor.a = 1;
   else vColor.a = lerp(1, 0, (fAge - 0.2) / 0.8);
-  vColor.a *= 0.05;
+  vColor.a *= 0.1;
+  return vColor;
+}
+
+
+const PARTICLE_TYPE ptRainDrop =
+{
+  10.0, 0.0,
+  0.5, 0.1,
+  1, 0,
+  0, 0,
+  true, false
+};
+
+float4 Rain_Color(float fAge)
+{
+  float4 vColor = float4(0.9, 0.9, 1, 1);
+  if (fAge < 0.1) vColor.a = fAge*10;
   return vColor;
 }
 
 PARTICLE_TYPE ParticleType(uint uiType)
 {
   switch (uiType) {
-    case PT_SPAWNER:   return ptSpawner;
+    case PT_SPAWNER:
+    case PT_CHILD_SPAWNER:
+                       return ptSpawner;
     case PT_FIRE:      return ptFire;
     case PT_SMOKE:     return ptSmoke;
     case PT_HIGHLIGHT: return ptHighlight;
+    case PT_RAIN_DROP: return ptRainDrop;
     default:           return (PARTICLE_TYPE)0;
   }
 }
@@ -1212,7 +1247,10 @@ float4 ParticleColor(PARTICLE p, float fAge)
     case PT_FIRE:      return Fire_Color(fAge);
     case PT_SMOKE:     return Smoke_Color(fAge);
     case PT_HIGHLIGHT: return Highlight_Color(fAge);
-    default:           return 0;
+    case PT_SPAWNER:   return float4(1, 0, 0, 1);
+    case PT_CHILD_SPAWNER: return float4(0, 1, 0, 1);
+    case PT_RAIN_DROP: return Rain_Color(fAge);
+    default: return 0;
   }
 }
 
@@ -1221,7 +1259,9 @@ float4 ParticleColor(PARTICLE p, float fAge)
 //--------------------------------------------------------------------------------------
 float Random(float fOffset)
 {
-  return g_tRandom.SampleLevel(g_ssPoint, (g_fTime*5000 + fOffset)/4096, 0);
+  fOffset += g_fTime*5000;
+  fOffset /= 1234;
+  return g_tRandom.SampleLevel(g_ssPoint, float2(fmod(fOffset, 1024), fOffset/1024), 0);
 }
 
 float UniformRandom(float fOffset, float fMin, float fMax)
@@ -1242,37 +1282,40 @@ PARTICLE EulerStep(PARTICLE In)
   float3 vVelocity;
   switch (In.Type) {
     case PT_FIRE:
-      vVelocity = Fire_Velocity(1-In.Life/In.MaxLife)*In.Velocity;
+      vVelocity = Fire_Velocity(In.Age/In.MaxAge)*In.Velocity;
       break;
     case PT_SMOKE:
-      vVelocity = Smoke_Velocity(1-In.Life/In.MaxLife)*In.Velocity;
+      vVelocity = Smoke_Velocity(In.Age/In.MaxAge)*In.Velocity;
       break;
     case PT_HIGHLIGHT:
-      vVelocity = Highlight_Velocity(1-In.Life/In.MaxLife)*In.Velocity;
+      vVelocity = Highlight_Velocity(In.Age/In.MaxAge)*In.Velocity;
+      break;
+    case PT_RAIN_DROP:
+      vVelocity = In.Velocity;
+      float3 fWindForce = 0.1*float3(
+        sin(1*(0.8*g_fTime)) +
+        sin(4*(0.2*g_fTime)),
+        0,
+        cos(1*(0.1*g_fTime)) +
+        cos(2*(0.4*g_fTime)));
+      In.Velocity += g_fElapsedTime * (g_vGravity + fWindForce);
       break;
     default:
       vVelocity = In.Velocity;
-      In.Velocity += g_fElapsedTime * float3(0, -0.6, 0);
+      In.Velocity += g_fElapsedTime * g_vGravity;
       break;
   }
   In.Position += g_fElapsedTime * vVelocity;
   return In;
 }
 
-PARTICLE CollisionDetect(PARTICLE In)
+bool CollisionDetect(PARTICLE In)
 {
   float2 vTexCoord = (In.Position.xz - g_vTileTranslate) / g_fTileScale;
   if (all(vTexCoord >= float2(0, 0) && vTexCoord <= float2(1, 1))) {
     float4 vHeightMap = g_tTerrain.SampleLevel(g_ssLinear, vTexCoord, 0);
-    if (vHeightMap.w >= In.Position.y) {
-      In.Position.y = vHeightMap.w;
-      //float fLength = length(In.Velocity);
-      //float3 vDir = In.Velocity/fLength;
-      //In.Velocity = reflect(vDir, vHeightMap.xyz) * (fLength * 0.8);
-      In.Velocity = 0;     
-    }
-  }
-  return In;
+    return vHeightMap.w >= In.Position.y;
+  } else return false;
 }
 
 //--------------------------------------------------------------------------------------
@@ -1283,22 +1326,22 @@ PARTICLE InitParticle(float fRandomOffset, PARTICLE p)
   PARTICLE_TYPE pt = ParticleType(p.Type);
   p.Size = UniformRandomWithVariation(fRandomOffset+731, pt.Size, pt.SizeVariation);
   p.Velocity *= UniformRandomWithVariation(fRandomOffset+107, pt.Velocity, pt.VelocityVariation);
-  p.MaxLife = UniformRandomWithVariation(fRandomOffset+541, pt.Life, pt.LifeVariation);
-  p.Life = p.MaxLife;
-  p.Rotation = Random(fRandomOffset+381)*2*PI;
+  p.MaxAge = UniformRandomWithVariation(fRandomOffset+541, pt.Life, pt.LifeVariation);
+  p.Age = 0;
+  p.Rotation = UniformRandomWithVariation(fRandomOffset+381, pt.Rotation, pt.RotationVariation);
   return p;
 }
 
 PARTICLE PointEmitterCreate(float fRandomOffset, uint uiType, float3 vPosition,
-                            float3 vDirection, float fSpread)
+                            float3x3 mTransform, float fSpread)
 {
   PARTICLE p;
   p.Type = uiType;
   p.Position = vPosition;
   float fAzimuth = Random(fRandomOffset)*PI*2;
   float fZenith = Random(fRandomOffset+23)*fSpread;
-  float3 vDir = float3(cos(fAzimuth)*sin(fZenith), cos(fZenith), sin(fAzimuth)*sin(fZenith));
-  p.Velocity = vDir;
+  float3 vDir = float3(cos(fAzimuth)*sin(fZenith), sin(fAzimuth)*sin(fZenith), cos(fZenith));
+  p.Velocity = mul(vDir, mTransform);
   return InitParticle(fRandomOffset, p);
 }
 
@@ -1308,12 +1351,12 @@ PARTICLE VolcanoParticleCreate(float3 vPosition, float fRandomOffset)
   uint uiType = 0;
   if (fRand < 0.45)      uiType = 1;
   else if (fRand < 0.9)  uiType = 2;
-  else                   uiType = 3;
-  return PointEmitterCreate(fRandomOffset, uiType, vPosition, float3(0, 1, 0), PI*2);
+  else                   uiType = 3;  
+  return PointEmitterCreate(fRandomOffset, uiType, vPosition, g_mId3, PI*2);
 }
 
 PARTICLE BoxEmitterCreate(float fRandomOffset, uint uiType, float3 vMinVertex,
-                          float3 vMaxVertex)
+                          float3 vMaxVertex, float3 vVelocity)
 {
   PARTICLE p;
   p.Type = uiType;
@@ -1322,7 +1365,7 @@ PARTICLE BoxEmitterCreate(float fRandomOffset, uint uiType, float3 vMinVertex,
                     float3(Random(fRandomOffset),
                            Random(fRandomOffset+17),
                            Random(fRandomOffset+109)));
-  p.Velocity = float3(0, 0, 0);
+  p.Velocity = vVelocity;
   return InitParticle(fRandomOffset, p);
 }
 
@@ -1338,7 +1381,7 @@ PARTICLE_POINT ParticlePoint_VS(PARTICLE Input)
 {
   PARTICLE_POINT Output;
   Output.Position = mul(float4(Input.Position, 1), g_mWorldViewProjection);
-  float fAge = 1 - Input.Life / Input.MaxLife;
+  float fAge = Input.Age / Input.MaxAge;
   Output.Color = ParticleColor(Input, fAge);
   return Output;
 }
@@ -1347,43 +1390,72 @@ PARTICLE_POINT ParticlePoint_VS(PARTICLE Input)
 // Geometry Shaders
 //--------------------------------------------------------------------------------------
 [MaxVertexCount(10)]
-void Particles_GS(point PARTICLE input[1], uint ID : SV_PrimitiveID,
+void Volcano_GS(point PARTICLE input[1], uint ID : SV_PrimitiveID,
                   inout PointStream<PARTICLE> ParticleStream)
 {
   PARTICLE p = input[0];
   if (p.Type == -1) {
-    // First simulation step, create some particles
-    [unroll] for (uint i = 0; i < 10; ++i) {
-      PARTICLE p = PointEmitterCreate(ID+i, PT_SPAWNER, g_vPEPosition, g_vPEDirection, g_fPESpread);      
-      ParticleStream.Append(p);
-    }
+    // First simulation step
+    p = PointEmitterCreate(ID, PT_SPAWNER, g_vPEPosition, g_mPETransform, g_fPESpread);      
+    ParticleStream.Append(p);
     return;
-  } else if (p.Type == PT_SPAWNER) {
+  } else if (p.Type == PT_SPAWNER || p.Type == PT_CHILD_SPAWNER) {
     if (Random(ID) > 0.1 && g_fElapsedTime > 0) ParticleStream.Append(VolcanoParticleCreate(p.Position, ID));
   }
-  p.Life -= g_fElapsedTime;
-  if (p.Life < 0 || p.Position.y < 0.1) {
+  p.Age += g_fElapsedTime;
+  if (p.Age > p.MaxAge || p.Position.y < 0.1) {
     if (p.Type == PT_SPAWNER) {
-      PARTICLE p = PointEmitterCreate(ID, PT_SPAWNER, g_vPEPosition, g_vPEDirection, g_fPESpread);      
+      if (p.Age > p.MaxAge) {
+        [unroll] for (uint i = 0; i < 3; ++i) {
+          PARTICLE p0 = PointEmitterCreate(ID+i, PT_CHILD_SPAWNER, p.Position, g_mId3, PI);
+          p0.Velocity = p0.Velocity*0.5 + p.Velocity;
+          ParticleStream.Append(p0);
+        }
+      }
+      p = PointEmitterCreate(ID, PT_SPAWNER, g_vPEPosition, g_mPETransform, g_fPESpread);      
       ParticleStream.Append(p);
     }
     return;
   }
   p = EulerStep(p);
-  p = CollisionDetect(p);  
+  if (p.Type == PT_SPAWNER || p.Type == PT_CHILD_SPAWNER) {
+    if (CollisionDetect(p)) {
+      p.Velocity = 0;
+    }
+  }
+  ParticleStream.Append(p);
+}
+
+[MaxVertexCount(1)]
+void Rain_GS(point PARTICLE input[1], uint ID : SV_PrimitiveID,
+                  inout PointStream<PARTICLE> ParticleStream)
+{
+  PARTICLE p = input[0];
+  p.Age += g_fElapsedTime;
+  if (p.Type == -1) {
+    float fAge = p.Age;
+    p = BoxEmitterCreate(ID, PT_RAIN_DROP, g_vBEMinVertex, g_vBEMaxVertex, g_vBEVelocity);
+    p.Age = fAge;
+    ParticleStream.Append(p);
+    return;
+  }
+  if (p.Age > p.MaxAge) {
+    p = BoxEmitterCreate(ID, PT_RAIN_DROP, g_vBEMinVertex, g_vBEMaxVertex, g_vBEVelocity);
+    ParticleStream.Append(p);
+    return;
+  }
+  if (p.Age > 0) {
+    p = EulerStep(p);
+    if (CollisionDetect(p)) {
+      p = BoxEmitterCreate(ID, PT_RAIN_DROP, g_vBEMinVertex, g_vBEMaxVertex, g_vBEVelocity);
+    }
+  }
   ParticleStream.Append(p);
 }
 
 [MaxVertexCount(4)]
 void ParticleBillboard_GS(point PARTICLE input[1], inout TriangleStream<PARTICLE_BILLBOARD> ParticleStream, uniform bool bIntense)
 {
-  // Culling
-  float4 vParticle = mul(float4(input[0].Position, 1), g_mWorldViewProjection);
-  vParticle /= vParticle.w;
-  if (vParticle.z < 0 || vParticle.z > 1 ||
-      vParticle.x < -1.2 || vParticle.x > 1.2 ||
-      vParticle.y < -2.0 || vParticle.y > 1.2) return;
-
   PARTICLE_TYPE pt = ParticleType(input[0].Type);
   if (!pt.Visible) return;
   if (bIntense) {
@@ -1395,11 +1467,11 @@ void ParticleBillboard_GS(point PARTICLE input[1], inout TriangleStream<PARTICLE
   PARTICLE_BILLBOARD Output;
   PARTICLE p = input[0];
   Output.Type = p.Type;
-  float fAge = 1 - p.Life / p.MaxLife;
+  float fAge = p.Age / p.MaxAge;
   float fParticleSize = 0.1 * p.Size;
   Output.Color = ParticleColor(p, fAge);
   
-  switch (input[0].Type) {    
+  switch (p.Type) {    
     case PT_FIRE:
       fParticleSize *= Fire_Size(fAge);
       break;
@@ -1409,8 +1481,6 @@ void ParticleBillboard_GS(point PARTICLE input[1], inout TriangleStream<PARTICLE
     case PT_HIGHLIGHT:
       fParticleSize *= Highlight_Size(fAge);
       break;
-    default:
-      return;
   }
   
   float4 vVertex;
@@ -1418,8 +1488,49 @@ void ParticleBillboard_GS(point PARTICLE input[1], inout TriangleStream<PARTICLE
   const float s = sin(p.Rotation);
   const float c = cos(p.Rotation);
   float3 vBase = p.Position;
-  float3 vRight = normalize(mul(float3(s, c, 0), (float3x3)g_mViewInv)) * fParticleSize;
-  float3 vUp = normalize(mul(float3(-c, s, 0), (float3x3)g_mViewInv)) * fParticleSize;
+  float3 vRight = normalize(mul(float3(c, s, 0), (float3x3)g_mViewInv)) * fParticleSize;
+  float3 vUp = normalize(mul(float3(-s, c, 0), (float3x3)g_mViewInv)) * fParticleSize;
+
+  // Links oben
+  vVertex.xyz = vBase - vRight + vUp;
+  Output.Position = mul(vVertex, g_mWorldViewProjection);
+  Output.TexCoord = float2(0,0);
+  ParticleStream.Append(Output);
+  // Rechts oben
+  vVertex.xyz = vBase + vRight + vUp;
+  Output.Position = mul(vVertex, g_mWorldViewProjection);
+  Output.TexCoord = float2(1,0);
+  ParticleStream.Append(Output);
+  // Links unten
+  vVertex.xyz = vBase - vRight - vUp;
+  Output.Position = mul(vVertex, g_mWorldViewProjection);
+  Output.TexCoord = float2(0,1);
+  ParticleStream.Append(Output);
+  // Rechts unten
+  vVertex.xyz = vBase + vRight - vUp;
+  Output.Position = mul(vVertex, g_mWorldViewProjection);
+  Output.TexCoord = float2(1,1);
+  ParticleStream.Append(Output);
+
+  ParticleStream.RestartStrip();
+}
+
+[MaxVertexCount(4)]
+void RainBillboard_GS(point PARTICLE input[1], inout TriangleStream<PARTICLE_BILLBOARD> ParticleStream)
+{
+  PARTICLE_BILLBOARD Output;
+  PARTICLE p = input[0];
+  if (p.Age <= 0) return;
+  Output.Type = p.Type;
+  float fParticleSize = 0.1 * p.Size;
+  float fAge = p.Age / p.MaxAge;
+  Output.Color = ParticleColor(p, fAge);
+  
+  float4 vVertex;
+  vVertex.w = 1;    
+  float3 vBase = p.Position;
+  float3 vRight = normalize(mul(float3(1, 0, 0), (float3x3)g_mViewInv)) * fParticleSize;
+  float3 vUp = normalize(-p.Velocity) * fParticleSize;
 
   // Links oben
   vVertex.xyz = vBase - vRight + vUp;
@@ -1457,13 +1568,24 @@ float4 ParticleBillboard_PS( PARTICLE_BILLBOARD In ) : SV_Target
 {
   float4 vColor;
   switch (In.Type) {
-    case 3:
+    case PT_HIGHLIGHT:
       vColor = g_tVulcanoHighlight.Sample(g_ssLinear, In.TexCoord);
       break;
-    default:
+    case PT_FIRE:
+    case PT_SMOKE:
       vColor = g_tVulcanoFire.Sample(g_ssLinear, In.TexCoord);
       break;
+    default:
+      vColor = 0;
+      break;
   }
+  vColor *= In.Color;
+  return vColor;
+}
+
+float4 RainBillboard_PS( PARTICLE_BILLBOARD In ) : SV_Target
+{
+  float4 vColor = g_tRainDrop.Sample(g_ssLinear, In.TexCoord);  
   vColor *= In.Color;
   return vColor;
 }
@@ -1471,16 +1593,31 @@ float4 ParticleBillboard_PS( PARTICLE_BILLBOARD In ) : SV_Target
 //--------------------------------------------------------------------------------------
 // Techniques
 //--------------------------------------------------------------------------------------
-GeometryShader gsParticleSim = ConstructGSWithSO(
-  CompileShader( gs_4_0, Particles_GS() ),
-  "POSITION.xyz; VELOCITY.xyz; LIFE.x; MAXLIFE.x; SIZE.x; ROTATION.x; TYPE.x");
+GeometryShader gsVolcanoSim = ConstructGSWithSO(
+  CompileShader( gs_4_0, Volcano_GS() ),
+  "POSITION.xyz; VELOCITY.xyz; AGE.x; MAXAGE.x; SIZE.x; ROTATION.x; TYPE.x");
 
-technique10 Particles
+technique10 VolcanoSim
 {
   pass P0
   {
     SetVertexShader( CompileShader( vs_4_0, Particles_VS() ) );
-    SetGeometryShader( gsParticleSim );
+    SetGeometryShader( gsVolcanoSim );
+    SetPixelShader( NULL );
+    SetDepthStencilState( dssDisableDepthStencil, 0 );
+  }
+}
+
+GeometryShader gsRainSim = ConstructGSWithSO(
+  CompileShader( gs_4_0, Rain_GS() ),
+  "POSITION.xyz; VELOCITY.xyz; AGE.x; MAXAGE.x; SIZE.x; ROTATION.x; TYPE.x");
+
+technique10 RainSim
+{
+  pass P0
+  {
+    SetVertexShader( CompileShader( vs_4_0, Particles_VS() ) );
+    SetGeometryShader( gsRainSim );
     SetPixelShader( NULL );
     SetDepthStencilState( dssDisableDepthStencil, 0 );
   }
@@ -1522,5 +1659,18 @@ technique10 RenderParticlesBillboardIntense
     SetDepthStencilState( dssEnableDepthNoWrite, 0 );
     SetRasterizerState( rsCullNone );
     SetBlendState( bsSrcAlphaBlendingAddIntense, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
+  }
+}
+
+technique10 RenderRainBillboard
+{
+  pass P0
+  {
+    SetVertexShader( CompileShader( vs_4_0, Particles_VS() ) );
+    SetGeometryShader( CompileShader( gs_4_0, RainBillboard_GS() ) );
+    SetPixelShader( CompileShader( ps_4_0, RainBillboard_PS() ) );
+    SetDepthStencilState( dssEnableDepthNoWrite, 0 );
+    SetRasterizerState( rsCullNone );
+    SetBlendState( bsSrcAlphaBlendingAdd, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
   }
 }

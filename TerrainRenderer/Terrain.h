@@ -61,6 +61,7 @@ class Terrain {
    */
   float GetMaxHeight(void) const;
 
+  D3DXVECTOR3 GetHighestPoint(void) const;
   float GetHeightAt(const D3DXVECTOR3 &pos) const;
 
   int GetNumTrees(void) const { return num_trees_[0] + num_trees_[1]; }

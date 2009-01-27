@@ -79,7 +79,7 @@ class Tile {
    *          Methode weiterarbeiten, sofern vorher Tile::CreateBuffers
    *          aufgerufen wurde.
    */
- void FreeMemory(void);
+  void FreeMemory(void);
 
   /**
    * Berechnet die Normalen des Terrains.
@@ -89,6 +89,8 @@ class Tile {
   void GetBoundingBox(D3DXVECTOR3 *out, D3DXVECTOR3 *mid) const;
 
   float GetWorldError(void) const;
+
+  D3DXVECTOR3 GetHighestPoint(void) const;
 
  private:
   /**
@@ -143,7 +145,7 @@ class Tile {
 
   void CreateWater(void);
 
-  inline D3DXVECTOR3 GetVectorFromIndex(int index);
+  inline D3DXVECTOR3 GetVectorFromIndex(int index) const;
   /**
    * Rekursive Implementierung von CalculateNormals
    */

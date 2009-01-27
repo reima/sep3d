@@ -274,6 +274,21 @@ float Tile::GetMaxHeight(void) const {
   return max_height_;
 }
 
+D3DXVECTOR3 Tile::GetHighestPoint(void) const {
+  assert(heights_ != NULL);
+  float max = std::numeric_limits<float>::min();
+  const int res = GetResolution();
+  int idx = -1;
+  for (int i = 0; i < res; ++i) {
+    if (heights_[i] > max) {
+      idx = i;
+      max = heights_[i];
+    }
+  }
+  if (idx == -1) return D3DXVECTOR3(0, 0, 0);
+  else return GetVectorFromIndex(idx);
+}
+
 float Tile::GetHeightAt(const D3DXVECTOR3 &pos) const {
   D3DXVECTOR2 pos2d = D3DXVECTOR2(pos.x, pos.z);
   if (num_lod_ > 0) {
@@ -561,7 +576,7 @@ void Tile::CalculateNormals(unsigned int *indices) {
   NormalizeNormals();
 }
 
-D3DXVECTOR3 Tile::GetVectorFromIndex(int index) {
+D3DXVECTOR3 Tile::GetVectorFromIndex(int index) const {
   assert(heights_ != NULL);
   float x = (float)(index % size_) / (size_ - 1) * scale_ + translation_.x;
   float z = (float)(index / size_) / (size_ - 1) * scale_ + translation_.y;

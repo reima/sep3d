@@ -1,7 +1,7 @@
 #include <ctime>
 #include "ParticleEmitter.h"
 
-ID3D10Texture1D *ParticleEmitter::random_tex_ = NULL;
+ID3D10Texture2D *ParticleEmitter::random_tex_ = NULL;
 ID3D10ShaderResourceView *ParticleEmitter::random_srv_ = NULL;
 ID3D10EffectShaderResourceVariable* ParticleEmitter::random_ev_ = NULL;
 
@@ -39,7 +39,7 @@ HRESULT ParticleEmitter::CreateBuffers(ID3D10Device *device) {
   buffer_desc.MiscFlags = 0;
 
   PARTICLE *data = new PARTICLE[num_particles_];
-  data[0].type = -1;
+  start_particles_ = InitParticles(data);
   D3D10_SUBRESOURCE_DATA init_data;
   init_data.pSysMem = data;
   init_data.SysMemPitch = 0;
@@ -58,16 +58,15 @@ HRESULT ParticleEmitter::CreateBuffers(ID3D10Device *device) {
   return S_OK;
 }
 
-void ParticleEmitter::GetShaderHandles(ID3D10Effect *effect,
-                                       ID3D10EffectTechnique *technique) {
+void ParticleEmitter::GetShaderHandles(ID3D10Effect *effect) {
   assert(device_ != NULL);
-  technique_ = technique;
+  technique_ = GetTechnique(effect);
 
   const D3D10_INPUT_ELEMENT_DESC layout[] = {
     { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,  0, D3D10_INPUT_PER_VERTEX_DATA, 0 },
     { "VELOCITY", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D10_INPUT_PER_VERTEX_DATA, 0 },
-    { "LIFE",     0, DXGI_FORMAT_R32_FLOAT,       0, 24, D3D10_INPUT_PER_VERTEX_DATA, 0 },
-    { "MAXLIFE",  0, DXGI_FORMAT_R32_FLOAT,       0, 28, D3D10_INPUT_PER_VERTEX_DATA, 0 },
+    { "AGE",      0, DXGI_FORMAT_R32_FLOAT,       0, 24, D3D10_INPUT_PER_VERTEX_DATA, 0 },
+    { "MAXAGE",   0, DXGI_FORMAT_R32_FLOAT,       0, 28, D3D10_INPUT_PER_VERTEX_DATA, 0 },
     { "SIZE",     0, DXGI_FORMAT_R32_FLOAT,       0, 32, D3D10_INPUT_PER_VERTEX_DATA, 0 },
     { "ROTATION", 0, DXGI_FORMAT_R32_FLOAT,       0, 36, D3D10_INPUT_PER_VERTEX_DATA, 0 },
     { "TYPE",     0, DXGI_FORMAT_R32_UINT,        0, 40, D3D10_INPUT_PER_VERTEX_DATA, 0 },
@@ -85,7 +84,7 @@ void ParticleEmitter::GetShaderHandles(ID3D10Effect *effect,
     random_ev_ = effect->GetVariableByName("g_tRandom")->AsShaderResource();
   }
 
-  GetShaderHandles0(effect, technique);
+  GetShaderHandles0(effect);
 }
 
 void ParticleEmitter::ReleaseResources(void) {
@@ -110,7 +109,7 @@ void ParticleEmitter::SimulationStep(float elapsed_time) {
   for (UINT p = 0; p < tech_desc.Passes; ++p) {
     technique_->GetPassByIndex(p)->Apply(0);
     if (first_step_) {
-      device_->Draw(1, 0);
+      device_->Draw(start_particles_, 0);
       first_step_ = false;
     } else {
       device_->DrawAuto();
@@ -165,36 +164,40 @@ HRESULT ParticleEmitter::AddResource(ID3D10Effect *effect,
 
 HRESULT ParticleEmitter::CreateRandomTexture(ID3D10Device *device) {
   HRESULT hr;
-  const UINT size = 4096;
+  const UINT size = 1024;
   srand(static_cast<unsigned int>(time(0)));
-  float *data = new float[size];
-  for (UINT i = 0; i < size; ++i) {
+  float *data = new float[size*size];
+  for (UINT i = 0; i < size*size; ++i) {
     data[i] = (float)rand() / RAND_MAX;
   }
   
-  D3D10_TEXTURE1D_DESC tex_desc;
+  D3D10_TEXTURE2D_DESC tex_desc;
   tex_desc.Width = size;
+  tex_desc.Height = size;
   tex_desc.MipLevels = 1;
   tex_desc.Format = DXGI_FORMAT_R32_FLOAT;
-  tex_desc.Usage = D3D10_USAGE_DEFAULT;
+  tex_desc.Usage = D3D10_USAGE_IMMUTABLE;
   tex_desc.BindFlags = D3D10_BIND_SHADER_RESOURCE;
   tex_desc.CPUAccessFlags = 0;
   tex_desc.MiscFlags = 0;
   tex_desc.ArraySize = 1;
+  tex_desc.SampleDesc.Count = 1;
+  tex_desc.SampleDesc.Quality = 0;
 
   D3D10_SUBRESOURCE_DATA init_data;
   init_data.pSysMem = data;
   init_data.SysMemPitch = size * sizeof(float);
   init_data.SysMemSlicePitch = size * sizeof(float);
 
-  V_RETURN(device->CreateTexture1D(&tex_desc, &init_data, &random_tex_));
+  V_RETURN(device->CreateTexture2D(&tex_desc, &init_data, &random_tex_));
   delete[] data;
 
   D3D10_SHADER_RESOURCE_VIEW_DESC srv_desc;
   ZeroMemory(&srv_desc, sizeof(srv_desc));
   srv_desc.Format = tex_desc.Format;
-  srv_desc.ViewDimension = D3D10_SRV_DIMENSION_TEXTURE1D;
-  srv_desc.Texture1D.MipLevels = tex_desc.MipLevels;
+  srv_desc.ViewDimension = D3D10_SRV_DIMENSION_TEXTURE2D;
+  srv_desc.Texture2D.MipLevels = tex_desc.MipLevels;
+  srv_desc.Texture2D.MostDetailedMip = 0;
   V_RETURN(device->CreateShaderResourceView(random_tex_, &srv_desc, &random_srv_));
 
   return S_OK;

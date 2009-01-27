@@ -5,25 +5,30 @@ PointEmitter::PointEmitter(const D3DXVECTOR3 &pos,
                            float spread, UINT num)
       : ParticleEmitter(num),
         position_(pos),
-        direction_(dir),
         spread_(spread) {  
+  SetDirection(dir);
 }
 
 PointEmitter::~PointEmitter(void) {
 }
 
-void PointEmitter::GetShaderHandles0(ID3D10Effect *effect,
-                                     ID3D10EffectTechnique *technique) {
-  position_ev_ = effect->GetVariableByName("g_vPEPosition")->AsVector();
-  direction_ev_ = effect->GetVariableByName("g_vPEDirection")->AsVector();
-  spread_ev_ = effect->GetVariableByName("g_fPESpread")->AsScalar();
+void PointEmitter::SetDirection(const D3DXVECTOR3 &dir) {
+  D3DXVECTOR3 vec = dir;
+  D3DXVec3Normalize(&vec, &vec);
+  D3DXVECTOR3 up(-vec.z, vec.x, vec.y); // should never be colinear to vec (hopefully)
+  D3DXVECTOR3 origin(0, 0, 0);
+  D3DXMatrixLookAtLH(&transform_, &origin, &vec, &up);
+  D3DXMatrixInverse(&transform_, NULL, &transform_);
+}
 
-  AddResource(effect, "g_tVulcanoFire", L"Textures\\Billboards\\waterfall0080.png");  
-  AddResource(effect, "g_tVulcanoHighlight", L"Textures\\Billboards\\ice.png");
+void PointEmitter::GetShaderHandles0(ID3D10Effect *effect) {
+  position_ev_ = effect->GetVariableByName("g_vPEPosition")->AsVector();
+  transform_ev_ = effect->GetVariableByName("g_mPETransform")->AsMatrix();
+  spread_ev_ = effect->GetVariableByName("g_fPESpread")->AsScalar();
 }
 
 void PointEmitter::SetShaderVariables(void) {
   position_ev_->SetFloatVector(position_);
-  direction_ev_->SetFloatVector(direction_);
+  transform_ev_->SetMatrix(transform_);
   spread_ev_->SetFloat(spread_);
 }

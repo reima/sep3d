@@ -25,6 +25,8 @@
 #include "ShadowedPointLight.h"
 #include "PointEmitter.h"
 #include "BoxEmitter.h"
+#include "VolcanoEmitter.h"
+#include "RainEmitter.h"
 
 //#define DEBUG_VS   // Uncomment this line to debug D3D9 vertex shaders
 //#define DEBUG_PS   // Uncomment this line to debug D3D9 pixel shaders
@@ -83,9 +85,12 @@ float                       g_fScreenError = 1.0f;
 UINT                        g_uiScreenHeight = 600;
 ID3D10RasterizerState*      g_pRSWireframe = NULL;
 bool                        g_bTSM = false;
+bool                        g_bDrawGUI = true;
+//bool                        g_bDrawParticlePoints = false;
+bool                        g_bPointEmitter = false;
+bool                        g_bBoxEmitter = true;
 PointEmitter*               g_pPointEmitter = NULL;
 BoxEmitter*                 g_pBoxEmitter = NULL;
-ParticleEmitter*            g_pParticleEmitter = NULL;
 
 //--------------------------------------------------------------------------------------
 // UI control IDs
@@ -112,6 +117,8 @@ ParticleEmitter*            g_pParticleEmitter = NULL;
 #define IDC_FLY_MODE                20
 #define IDC_SCREEN_ERROR            21
 #define IDC_SCREEN_ERROR_S          22
+#define IDC_POINT_EMITTER           23
+#define IDC_BOX_EMITTER             24
 
 #define IDC_NEWTERRAIN_LOD          100
 #define IDC_NEWTERRAIN_SIZE         101
@@ -161,6 +168,23 @@ ID3D10Effect* LoadEffect(ID3D10Device* pd3dDevice,
                          const std::wstring& filename,
                          const D3D10_SHADER_MACRO *Shader_Macros = NULL,
                          const bool bDebugCompile = false);
+
+void ResetVolcano(void) {
+  SAFE_DELETE(g_pPointEmitter);
+  D3DXVECTOR3 volcano = g_pScene->GetTerrain()->GetHighestPoint();
+  volcano.y += 0.5f;  
+  g_pPointEmitter = new VolcanoEmitter(volcano, D3DXVECTOR3(0, 1, 0), 0.5*D3DX_PI);
+  g_pPointEmitter->CreateBuffers(DXUTGetD3D10Device());
+  g_pPointEmitter->GetShaderHandles(g_pEffect10);
+}
+
+void MakeItRain(void) {
+  SAFE_DELETE(g_pBoxEmitter);
+  float f = g_fTerrainScale*0.5f;
+  g_pBoxEmitter = new RainEmitter(D3DXVECTOR3(-f, 10, -f), D3DXVECTOR3(f, 15, f), (UINT)(150*f*f));
+  g_pBoxEmitter->CreateBuffers(DXUTGetD3D10Device());
+  g_pBoxEmitter->GetShaderHandles(g_pEffect10);
+}
 
 //--------------------------------------------------------------------------------------
 // Entry point to the program. Initializes everything and goes into a message processing
@@ -264,6 +288,12 @@ void InitApp() {
 
   g_SampleUI.AddCheckBox(IDC_SHADOWMAPS_PCF, L"3x3 PCF", 35,
                          iY += 24, 125, 22, true);
+
+  g_SampleUI.AddCheckBox(IDC_BOX_EMITTER, L"Rain", 35,
+                         iY += 24, 125, 22, g_bBoxEmitter);
+  g_SampleUI.AddCheckBox(IDC_POINT_EMITTER, L"Volcano", 35,
+                         iY += 24, 125, 22, g_bPointEmitter);
+  
 
   /**
    * Terrain UI
@@ -477,7 +507,7 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   //                       .5f, 5);
   g_pScene->AddDirectionalLight(
       D3DXVECTOR3(1.0f, 0.8f, 0.0f),
-      D3DXVECTOR3(1, 0.75f, 0.5f),
+      D3DXVECTOR3(0.25, 0.25f, 0.25f),
       D3DXVECTOR3(0, 0.05f, 0),
       true);
   //g_pScene->AddPointLight(
@@ -486,11 +516,8 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   //    D3DXVECTOR3(0, 1, 0),
   //    true);
 
-  g_pPointEmitter = new PointEmitter(D3DXVECTOR3(0, 10, 0), D3DXVECTOR3(0, 1, 0), 0.5*D3DX_PI, 10000);
-  g_pParticleEmitter = g_pPointEmitter;
-  //g_pParticleEmitter = new BoxEmitter(D3DXVECTOR3(-25, 10, -25), D3DXVECTOR3(25, 10, 25), 4000);
-  g_pParticleEmitter->CreateBuffers(pd3dDevice);
-  g_pParticleEmitter->GetShaderHandles(g_pEffect10, g_pEffect10->GetTechniqueByName("Particles"));  
+  ResetVolcano();
+  MakeItRain();
 
   return S_OK;
 }
@@ -582,17 +609,18 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   g_pScene->Draw(g_pTechnique);
   DXUT_EndPerfEvent();
 
-  g_pParticleEmitter->Draw(g_pEffect10->GetTechniqueByName("RenderParticlesBillboard"));
-  g_pParticleEmitter->Draw(g_pEffect10->GetTechniqueByName("RenderParticlesBillboardIntense"));
-  //g_pParticleEmitter->Draw(g_pEffect10->GetTechniqueByName("RenderParticlesPoint"));
-
+  if (g_bPointEmitter) g_pPointEmitter->Draw();
+  if (g_bBoxEmitter) g_pBoxEmitter->Draw();
+  
   if (g_bWireframe) pd3dDevice->RSSetState(NULL);
 
   DXUT_BeginPerfEvent(DXUT_PERFEVENTCOLOR, L"HUD / Stats");
-  RenderText();
-  g_HUD.OnRender(fElapsedTime);
-  g_SampleUI.OnRender(fElapsedTime);
-  g_TerrainUI.OnRender(fElapsedTime);
+  if (g_bDrawGUI) {
+    RenderText();
+    g_HUD.OnRender(fElapsedTime);
+    g_SampleUI.OnRender(fElapsedTime);
+    g_TerrainUI.OnRender(fElapsedTime);
+  }
   DXUT_EndPerfEvent();
 }
 
@@ -623,7 +651,8 @@ void CALLBACK OnD3D10DestroyDevice(void* pUserContext) {
   SAFE_DELETE(g_pTxtHelper);
   SAFE_DELETE(g_pLODSelector);
   SAFE_DELETE(g_pScene);
-  SAFE_DELETE(g_pParticleEmitter);
+  SAFE_DELETE(g_pBoxEmitter);
+  SAFE_DELETE(g_pPointEmitter);
 }
 
 
@@ -658,7 +687,9 @@ void CALLBACK OnFrameMove(double fTime, float fElapsedTime,
   g_Camera.FrameMove(fElapsedTime);
   if (g_bPaused) fElapsedTime = 0;
   g_pScene->OnFrameMove(fElapsedTime);
-  g_pParticleEmitter->SimulationStep(fElapsedTime);
+
+  if (g_bPointEmitter) g_pPointEmitter->SimulationStep(fElapsedTime);
+  if (g_bBoxEmitter) g_pBoxEmitter->SimulationStep(fElapsedTime);
 }
 
 
@@ -705,42 +736,22 @@ void CALLBACK OnKeyboard(UINT nChar, bool bKeyDown, bool bAltDown,
                          void* pUserContext) {
   if (!bKeyDown) return;
   switch (nChar) {
-    case 'H':
     case 'h':
+    case 'H':
       g_bShowSettings = !g_bShowSettings;
       break;
     case 't':
     case 'T':
       g_bTSM = !g_bTSM;
       break;
-  }
-  if (bAltDown) {
-    switch (nChar) {
-      case 'w':
-      case 'W':
-        g_pPointEmitter->SetPosition(*g_pPointEmitter->GetPosition() + D3DXVECTOR3(0, 0, 0.1f));
-        break;
-      case 's':
-      case 'S':
-        g_pPointEmitter->SetPosition(*g_pPointEmitter->GetPosition() + D3DXVECTOR3(0, 0, -0.1f));
-        break;
-      case 'a':
-      case 'A':
-        g_pPointEmitter->SetPosition(*g_pPointEmitter->GetPosition() + D3DXVECTOR3(0.1f, 0, 0));
-        break;
-      case 'd':
-      case 'D':
-        g_pPointEmitter->SetPosition(*g_pPointEmitter->GetPosition() + D3DXVECTOR3(-0.1f, 0, 0));
-        break;
-      case 'q':
-      case 'Q':
-        g_pPointEmitter->SetPosition(*g_pPointEmitter->GetPosition() + D3DXVECTOR3(0, 0.1f, 0));
-        break;
-      case 'e':
-      case 'E':
-        g_pPointEmitter->SetPosition(*g_pPointEmitter->GetPosition() + D3DXVECTOR3(0, -0.1f, 0));
-        break;
-    }
+    case 'g':
+    case 'G':
+      g_bDrawGUI = !g_bDrawGUI;
+      break;
+    //case 'p':
+    //case 'P':
+    //  g_bDrawParticlePoints = !g_bDrawParticlePoints;
+    //  break;
   }
 }
 
@@ -835,6 +846,13 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
       if (g_pScene) g_pScene->SetLODSelector(g_pLODSelector);
       break;
     }
+    case IDC_POINT_EMITTER:
+      g_bPointEmitter = g_SampleUI.GetCheckBox(IDC_POINT_EMITTER)->GetChecked();
+      break;
+    case IDC_BOX_EMITTER:
+      g_bBoxEmitter = g_SampleUI.GetCheckBox(IDC_BOX_EMITTER)->GetChecked();
+      break;
+    
 
     /**
      * Terrain UI
@@ -880,6 +898,9 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
       Terrain *terrain = g_pScene->GetTerrain();
       g_pfMinHeight->SetFloat(terrain->GetMinHeight());
       g_pfMaxHeight->SetFloat(terrain->GetMaxHeight());
+
+      ResetVolcano();
+      MakeItRain();
 
       break;
     }

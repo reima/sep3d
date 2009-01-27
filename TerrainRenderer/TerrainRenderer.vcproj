@@ -838,6 +838,22 @@
 				RelativePath=".\PointEmitter.h"
 				>
 			</File>
+			<File
+				RelativePath=".\RainEmitter.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\RainEmitter.h"
+				>
+			</File>
+			<File
+				RelativePath=".\VolcanoEmitter.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\VolcanoEmitter.h"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Effects"
@@ -876,7 +892,7 @@
 			>
 		</File>
 		<File
-			RelativePath=".\README.txt"
+			RelativePath=".\README10.txt"
 			>
 		</File>
 		<File

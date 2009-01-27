@@ -416,3 +416,7 @@ void Terrain::InitVegetation(void) {
   }
   tile_->GrowVegetation();
 }
+
+D3DXVECTOR3 Terrain::GetHighestPoint() const {
+  return tile_->GetHighestPoint();
+}
