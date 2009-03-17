@@ -84,7 +84,7 @@ Texture2D g_tHDRTarget0;
 Texture2D g_tToneMap;
 Texture2D g_tHDRBrightPass;
 Texture2D g_tHDRBloom;
-
+Texture2D g_tHDRBloom2;
 
 const float g_avSampleOffsets[15] = {
   0.0000,
@@ -916,9 +916,9 @@ float4 HDR_Luminosity_PS( QuadVS_Output Input ) : SV_TARGET
     float4 vColor = 0.0f;
     float  fAvg = 0.0f;
     
-    for( int y = -1; y < 1; y++ )
+    [unroll] for( int y = -1; y < 1; y++ )
     {
-        for( int x = -1; x < 1; x++ )
+        [unroll] for( int x = -1; x < 1; x++ )
         {
       
             vColor = g_tHDRTarget0.Sample( PointSampler, Input.Tex, int2(x,y) );
@@ -933,16 +933,17 @@ float4 HDR_Luminosity_PS( QuadVS_Output Input ) : SV_TARGET
 
         return float4(fAvg, fAvg, fAvg, 1.0f);
 }
+
 float4 HDR_3x3_Downsampling_PS( QuadVS_Output Input ) : SV_TARGET
 {
     float fAvg = 0.0f; 
     float4 vColor;
     
-    for( int y = -1; y <= 1; y++ )
+    [unroll] for( int y = -1; y <= 1; y++ )
     {
-        for( int x = -1; x <= 1; x++ )
+        [unroll] for( int x = -1; x <= 1; x++ )
         {
-            vColor = g_tToneMap.Sample( PointSampler, Input.Tex, int2(x,y) );
+            vColor = g_tToneMap.Sample( PointSampler, Input.Tex.x, int2(x,y) );
             fAvg += vColor.r; 
         }
     }
@@ -958,9 +959,9 @@ float4 HDR_BrightPass_PS( QuadVS_Output Input ) : SV_TARGET
     float4 vLum = g_tToneMap.Sample( PointSampler, float2(0, 0) );
     float  fLum = vLum.r;
        
-    for( int y = -1; y <= 1; y++ ) 
+    [unroll] for( int y = -1; y <= 1; y++ ) 
     {
-        for( int x = -1; x <= 1; x++ )
+        [unroll] for( int x = -1; x <= 1; x++ )
         {
             float4 vSample = g_tHDRTarget0.Sample( PointSampler, Input.Tex, int2(x,y) );
 
@@ -980,7 +981,7 @@ float4 HDR_BrightPass_PS( QuadVS_Output Input ) : SV_TARGET
     return float4(vColor, 1.0f);
 }
 
-float4 HDR_Bloom_PS( QuadVS_Output Input ) : SV_TARGET
+float4 HDR_BloomH_PS( QuadVS_Output Input ) : SV_TARGET
 {
   
     float4 vSample = 0.0f;
@@ -989,18 +990,30 @@ float4 HDR_Bloom_PS( QuadVS_Output Input ) : SV_TARGET
     
     for( int iSample = 0; iSample < 15; iSample++ )
     {
-        // Sample from adjacent points
         vSamplePosition = Input.Tex;
         vSamplePosition.x += g_avSampleOffsets[iSample];
         
         vColor = g_tHDRBrightPass.Sample( PointSampler, vSamplePosition);
         
         vSample += g_avSampleWeights[iSample]*vColor;
+    }
+    
+    return vSample;
+}
 
+float4 HDR_BloomV_PS( QuadVS_Output Input ) : SV_TARGET
+{
+  
+    float4 vSample = 0.0f;
+    float4 vColor = 0.0f;
+    float2 vSamplePosition;
+    
+    for( int iSample = 0; iSample < 15; iSample++ )
+    {
         vSamplePosition = Input.Tex;
         vSamplePosition.y += g_avSampleOffsets[iSample];
         
-        vColor = g_tHDRBrightPass.Sample( PointSampler, vSamplePosition);
+        vColor = g_tHDRBloom.Sample( PointSampler, vSamplePosition);
         
         vSample += g_avSampleWeights[iSample]*vColor;
     }
@@ -1012,7 +1025,7 @@ float4 HDR_FinalPass_PS( QuadVS_Output Input ) : SV_TARGET
 {   
     float4 vColor = g_tHDRTarget0.Sample( PointSampler, Input.Tex );
     float4 vLum = g_tToneMap.Sample( PointSampler, float2(0,0) );
-    float3 vBloom = g_tHDRBloom.Sample( LinearSampler, Input.Tex );
+    float3 vBloom = g_tHDRBloom2.Sample( LinearSampler, Input.Tex );
     
 
     // Tone mapping
@@ -1020,7 +1033,8 @@ float4 HDR_FinalPass_PS( QuadVS_Output Input ) : SV_TARGET
     vColor.rgb *= (1.0f + vColor/LUM_WHITE);
     vColor.rgb /= (1.0f + vColor);
     
-    vColor.rgb += 0.6f * vBloom;
+    vColor.rgb += 1.0f * vBloom;  
+ 
     vColor.a = 1.0f;
     
     return vColor;
@@ -1029,8 +1043,8 @@ float4 HDR_FinalPass_PS( QuadVS_Output Input ) : SV_TARGET
 
 float4 HDR_FinalPass_PS_debug( QuadVS_Output Input ) : SV_TARGET
 {
-  //return g_tHDRTarget0.Sample( PointSampler, Input.Tex );
-  return g_tHDRBloom.Sample( PointSampler, Input.Tex );
+  return g_tHDRTarget0.Sample( PointSampler, Input.Tex );
+  //return g_tHDRBloom.Sample( PointSampler, Input.Tex );
 }
 
 //--------------------------------------------------------------------------------------
@@ -1244,11 +1258,10 @@ technique10 HDR_Luminosity
     SetVertexShader( CompileShader( vs_4_0, QuadVS() ) );
     SetGeometryShader( NULL );
     SetPixelShader( CompileShader( ps_4_0, HDR_Luminosity_PS() ) );
+    SetDepthStencilState( dssDisableDepthStencil, 0 );
   }
 }
 
-
-//z test ausschalten
 technique10 HDR_3x3_Downsampling
 {
   pass P0
@@ -1256,6 +1269,7 @@ technique10 HDR_3x3_Downsampling
     SetVertexShader( CompileShader( vs_4_0, QuadVS() ) );
     SetGeometryShader( NULL );
     SetPixelShader( CompileShader( ps_4_0, HDR_3x3_Downsampling_PS() ) );
+    SetDepthStencilState( dssDisableDepthStencil, 0 );
   }
 }
 
@@ -1266,18 +1280,29 @@ technique10 HDR_BrightPass
         SetVertexShader( CompileShader( vs_4_0, QuadVS() ) );
         SetGeometryShader( NULL );
         SetPixelShader( CompileShader( ps_4_0, HDR_BrightPass_PS() ) );
-        
+        SetDepthStencilState( dssDisableDepthStencil, 0 );          
     }
 }
 
-technique10 HDR_Bloom
+technique10 HDR_BloomH
 {
     pass p0
     {
         SetVertexShader( CompileShader( vs_4_0, QuadVS() ) );
         SetGeometryShader( NULL );
-        SetPixelShader( CompileShader( ps_4_0, HDR_Bloom_PS() ) );
-        
+        SetPixelShader( CompileShader( ps_4_0, HDR_BloomH_PS() ) );
+        SetDepthStencilState( dssDisableDepthStencil, 0 );
+    }
+}
+
+technique10 HDR_BloomV
+{
+    pass p0
+    {
+        SetVertexShader( CompileShader( vs_4_0, QuadVS() ) );
+        SetGeometryShader( NULL );
+        SetPixelShader( CompileShader( ps_4_0, HDR_BloomV_PS() ) );
+        SetDepthStencilState( dssDisableDepthStencil, 0 );
     }
 }
 
@@ -1288,7 +1313,19 @@ technique10 HDR_FinalPass
         SetVertexShader( CompileShader( vs_4_0, QuadVS() ) );
         SetGeometryShader( NULL );
         SetPixelShader( CompileShader( ps_4_0, HDR_FinalPass_PS() ) );
-        
+        SetDepthStencilState( dssDisableDepthStencil, 0 );
+    }
+}
+
+technique10 HDR_FinalPass_disabled
+{
+    pass p0
+    {
+        SetVertexShader( CompileShader( vs_4_0, QuadVS() ) );
+        SetGeometryShader( NULL );
+        SetPixelShader( CompileShader( ps_4_0, HDR_FinalPass_PS_debug() ) );
+        SetBlendState( bsSrcAlphaBlendingAdd, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
+        SetDepthStencilState( dssDisableDepthStencil, 0 );
     }
 }
 
