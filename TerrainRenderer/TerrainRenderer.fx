@@ -929,9 +929,9 @@ float4 HDR_Luminosity_PS( QuadVS_Output Input ) : SV_TARGET
     
     fAvg /= 4;
    // fAvg += 0.35f; // bloomean everywhere!1
+   
 
-
-        return float4(fAvg, fAvg, fAvg, 1.0f);
+    return float4(fAvg, fAvg, fAvg, 1.0f);
 }
 
 float4 HDR_3x3_Downsampling_PS( QuadVS_Output Input ) : SV_TARGET
@@ -943,7 +943,7 @@ float4 HDR_3x3_Downsampling_PS( QuadVS_Output Input ) : SV_TARGET
     {
         [unroll] for( int x = -1; x <= 1; x++ )
         {
-            vColor = g_tToneMap.Sample( PointSampler, Input.Tex.x, int2(x,y) );
+            vColor = g_tToneMap.Sample( PointSampler, Input.Tex, int2(x,y) );
             fAvg += vColor.r; 
         }
     }
@@ -1324,7 +1324,7 @@ technique10 HDR_FinalPass_disabled
         SetVertexShader( CompileShader( vs_4_0, QuadVS() ) );
         SetGeometryShader( NULL );
         SetPixelShader( CompileShader( ps_4_0, HDR_FinalPass_PS_debug() ) );
-        SetBlendState( bsSrcAlphaBlendingAdd, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
+        SetBlendState( bsAlphaToCov , float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
         SetDepthStencilState( dssDisableDepthStencil, 0 );
     }
 }

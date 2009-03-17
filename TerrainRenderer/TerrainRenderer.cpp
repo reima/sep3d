@@ -113,8 +113,8 @@ bool g_bHDRenabled = true;
 
 ID3D10InputLayout* g_pQuadLayout = NULL;
 ID3D10Buffer* g_pScreenQuadVB = NULL;
-ID3D10DepthStencilView* g_pDSV = NULL;
-ID3D10Texture2D* g_pDepthStencil = NULL;
+//ID3D10DepthStencilView* g_pDSV = NULL;
+//ID3D10Texture2D* g_pDepthStencil = NULL;
 
 ID3D10Texture2D* g_pHDRTarget0 = NULL;        
 ID3D10ShaderResourceView* g_pHDRTarget0RV = NULL;
@@ -578,34 +578,207 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
 
   ResetVolcano();
   MakeItRain();
+  
+  /*DXGI_FORMAT fmt;  // steht schon in resizeswapchain
+      fmt = DXGI_FORMAT_R16G16B16A16_FLOAT;
+  
 
-  // Create depth stencil texture.
-  //
- /* D3D10_TEXTURE2D_DESC smtex;
-  smtex.Width = pBackBufferSurfaceDesc->Width;
-  smtex.Height = pBackBufferSurfaceDesc->Height;
-  smtex.MipLevels = 1;
-  smtex.ArraySize = 1;
-  smtex.Format = DXGI_FORMAT_R32_TYPELESS;
-  smtex.SampleDesc.Count = 1;
-  smtex.SampleDesc.Quality = 0;
-  smtex.Usage = D3D10_USAGE_DEFAULT;
-  smtex.BindFlags = D3D10_BIND_DEPTH_STENCIL;
-  smtex.CPUAccessFlags = 0;
-  smtex.MiscFlags = 0;
-  V_RETURN( pd3dDevice->CreateTexture2D( &smtex, NULL, &g_pDepthStencil ) );
+  // Create the render target texture
+  D3D10_TEXTURE2D_DESC Desc;
+  ZeroMemory( &Desc, sizeof( D3D10_TEXTURE2D_DESC ) );
+  Desc.ArraySize = 1;
+  Desc.BindFlags = D3D10_BIND_RENDER_TARGET | D3D10_BIND_SHADER_RESOURCE;
+  Desc.Usage = D3D10_USAGE_DEFAULT;
+  Desc.Format = fmt;
+  Desc.Width = pBackBufferSurfaceDesc->Width;
+  Desc.Height = pBackBufferSurfaceDesc->Height;
+  Desc.MipLevels = 1;
+  Desc.SampleDesc.Count = 1;
+  V_RETURN( pd3dDevice->CreateTexture2D( &Desc, NULL, &g_pHDRTarget0 ) );
 
-  // Create the depth stencil view
-  D3D10_DEPTH_STENCIL_VIEW_DESC DescDS;
-  DescDS.Format = DXGI_FORMAT_D32_FLOAT;
-  DescDS.ViewDimension = D3D10_DSV_DIMENSION_TEXTURE2D;
-  DescDS.Texture2D.MipSlice = 0;
-  V_RETURN( pd3dDevice->CreateDepthStencilView( g_pDepthStencil, &DescDS, &g_pDSV ) );
+  // Create the render target view
+  D3D10_RENDER_TARGET_VIEW_DESC DescRT;
+  DescRT.Format = Desc.Format;
+  DescRT.ViewDimension = D3D10_RTV_DIMENSION_TEXTURE2D;
+  DescRT.Texture2D.MipSlice = 0;
+  V_RETURN( pd3dDevice->CreateRenderTargetView( g_pHDRTarget0, &DescRT, &g_pHDRTarget0RTV ) );
 
-  // Set the render target and depth stencil
-  ID3D10RenderTargetView* pRTV = DXUTGetD3D10RenderTargetView();
-  pd3dDevice->OMSetRenderTargets( 1, &pRTV, g_pDSV );
-*/
+  // Create the resource view
+  D3D10_SHADER_RESOURCE_VIEW_DESC DescRV;
+  DescRV.Format = Desc.Format;
+  DescRV.ViewDimension = D3D10_SRV_DIMENSION_TEXTURE2D;
+  DescRV.Texture2D.MipLevels = 1;
+  DescRV.Texture2D.MostDetailedMip = 0;
+  V_RETURN( pd3dDevice->CreateShaderResourceView( g_pHDRTarget0, &DescRV, &g_pHDRTarget0RV ) );
+
+
+  g_tHDRTarget0 = g_pEffect10->GetVariableByName( "g_tHDRTarget0" )->AsShaderResource();
+  g_tHDRTarget0->SetResource(g_pHDRTarget0RV);
+
+
+
+  // Create the bright pass texture
+  Desc.Width /= 8;
+  Desc.Height /= 8;
+  Desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+  V_RETURN( pd3dDevice->CreateTexture2D( &Desc, NULL, &g_pHDRBrightPass ) );
+
+  // Create the render target view
+  DescRT.Format = Desc.Format;
+  DescRT.ViewDimension = D3D10_RTV_DIMENSION_TEXTURE2D;
+  DescRT.Texture2D.MipSlice = 0;
+  V_RETURN( pd3dDevice->CreateRenderTargetView( g_pHDRBrightPass, &DescRT, &g_pHDRBrightPassRTV ) );
+
+  // Create the resource view
+  DescRV.Format = Desc.Format;
+  DescRV.ViewDimension = D3D10_SRV_DIMENSION_TEXTURE2D;
+  DescRV.Texture2D.MipLevels = 1;
+  DescRV.Texture2D.MostDetailedMip = 0;
+  V_RETURN( pd3dDevice->CreateShaderResourceView( g_pHDRBrightPass, &DescRV, &g_pHDRBrightPassRV ) );
+
+  g_tHDRBrightPass = g_pEffect10->GetVariableByName( "g_tHDRBrightPass" )->AsShaderResource();
+  g_tHDRBrightPass->SetResource(g_pHDRBrightPassRV);
+
+  
+  V_RETURN( pd3dDevice->CreateTexture2D( &Desc, NULL, &g_pHDRBloom ) );
+  V_RETURN( pd3dDevice->CreateRenderTargetView( g_pHDRBloom, &DescRT, &g_pHDRBloomRTV ) );
+  V_RETURN( pd3dDevice->CreateShaderResourceView( g_pHDRBloom, &DescRV, &g_pHDRBloomRV ) );
+
+  g_tHDRBloom = g_pEffect10->GetVariableByName( "g_tHDRBloom" )->AsShaderResource();
+  g_tHDRBloom->SetResource(g_pHDRBloomRV);
+
+  V_RETURN( pd3dDevice->CreateTexture2D( &Desc, NULL, &g_pHDRBloom2 ) );
+  V_RETURN( pd3dDevice->CreateRenderTargetView( g_pHDRBloom2, &DescRT, &g_pHDRBloom2RTV ) );
+  V_RETURN( pd3dDevice->CreateShaderResourceView( g_pHDRBloom2, &DescRV, &g_pHDRBloom2RV ) );
+
+  g_tHDRBloom2 = g_pEffect10->GetVariableByName( "g_tHDRBloom2" )->AsShaderResource();
+  g_tHDRBloom2->SetResource(g_pHDRBloom2RV);*/
+  
+
+  // Create a screen quad for all render to texture operations
+  SCREEN_VERTEX svQuad[4];
+  svQuad[0].pos = D3DXVECTOR4( -1.0f, 1.0f, 0.5f, 1.0f );
+  svQuad[0].tex = D3DXVECTOR2( 0.0f, 0.0f );
+  svQuad[1].pos = D3DXVECTOR4( 1.0f, 1.0f, 0.5f, 1.0f );
+  svQuad[1].tex = D3DXVECTOR2( 1.0f, 0.0f );
+  svQuad[2].pos = D3DXVECTOR4( -1.0f, -1.0f, 0.5f, 1.0f );
+  svQuad[2].tex = D3DXVECTOR2( 0.0f, 1.0f );
+  svQuad[3].pos = D3DXVECTOR4( 1.0f, -1.0f, 0.5f, 1.0f );
+  svQuad[3].tex = D3DXVECTOR2( 1.0f, 1.0f );
+
+  D3D10_BUFFER_DESC vbdesc =
+  {
+    4 * sizeof( SCREEN_VERTEX ),
+    D3D10_USAGE_DEFAULT,
+    D3D10_BIND_VERTEX_BUFFER,
+    0,
+    0
+  };
+
+  D3D10_SUBRESOURCE_DATA InitData;
+  InitData.pSysMem = svQuad;
+  InitData.SysMemPitch = 0;
+  InitData.SysMemSlicePitch = 0;
+  V_RETURN( pd3dDevice->CreateBuffer( &vbdesc, &InitData, &g_pScreenQuadVB ) );
+
+
+  // Create our quad input layout
+  const D3D10_INPUT_ELEMENT_DESC quadlayout[] =
+  {
+      { "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0, D3D10_INPUT_PER_VERTEX_DATA, 0 },
+      { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 16, D3D10_INPUT_PER_VERTEX_DATA, 0 },
+  };
+
+  D3D10_PASS_DESC pass_desc;
+  g_pEffect10->GetTechniqueByName("HDR_Luminosity")->GetPassByIndex(0)->GetDesc(&pass_desc);
+
+  V_RETURN( pd3dDevice->CreateInputLayout( quadlayout, 2, pass_desc.pIAInputSignature,
+                                           pass_desc.IAInputSignatureSize, &g_pQuadLayout ) );
+
+
+
+ /* int nSampleLen = 1;
+  for( int i = 0; i < NUM_TONEMAP_TEXTURES; i++ )
+  {
+    D3D10_TEXTURE2D_DESC tmdesc;
+    ZeroMemory( &tmdesc, sizeof( D3D10_TEXTURE2D_DESC ) );
+    tmdesc.ArraySize = 1;
+    tmdesc.BindFlags = D3D10_BIND_RENDER_TARGET | D3D10_BIND_SHADER_RESOURCE;
+    tmdesc.Usage = D3D10_USAGE_DEFAULT;
+    tmdesc.Format = fmt;
+    tmdesc.Width = nSampleLen;
+    tmdesc.Height = nSampleLen;
+    tmdesc.MipLevels = 1;
+    tmdesc.SampleDesc.Count = 1;
+
+    V_RETURN( pd3dDevice->CreateTexture2D( &tmdesc, NULL, &g_pToneMap[i] ) );
+
+    // Create the render target view
+    D3D10_RENDER_TARGET_VIEW_DESC DescRT;
+    DescRT.Format = tmdesc.Format;
+    DescRT.ViewDimension = D3D10_RTV_DIMENSION_TEXTURE2D;
+    DescRT.Texture2D.MipSlice = 0;
+    V_RETURN( pd3dDevice->CreateRenderTargetView( g_pToneMap[i], &DescRT, &g_pToneMapRTV[i] ) );
+
+    // Create the shader resource view
+    D3D10_SHADER_RESOURCE_VIEW_DESC DescRV;
+    DescRV.Format = tmdesc.Format;
+    DescRV.ViewDimension = D3D10_SRV_DIMENSION_TEXTURE2D;
+    DescRV.Texture2D.MipLevels = 1;
+    DescRV.Texture2D.MostDetailedMip = 0;
+    V_RETURN( pd3dDevice->CreateShaderResourceView( g_pToneMap[i], &DescRV, &g_pToneMapRV[i] ) );
+
+    nSampleLen *= 3;
+  }
+
+  g_tToneMap = g_pEffect10->GetVariableByName( "g_tToneMap" )->AsShaderResource();*/
+
+ 
+  return S_OK;
+}
+
+
+//--------------------------------------------------------------------------------------
+// Create any D3D10 resources that depend on the back buffer
+//--------------------------------------------------------------------------------------
+HRESULT CALLBACK OnD3D10ResizedSwapChain(ID3D10Device* pd3dDevice,
+                                         IDXGISwapChain* pSwapChain,
+                                         const DXGI_SURFACE_DESC*
+                                            pBackBufferSurfaceDesc,
+                                         void* pUserContext) {
+  HRESULT hr;
+
+  V_RETURN(g_DialogResourceManager.OnD3D10ResizedSwapChain(
+      pd3dDevice,
+      pBackBufferSurfaceDesc));
+  V_RETURN(g_SettingsDlg.OnD3D10ResizedSwapChain(pd3dDevice,
+                                                 pBackBufferSurfaceDesc));
+
+
+  // Setup the camera's projection parameters
+  float fAspectRatio = pBackBufferSurfaceDesc->Width /
+      (FLOAT)pBackBufferSurfaceDesc->Height;
+  g_Camera.SetProjParams(g_fFOV, fAspectRatio, 0.01f, 200.0f);
+
+  g_HUD.SetLocation(pBackBufferSurfaceDesc->Width - 170, 0);
+  g_HUD.SetSize(170, 170);
+  g_SampleUI.SetLocation(pBackBufferSurfaceDesc->Width - 170, 80);
+  g_SampleUI.SetSize(170, 300);
+  g_TerrainUI.SetLocation(pBackBufferSurfaceDesc->Width - 320, 0);
+  g_TerrainUI.SetSize(150, 300);
+
+  g_uiScreenHeight = pBackBufferSurfaceDesc->Height;
+  SAFE_DELETE(g_pLODSelector);
+  g_pLODSelector = new DynamicLODSelector(g_fFOV, g_uiScreenHeight,
+                                          g_fScreenError);
+  if (g_pScene) {
+    g_pScene->SetLODSelector(g_pLODSelector);
+    g_pScene->OnResizedSwapChain(pBackBufferSurfaceDesc->Width,
+                                 pBackBufferSurfaceDesc->Height);
+  }
+
+  //HDR resize
+
   DXGI_FORMAT fmt;
       fmt = DXGI_FORMAT_R16G16B16A16_FLOAT;
   
@@ -681,49 +854,6 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   g_tHDRBloom2 = g_pEffect10->GetVariableByName( "g_tHDRBloom2" )->AsShaderResource();
   g_tHDRBloom2->SetResource(g_pHDRBloom2RV);
   
-
-  // Create a screen quad for all render to texture operations
-  SCREEN_VERTEX svQuad[4];
-  svQuad[0].pos = D3DXVECTOR4( -1.0f, 1.0f, 0.5f, 1.0f );
-  svQuad[0].tex = D3DXVECTOR2( 0.0f, 0.0f );
-  svQuad[1].pos = D3DXVECTOR4( 1.0f, 1.0f, 0.5f, 1.0f );
-  svQuad[1].tex = D3DXVECTOR2( 1.0f, 0.0f );
-  svQuad[2].pos = D3DXVECTOR4( -1.0f, -1.0f, 0.5f, 1.0f );
-  svQuad[2].tex = D3DXVECTOR2( 0.0f, 1.0f );
-  svQuad[3].pos = D3DXVECTOR4( 1.0f, -1.0f, 0.5f, 1.0f );
-  svQuad[3].tex = D3DXVECTOR2( 1.0f, 1.0f );
-
-  D3D10_BUFFER_DESC vbdesc =
-  {
-    4 * sizeof( SCREEN_VERTEX ),
-    D3D10_USAGE_DEFAULT,
-    D3D10_BIND_VERTEX_BUFFER,
-    0,
-    0
-  };
-
-  D3D10_SUBRESOURCE_DATA InitData;
-  InitData.pSysMem = svQuad;
-  InitData.SysMemPitch = 0;
-  InitData.SysMemSlicePitch = 0;
-  V_RETURN( pd3dDevice->CreateBuffer( &vbdesc, &InitData, &g_pScreenQuadVB ) );
-
-
-  // Create our quad input layout
-  const D3D10_INPUT_ELEMENT_DESC quadlayout[] =
-  {
-      { "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0, D3D10_INPUT_PER_VERTEX_DATA, 0 },
-      { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 16, D3D10_INPUT_PER_VERTEX_DATA, 0 },
-  };
-
-  D3D10_PASS_DESC pass_desc;
-  g_pEffect10->GetTechniqueByName("HDR_Luminosity")->GetPassByIndex(0)->GetDesc(&pass_desc);
-
-  V_RETURN( pd3dDevice->CreateInputLayout( quadlayout, 2, pass_desc.pIAInputSignature,
-                                           pass_desc.IAInputSignatureSize, &g_pQuadLayout ) );
-
-
-
   int nSampleLen = 1;
   for( int i = 0; i < NUM_TONEMAP_TEXTURES; i++ )
   {
@@ -759,191 +889,6 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   }
 
   g_tToneMap = g_pEffect10->GetVariableByName( "g_tToneMap" )->AsShaderResource();
-  return S_OK;
-}
-
-
-//--------------------------------------------------------------------------------------
-// Create any D3D10 resources that depend on the back buffer
-//--------------------------------------------------------------------------------------
-HRESULT CALLBACK OnD3D10ResizedSwapChain(ID3D10Device* pd3dDevice,
-                                         IDXGISwapChain* pSwapChain,
-                                         const DXGI_SURFACE_DESC*
-                                            pBackBufferSurfaceDesc,
-                                         void* pUserContext) {
-  HRESULT hr;
-
-  V_RETURN(g_DialogResourceManager.OnD3D10ResizedSwapChain(
-      pd3dDevice,
-      pBackBufferSurfaceDesc));
-  V_RETURN(g_SettingsDlg.OnD3D10ResizedSwapChain(pd3dDevice,
-                                                 pBackBufferSurfaceDesc));
-
-
-
-
-
-  // Setup the camera's projection parameters
-  float fAspectRatio = pBackBufferSurfaceDesc->Width /
-      (FLOAT)pBackBufferSurfaceDesc->Height;
-  g_Camera.SetProjParams(g_fFOV, fAspectRatio, 0.01f, 200.0f);
-
-  g_HUD.SetLocation(pBackBufferSurfaceDesc->Width - 170, 0);
-  g_HUD.SetSize(170, 170);
-  g_SampleUI.SetLocation(pBackBufferSurfaceDesc->Width - 170, 80);
-  g_SampleUI.SetSize(170, 300);
-  g_TerrainUI.SetLocation(pBackBufferSurfaceDesc->Width - 320, 0);
-  g_TerrainUI.SetSize(150, 300);
-
-  g_uiScreenHeight = pBackBufferSurfaceDesc->Height;
-  SAFE_DELETE(g_pLODSelector);
-  g_pLODSelector = new DynamicLODSelector(g_fFOV, g_uiScreenHeight,
-                                          g_fScreenError);
-  if (g_pScene) {
-    g_pScene->SetLODSelector(g_pLODSelector);
-    g_pScene->OnResizedSwapChain(pBackBufferSurfaceDesc->Width,
-                                 pBackBufferSurfaceDesc->Height);
-  }
-
-  
-  ////HDR resize
-  // // Create depth stencil texture.
-  ////
-  //D3D10_TEXTURE2D_DESC smtex;
-  //smtex.Width = pBackBufferSurfaceDesc->Width;
-  //smtex.Height = pBackBufferSurfaceDesc->Height;
-  //smtex.MipLevels = 1;
-  //smtex.ArraySize = 1;
-  //smtex.Format = DXGI_FORMAT_R32_TYPELESS;
-  //smtex.SampleDesc.Count = 1;
-  //smtex.SampleDesc.Quality = 0;
-  //smtex.Usage = D3D10_USAGE_DEFAULT;
-  //smtex.BindFlags = D3D10_BIND_DEPTH_STENCIL;
-  //smtex.CPUAccessFlags = 0;
-  //smtex.MiscFlags = 0;
-  //V_RETURN( pd3dDevice->CreateTexture2D( &smtex, NULL, &g_pDepthStencil ) );
-
-  //// Create the depth stencil view
-  //D3D10_DEPTH_STENCIL_VIEW_DESC DescDS;
-  //DescDS.Format = DXGI_FORMAT_D32_FLOAT;
-  //DescDS.ViewDimension = D3D10_DSV_DIMENSION_TEXTURE2D;
-  //DescDS.Texture2D.MipSlice = 0;
-  //V_RETURN( pd3dDevice->CreateDepthStencilView( g_pDepthStencil, &DescDS, &g_pDSV ) );
-
-  //// Set the render target and depth stencil
-  //ID3D10RenderTargetView* pRTV = DXUTGetD3D10RenderTargetView();
-  //pd3dDevice->OMSetRenderTargets( 1, &pRTV, g_pDSV );
-
-  //DXGI_FORMAT fmt;
-  //    fmt = DXGI_FORMAT_R16G16B16A16_FLOAT;
-  //
-
-  //// Create the render target texture
-  //D3D10_TEXTURE2D_DESC Desc;
-  //ZeroMemory( &Desc, sizeof( D3D10_TEXTURE2D_DESC ) );
-  //Desc.ArraySize = 1;
-  //Desc.BindFlags = D3D10_BIND_RENDER_TARGET | D3D10_BIND_SHADER_RESOURCE;
-  //Desc.Usage = D3D10_USAGE_DEFAULT;
-  //Desc.Format = fmt;
-  //Desc.Width = pBackBufferSurfaceDesc->Width;
-  //Desc.Height = pBackBufferSurfaceDesc->Height;
-  //Desc.MipLevels = 1;
-  //Desc.SampleDesc.Count = 1;
-  //V_RETURN( pd3dDevice->CreateTexture2D( &Desc, NULL, &g_pHDRTarget0 ) );
-
-  //// Create the render target view
-  //D3D10_RENDER_TARGET_VIEW_DESC DescRT;
-  //DescRT.Format = Desc.Format;
-  //DescRT.ViewDimension = D3D10_RTV_DIMENSION_TEXTURE2D;
-  //DescRT.Texture2D.MipSlice = 0;
-  //V_RETURN( pd3dDevice->CreateRenderTargetView( g_pHDRTarget0, &DescRT, &g_pHDRTarget0RTV ) );
-
-  //// Create the resource view
-  //D3D10_SHADER_RESOURCE_VIEW_DESC DescRV;
-  //DescRV.Format = Desc.Format;
-  //DescRV.ViewDimension = D3D10_SRV_DIMENSION_TEXTURE2D;
-  //DescRV.Texture2D.MipLevels = 1;
-  //DescRV.Texture2D.MostDetailedMip = 0;
-  //V_RETURN( pd3dDevice->CreateShaderResourceView( g_pHDRTarget0, &DescRV, &g_pHDRTarget0RV ) );
-
-
-  //g_tHDRTarget0 = g_pEffect10->GetVariableByName( "g_tHDRTarget0" )->AsShaderResource();
-  //g_tHDRTarget0->SetResource(g_pHDRTarget0RV);
-
-
-
-  //// Create the bright pass texture
-  //Desc.Width /= 8;
-  //Desc.Height /= 8;
-  //Desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-  //V_RETURN( pd3dDevice->CreateTexture2D( &Desc, NULL, &g_pHDRBrightPass ) );
-
-  //// Create the render target view
-  //DescRT.Format = Desc.Format;
-  //DescRT.ViewDimension = D3D10_RTV_DIMENSION_TEXTURE2D;
-  //DescRT.Texture2D.MipSlice = 0;
-  //V_RETURN( pd3dDevice->CreateRenderTargetView( g_pHDRBrightPass, &DescRT, &g_pHDRBrightPassRTV ) );
-
-  //// Create the resource view
-  //DescRV.Format = Desc.Format;
-  //DescRV.ViewDimension = D3D10_SRV_DIMENSION_TEXTURE2D;
-  //DescRV.Texture2D.MipLevels = 1;
-  //DescRV.Texture2D.MostDetailedMip = 0;
-  //V_RETURN( pd3dDevice->CreateShaderResourceView( g_pHDRBrightPass, &DescRV, &g_pHDRBrightPassRV ) );
-
-  //g_tHDRBrightPass = g_pEffect10->GetVariableByName( "g_tHDRBrightPass" )->AsShaderResource();
-  //g_tHDRBrightPass->SetResource(g_pHDRBrightPassRV);
-
-  //
-  //V_RETURN( pd3dDevice->CreateTexture2D( &Desc, NULL, &g_pHDRBloom ) );
-  //V_RETURN( pd3dDevice->CreateRenderTargetView( g_pHDRBloom, &DescRT, &g_pHDRBloomRTV ) );
-  //V_RETURN( pd3dDevice->CreateShaderResourceView( g_pHDRBloom, &DescRV, &g_pHDRBloomRV ) );
-
-  //g_tHDRBloom = g_pEffect10->GetVariableByName( "g_tHDRBloom" )->AsShaderResource();
-  //g_tHDRBloom->SetResource(g_pHDRBloomRV);
-
-  //V_RETURN( pd3dDevice->CreateTexture2D( &Desc, NULL, &g_pHDRBloom2 ) );
-  //V_RETURN( pd3dDevice->CreateRenderTargetView( g_pHDRBloom2, &DescRT, &g_pHDRBloom2RTV ) );
-  //V_RETURN( pd3dDevice->CreateShaderResourceView( g_pHDRBloom2, &DescRV, &g_pHDRBloom2RV ) );
-
-  //g_tHDRBloom2 = g_pEffect10->GetVariableByName( "g_tHDRBloom2" )->AsShaderResource();
-  //g_tHDRBloom2->SetResource(g_pHDRBloom2RV);
-  //
-  //int nSampleLen = 1;
-  //for( int i = 0; i < NUM_TONEMAP_TEXTURES; i++ )
-  //{
-  //  D3D10_TEXTURE2D_DESC tmdesc;
-  //  ZeroMemory( &tmdesc, sizeof( D3D10_TEXTURE2D_DESC ) );
-  //  tmdesc.ArraySize = 1;
-  //  tmdesc.BindFlags = D3D10_BIND_RENDER_TARGET | D3D10_BIND_SHADER_RESOURCE;
-  //  tmdesc.Usage = D3D10_USAGE_DEFAULT;
-  //  tmdesc.Format = fmt;
-  //  tmdesc.Width = nSampleLen;
-  //  tmdesc.Height = nSampleLen;
-  //  tmdesc.MipLevels = 1;
-  //  tmdesc.SampleDesc.Count = 1;
-
-  //  V_RETURN( pd3dDevice->CreateTexture2D( &tmdesc, NULL, &g_pToneMap[i] ) );
-
-  //  // Create the render target view
-  //  D3D10_RENDER_TARGET_VIEW_DESC DescRT;
-  //  DescRT.Format = tmdesc.Format;
-  //  DescRT.ViewDimension = D3D10_RTV_DIMENSION_TEXTURE2D;
-  //  DescRT.Texture2D.MipSlice = 0;
-  //  V_RETURN( pd3dDevice->CreateRenderTargetView( g_pToneMap[i], &DescRT, &g_pToneMapRTV[i] ) );
-
-  //  // Create the shader resource view
-  //  D3D10_SHADER_RESOURCE_VIEW_DESC DescRV;
-  //  DescRV.Format = tmdesc.Format;
-  //  DescRV.ViewDimension = D3D10_SRV_DIMENSION_TEXTURE2D;
-  //  DescRV.Texture2D.MipLevels = 1;
-  //  DescRV.Texture2D.MostDetailedMip = 0;
-  //  V_RETURN( pd3dDevice->CreateShaderResourceView( g_pToneMap[i], &DescRV, &g_pToneMapRV[i] ) );
-
-  //  nSampleLen *= 3;
-  //}
-
-  //g_tToneMap = g_pEffect10->GetVariableByName( "g_tToneMap" )->AsShaderResource();
 
   return S_OK;
 }
@@ -1015,8 +960,8 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
     D3D10_TEXTURE2D_DESC descDest;
     g_pToneMap[NUM_TONEMAP_TEXTURES - 1]->GetDesc( &descDest );
 
-    aRTViews[0] =  g_pToneMapRTV[NUM_TONEMAP_TEXTURES-1] ;
-    pd3dDevice->OMSetRenderTargets( 1, aRTViews, pOrigDSV );
+    aRTViews[0] =  g_pToneMapRTV[NUM_TONEMAP_TEXTURES-1];
+    pd3dDevice->OMSetRenderTargets( 1, aRTViews, NULL );
 
     //luminosity erzeugen
     DrawFullscreenQuad( pd3dDevice, g_pEffect10->GetTechniqueByName("HDR_Luminosity"), descDest.Width, descDest.Height );
@@ -1025,7 +970,6 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
     //downsamplen 
     for( int i = NUM_TONEMAP_TEXTURES - 1; i > 0; i-- )
       {
-        // Cycle the textures
         pTexSrc = g_pToneMapRV[i];
         pTexDest = g_pToneMapRV[i - 1];
         pSurfDest = g_pToneMapRTV[i - 1];
@@ -1094,6 +1038,10 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
     g_TerrainUI.OnRender(fElapsedTime);
   }
   DXUT_EndPerfEvent();
+
+  SAFE_RELEASE(pOrigRTV);
+  SAFE_RELEASE(pOrigDSV);
+
 }
 
 
@@ -1102,40 +1050,39 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
 //--------------------------------------------------------------------------------------
 void CALLBACK OnD3D10ReleasingSwapChain(void* pUserContext) {
   g_DialogResourceManager.OnD3D10ReleasingSwapChain();
-  SAFE_RELEASE(g_pDSV);
-  SAFE_RELEASE(g_pDepthStencil);
+
    
   SAFE_RELEASE(g_pHDRTarget0);        
   SAFE_RELEASE(g_pHDRTarget0RV);
   SAFE_RELEASE(g_pHDRTarget0RTV);
-  //SAFE_RELEASE(g_tHDRTarget0);
-
+  //SAFE_DELETE(g_tHDRTarget0);
+  g_tHDRTarget0 = NULL;
 
   for( int i = 0; i < NUM_TONEMAP_TEXTURES; i++ )
   {
-    SAFE_RELEASE( g_pToneMap[i] ); // Tone mapping calculation textures
+    SAFE_RELEASE( g_pToneMap[i] );
     SAFE_RELEASE( g_pToneMapRV[i] );
     SAFE_RELEASE( g_pToneMapRTV[i] );
   }
 
-  //SAFE_RELEASE(g_tToneMap);
+  g_tToneMap = NULL;
 
 
   SAFE_RELEASE(g_pHDRBrightPass);   
   SAFE_RELEASE(g_pHDRBrightPassRV);
   SAFE_RELEASE(g_pHDRBrightPassRTV);
-  //SAFE_RELEASE(g_tHDRBrightPass);
+  g_tHDRBrightPass = NULL;
 
   SAFE_RELEASE(g_pHDRBloom);    
   SAFE_RELEASE(g_pHDRBloomRV);
   SAFE_RELEASE(g_pHDRBloomRTV);
-  //SAFE_RELEASE(g_tHDRBloom);
+  g_tHDRBloom = NULL;
 
 
   SAFE_RELEASE(g_pHDRBloom2);    
   SAFE_RELEASE(g_pHDRBloom2RV);
   SAFE_RELEASE(g_pHDRBloom2RTV);
-  //SAFE_RELEASE(g_tHDRBloom2);
+  g_tHDRBloom2 = NULL;
 
 }
 
@@ -1163,6 +1110,7 @@ void CALLBACK OnD3D10DestroyDevice(void* pUserContext) {
 
   SAFE_RELEASE(g_pQuadLayout);
   SAFE_RELEASE(g_pScreenQuadVB);
+
 }
 
 
