@@ -80,6 +80,47 @@ Texture2DArray g_tPointShadowMap;
 Texture2D g_tGrass;
 Texture2D g_tNoise;
 
+Texture2D g_tHDRTarget0;
+Texture2D g_tToneMap;
+Texture2D g_tHDRBrightPass;
+Texture2D g_tHDRBloom;
+
+
+const float g_avSampleOffsets[15] = {
+  0.0000,
+  0.0125,
+  0.0250,
+  0.0375,
+  0.0500,
+  0.0625,
+  0.0750,
+  0.0875,
+  -0.0125,
+  -0.0250,
+  -0.0375,
+  -0.0500,
+  -0.0625,
+  -0.0750,
+  -0.0875};
+
+ const float g_avSampleWeights[15] = {
+  0.1329807,
+  0.1572430,
+  0.1331033,
+  0.1008211,
+  0.0683375,
+  0.0414488,
+  0.0224962,
+  0.0109257,
+  0.1572430,
+  0.1331033,
+  0.1008211,
+  0.0683375,
+  0.0414488,
+  0.0224962,
+  0.0109257};
+
+
 SamplerState g_ssLinear
 {
   Filter = MIN_MAG_MIP_LINEAR;
@@ -93,6 +134,20 @@ SamplerState g_ssPoint
   Filter = MIN_MAG_MIP_POINT;
   AddressU = Wrap;
   AddressV = Wrap;
+};
+
+SamplerState PointSampler
+{
+    Filter = MIN_MAG_MIP_POINT;
+    AddressU = Clamp;
+    AddressV = Clamp;
+};
+
+SamplerState LinearSampler
+{
+    Filter = MIN_MAG_MIP_LINEAR;
+    AddressU = Clamp;
+    AddressV = Clamp;
 };
 
 #define NUM_SPOTS 8
@@ -134,6 +189,12 @@ const float4 g_vWaterColor = float4(0, 0.25, 0.5, 1.0);
 const float4 g_vWaterMaterial = float4(0.05, 0.45, 0.5, 200);
 const float4 g_vTreeMaterial = float4(0.05, 0.8, 0.15, 10);
 
+
+
+static const float3 LUMINANCE_VECTOR  = float3(0.2125f, 0.7154f, 0.0721f);
+static const float  MIDDLE_GRAY = 0.72f;
+static const float  LUM_WHITE = 1.5f;
+static const float  BRIGHT_THRESHOLD = 0.5f;
 //--------------------------------------------------------------------------------------
 // Vertex shader input structures
 //--------------------------------------------------------------------------------------
@@ -684,6 +745,30 @@ void Grass_GS(point GS_SEED input[1], inout TriangleStream <PLANT_VERTEX> PlantS
                   PlantStream, g_mWorldViewProjection);
 }
 
+//-----------------------------------------------------------------------------
+// Name: QuadVS
+// Type: Vertex Shader
+// Desc: 
+//-----------------------------------------------------------------------------
+struct QuadVS_Input
+{
+    float4 Pos : POSITION;
+    float2 Tex : TEXCOORD0;
+};
+
+struct QuadVS_Output
+{
+    float4 Pos : SV_POSITION;              // Transformed position
+    float2 Tex : TEXCOORD0;
+};
+
+QuadVS_Output QuadVS( QuadVS_Input Input )
+{
+    QuadVS_Output Output;
+    Output.Pos = Input.Pos;
+    Output.Tex = Input.Tex;
+    return Output;
+}
 //--------------------------------------------------------------------------------------
 // Pixel Shaders
 //--------------------------------------------------------------------------------------
@@ -738,7 +823,8 @@ float4 PhongShading_PS( VS_PHONG_SHADING_OUTPUT In, uniform bool bLODColoring ) 
   float3 I = normalize(In.WorldPosition - g_vCamPos);
   float3 R = reflect(I, N);
   float4 vReflect = g_tCubeMap.Sample(g_ssLinear, R);
-
+ 
+  
   return float4(vColor, 1) + In.Material.z * vReflect;
 }
 
@@ -755,8 +841,9 @@ float4 Trees_PS( VS_TREES_OUTPUT In ) : SV_Target
                             In.TSMPos,
                             N,
                             g_vTreeMaterial);
-
-  return vColor;
+ 
+   return vColor;
+ 
 }
 
 float TreesShadowMap_PS( VS_TREES_OUTPUT In ) : SV_Depth
@@ -819,6 +906,131 @@ float4 Grass_PS( PLANT_VERTEX In ) : SV_Target
   vColor.rgb = vColor.rgb * 0.05 + vColor.rgb * In.Phong.DiffuseLight + In.Phong.SpecularLight;
 
   return vColor;
+}
+
+
+float4 HDR_Luminosity_PS( QuadVS_Output Input ) : SV_TARGET
+{    
+
+
+    float4 vColor = 0.0f;
+    float  fAvg = 0.0f;
+    
+    for( int y = -1; y < 1; y++ )
+    {
+        for( int x = -1; x < 1; x++ )
+        {
+      
+            vColor = g_tHDRTarget0.Sample( PointSampler, Input.Tex, int2(x,y) );
+                
+            fAvg += dot( vColor.rgb, LUMINANCE_VECTOR );
+        }
+    }
+    
+    fAvg /= 4;
+   // fAvg += 0.35f; // bloomean everywhere!1
+
+
+        return float4(fAvg, fAvg, fAvg, 1.0f);
+}
+float4 HDR_3x3_Downsampling_PS( QuadVS_Output Input ) : SV_TARGET
+{
+    float fAvg = 0.0f; 
+    float4 vColor;
+    
+    for( int y = -1; y <= 1; y++ )
+    {
+        for( int x = -1; x <= 1; x++ )
+        {
+            vColor = g_tToneMap.Sample( PointSampler, Input.Tex, int2(x,y) );
+            fAvg += vColor.r; 
+        }
+    }
+
+    fAvg /= 9;
+
+    return float4(fAvg, fAvg, fAvg, 1.0f);
+}
+
+float4 HDR_BrightPass_PS( QuadVS_Output Input ) : SV_TARGET
+{   
+    float3 vColor = 0.0f;
+    float4 vLum = g_tToneMap.Sample( PointSampler, float2(0, 0) );
+    float  fLum = vLum.r;
+       
+    for( int y = -1; y <= 1; y++ ) 
+    {
+        for( int x = -1; x <= 1; x++ )
+        {
+            float4 vSample = g_tHDRTarget0.Sample( PointSampler, Input.Tex, int2(x,y) );
+
+            vColor += vSample.rgb; //farben aufsummieren
+        }
+    }
+    
+    // average
+    vColor /= 9;
+ 
+    // Bright pass and tone mapping
+    vColor = max( 0.0f, vColor - BRIGHT_THRESHOLD );
+    vColor *= MIDDLE_GRAY / (fLum + 0.001f);
+    vColor *= (1.0f + vColor/LUM_WHITE);
+    vColor /= (1.0f + vColor);
+    
+    return float4(vColor, 1.0f);
+}
+
+float4 HDR_Bloom_PS( QuadVS_Output Input ) : SV_TARGET
+{
+  
+    float4 vSample = 0.0f;
+    float4 vColor = 0.0f;
+    float2 vSamplePosition;
+    
+    for( int iSample = 0; iSample < 15; iSample++ )
+    {
+        // Sample from adjacent points
+        vSamplePosition = Input.Tex;
+        vSamplePosition.x += g_avSampleOffsets[iSample];
+        
+        vColor = g_tHDRBrightPass.Sample( PointSampler, vSamplePosition);
+        
+        vSample += g_avSampleWeights[iSample]*vColor;
+
+        vSamplePosition = Input.Tex;
+        vSamplePosition.y += g_avSampleOffsets[iSample];
+        
+        vColor = g_tHDRBrightPass.Sample( PointSampler, vSamplePosition);
+        
+        vSample += g_avSampleWeights[iSample]*vColor;
+    }
+    
+    return vSample;
+}
+
+float4 HDR_FinalPass_PS( QuadVS_Output Input ) : SV_TARGET
+{   
+    float4 vColor = g_tHDRTarget0.Sample( PointSampler, Input.Tex );
+    float4 vLum = g_tToneMap.Sample( PointSampler, float2(0,0) );
+    float3 vBloom = g_tHDRBloom.Sample( LinearSampler, Input.Tex );
+    
+
+    // Tone mapping
+    vColor.rgb *= MIDDLE_GRAY / (vLum.r + 0.001f);
+    vColor.rgb *= (1.0f + vColor/LUM_WHITE);
+    vColor.rgb /= (1.0f + vColor);
+    
+    vColor.rgb += 0.6f * vBloom;
+    vColor.a = 1.0f;
+    
+    return vColor;
+}
+
+
+float4 HDR_FinalPass_PS_debug( QuadVS_Output Input ) : SV_TARGET
+{
+  //return g_tHDRTarget0.Sample( PointSampler, Input.Tex );
+  return g_tHDRBloom.Sample( PointSampler, Input.Tex );
 }
 
 //--------------------------------------------------------------------------------------
@@ -1023,6 +1235,62 @@ technique10 Grass
   }
 }
 
+
+// HDR 
+technique10 HDR_Luminosity
+{
+  pass P0
+  {
+    SetVertexShader( CompileShader( vs_4_0, QuadVS() ) );
+    SetGeometryShader( NULL );
+    SetPixelShader( CompileShader( ps_4_0, HDR_Luminosity_PS() ) );
+  }
+}
+
+
+//z test ausschalten
+technique10 HDR_3x3_Downsampling
+{
+  pass P0
+  {
+    SetVertexShader( CompileShader( vs_4_0, QuadVS() ) );
+    SetGeometryShader( NULL );
+    SetPixelShader( CompileShader( ps_4_0, HDR_3x3_Downsampling_PS() ) );
+  }
+}
+
+technique10 HDR_BrightPass
+{
+    pass p0
+    {
+        SetVertexShader( CompileShader( vs_4_0, QuadVS() ) );
+        SetGeometryShader( NULL );
+        SetPixelShader( CompileShader( ps_4_0, HDR_BrightPass_PS() ) );
+        
+    }
+}
+
+technique10 HDR_Bloom
+{
+    pass p0
+    {
+        SetVertexShader( CompileShader( vs_4_0, QuadVS() ) );
+        SetGeometryShader( NULL );
+        SetPixelShader( CompileShader( ps_4_0, HDR_Bloom_PS() ) );
+        
+    }
+}
+
+technique10 HDR_FinalPass
+{
+    pass p0
+    {
+        SetVertexShader( CompileShader( vs_4_0, QuadVS() ) );
+        SetGeometryShader( NULL );
+        SetPixelShader( CompileShader( ps_4_0, HDR_FinalPass_PS() ) );
+        
+    }
+}
 
 //--------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------
