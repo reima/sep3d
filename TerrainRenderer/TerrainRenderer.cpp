@@ -965,7 +965,7 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
 
     //luminosity erzeugen
     DrawFullscreenQuad( pd3dDevice, g_pEffect10->GetTechniqueByName("HDR_Luminosity"), descDest.Width, descDest.Height );
-
+//
 
     //downsamplen 
     for( int i = NUM_TONEMAP_TEXTURES - 1; i > 0; i-- )
