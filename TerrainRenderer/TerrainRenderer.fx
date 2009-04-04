@@ -69,6 +69,8 @@ cbuffer cbStatic
   uint2  g_vBackBufferSize;
 }
 
+Texture2D g_tDepth;
+
 Texture2D g_tWaves;
 Texture2D g_tGround;
 Texture2D g_tTerrain; // Terrain heights
@@ -85,6 +87,9 @@ Texture2D g_tToneMap;
 Texture2D g_tHDRBrightPass;
 Texture2D g_tHDRBloom;
 Texture2D g_tHDRBloom2;
+
+Texture2D g_tDOFTex1;
+Texture2D g_tDOFTex2;
 
 const float g_avSampleOffsets[15] = {
   0.0000,
@@ -1047,6 +1052,63 @@ float4 HDR_FinalPass_PS_debug( QuadVS_Output Input ) : SV_TARGET
   //return g_tHDRBloom.Sample( PointSampler, Input.Tex );
 }
 
+// DOF
+float4 DOF_BloomH_PS( QuadVS_Output Input ) : SV_TARGET
+{
+  
+    float4 vSample = 0.0f;
+    float4 vColor = 0.0f;
+    float2 vSamplePosition;
+    
+    for( int iSample = 0; iSample < 15; iSample++ )
+    {
+        vSamplePosition = Input.Tex;
+        vSamplePosition.x += g_avSampleOffsets[iSample];
+        
+        vColor = g_tHDRTarget0.Sample( PointSampler, vSamplePosition);
+        
+        vSample += g_avSampleWeights[iSample]*vColor;
+    }
+    
+    return vSample;
+}
+
+float4 DOF_BloomV_PS( QuadVS_Output Input ) : SV_TARGET
+{
+  
+    float4 vSample = 0.0f;
+    float4 vColor = 0.0f;
+    float2 vSamplePosition;
+    
+    for( int iSample = 0; iSample < 15; iSample++ )
+    {
+        vSamplePosition = Input.Tex;
+        vSamplePosition.y += g_avSampleOffsets[iSample];
+        
+        vColor = g_tDOFTex1.Sample( PointSampler, vSamplePosition);
+        
+        vSample += g_avSampleWeights[iSample]*vColor;
+    }
+    
+    return vSample;
+}
+
+float4 DOF_Final_PS( QuadVS_Output Input ) : SV_TARGET
+{
+    float4 ColorOrg  = g_tHDRTarget0.Sample( PointSampler, Input.Tex);
+    float4 ColorBlur = g_tDOFTex2.Sample( PointSampler, Input.Tex);
+
+    float4 Blur = g_tDepth.Load(int3(Input.Tex.x,Input.Tex.y,0));
+  //float a =Blur;
+return Blur;
+//return float4(a,a,a,1);
+   //float Blur = dot( g_tDepth.Sample( PointSampler, Input.Tex), FocalPlane );
+
+//    return float4(saturate(abs(Blur)),saturate(abs(Blur)),saturate(abs(Blur)),1);
+   // return lerp( ColorOrg, ColorBlur, saturate(abs(a)));
+}
+
+
 //--------------------------------------------------------------------------------------
 // States
 //--------------------------------------------------------------------------------------
@@ -1139,7 +1201,7 @@ technique10 PhongShading
     SetVertexShader( CompileShader( vs_4_0, PhongShading_VS() ) );
     SetGeometryShader( NULL );
     SetPixelShader( CompileShader( ps_4_0, PhongShading_PS(false) ) );
-    SetDepthStencilState( NULL, 0 );
+    SetDepthStencilState( dssEnableDepth, 0 );
     SetRasterizerState( NULL );
     SetBlendState( NULL, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
   }
@@ -1152,7 +1214,7 @@ technique10 LODColoring
     SetVertexShader( CompileShader( vs_4_0, PhongShading_VS() ) );
     SetGeometryShader( NULL );
     SetPixelShader( CompileShader( ps_4_0, PhongShading_PS(true) ) );
-    SetDepthStencilState( NULL, 0 );
+    SetDepthStencilState( dssEnableDepth, 0 );
     SetRasterizerState( NULL );
     SetBlendState( NULL, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
   }
@@ -1165,7 +1227,7 @@ technique10 Trees
     SetVertexShader( CompileShader( vs_4_0, Trees_VS() ) );
     SetGeometryShader( NULL );
     SetPixelShader( CompileShader( ps_4_0, Trees_PS() ) );
-    SetDepthStencilState( NULL, 0 );
+    SetDepthStencilState( dssEnableDepth, 0 );
     SetRasterizerState( rsCullNone );
     SetBlendState( bsAlphaToCov, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
   }
@@ -1192,6 +1254,7 @@ technique10 Environment
     SetGeometryShader( NULL );
     SetPixelShader( CompileShader( ps_4_0, Environment_PS() ) );
     SetRasterizerState( NULL );
+     SetDepthStencilState( dssEnableDepth, 0 );
     SetBlendState( NULL, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
   }
 }
@@ -1328,6 +1391,42 @@ technique10 HDR_FinalPass_disabled
         SetDepthStencilState( dssDisableDepthStencil, 0 );
     }
 }
+
+technique10 DOF_BloomH
+{
+    pass p0
+    {
+        SetVertexShader( CompileShader( vs_4_0, QuadVS() ) );
+        SetGeometryShader( NULL );
+        SetPixelShader( CompileShader( ps_4_0, DOF_BloomH_PS() ) );
+        SetDepthStencilState( dssDisableDepthStencil, 0 );
+    }
+}
+
+technique10 DOF_BloomV
+{
+    pass p0
+    {
+        SetVertexShader( CompileShader( vs_4_0, QuadVS() ) );
+        SetGeometryShader( NULL );
+        SetPixelShader( CompileShader( ps_4_0, DOF_BloomV_PS() ) );
+        SetDepthStencilState( dssDisableDepthStencil, 0 );
+    }
+}
+
+technique10 DOF_Final
+{
+    pass p0
+    {
+        SetVertexShader( CompileShader( vs_4_0, QuadVS() ) );
+        SetGeometryShader( NULL );
+        SetPixelShader( CompileShader( ps_4_0, DOF_Final_PS() ) );
+        SetBlendState( bsAlphaToCov , float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
+        //SetDepthStencilState( dssDisableDepthStencil, 0 );
+    }
+}
+
+
 
 //--------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------
