@@ -55,6 +55,9 @@ ID3DX10Sprite*              g_pSprite10 = NULL;
 ID3D10Effect*               g_pEffect10 = NULL;
 ID3D10EffectTechnique*      g_pTechnique = NULL;
 ID3D10EffectMatrixVariable* g_pmWorldViewProj = NULL;
+ID3D10EffectMatrixVariable* g_pmWorldViewProjInv = NULL;
+ID3D10EffectMatrixVariable* g_pmWorldViewProjLastFrame = NULL;
+D3DXMATRIX mWorldViewProjectionLastFrame;
 ID3D10EffectMatrixVariable* g_pmWorld = NULL;
 ID3D10EffectScalarVariable* g_pfTime = NULL;
 ID3D10EffectScalarVariable* g_pfMinHeight = NULL;
@@ -110,6 +113,8 @@ struct SCREEN_VERTEX
 //--------------------------------------------------------------------------------------
 #define NUM_TONEMAP_TEXTURES 5
 bool g_bHDRenabled = true;
+bool g_bDOFenabled = false;
+bool g_bMotionBlurenabled = true;
 
 ID3D10DepthStencilView* g_pDSV = NULL;
 ID3D10Texture2D* g_pDepthStencil = NULL;        
@@ -125,6 +130,11 @@ ID3D10Texture2D* g_pHDRTarget0 = NULL;
 ID3D10ShaderResourceView* g_pHDRTarget0RV = NULL;
 ID3D10RenderTargetView* g_pHDRTarget0RTV = NULL;
 ID3D10EffectShaderResourceVariable* g_tHDRTarget0;
+
+ID3D10Texture2D* g_pHDRTarget1 = NULL;        
+ID3D10ShaderResourceView* g_pHDRTarget1RV = NULL;
+ID3D10RenderTargetView* g_pHDRTarget1RTV = NULL;
+ID3D10EffectShaderResourceVariable* g_tHDRTarget1;
 
 ID3D10Texture2D* g_pToneMap[NUM_TONEMAP_TEXTURES]; 
 ID3D10ShaderResourceView* g_pToneMapRV[NUM_TONEMAP_TEXTURES];
@@ -156,6 +166,8 @@ ID3D10Texture2D* g_pDOFTex2 = NULL;
 ID3D10ShaderResourceView* g_pDOFTex2RV = NULL;
 ID3D10RenderTargetView* g_pDOFTex2RTV = NULL;
 ID3D10EffectShaderResourceVariable* g_tDOFTex2;
+
+
 
 //--------------------------------------------------------------------------------------
 // UI control IDs
@@ -196,6 +208,8 @@ ID3D10EffectShaderResourceVariable* g_tDOFTex2;
 #define IDC_NEWTERRAIN_OK           108
 
 #define IDC_HDR_ENABLED             201
+#define IDC_DOF_ENABLED             202
+#define IDC_MOTIONBLUR_ENABLED      203
 
 //--------------------------------------------------------------------------------------
 // Forward declarations
@@ -368,6 +382,11 @@ void InitApp() {
 
   g_SampleUI.AddCheckBox(IDC_HDR_ENABLED, L"HDR", 35,
                          iY += 24, 125, 22, g_bHDRenabled);
+
+  g_SampleUI.AddCheckBox(IDC_DOF_ENABLED, L"DOF", 35,
+                         iY += 24, 125, 22, g_bDOFenabled);
+  g_SampleUI.AddCheckBox(IDC_MOTIONBLUR_ENABLED, L"MotionBlur", 35,
+                         iY += 24, 125, 22, g_bMotionBlurenabled);
   
 
   /**
@@ -492,6 +511,11 @@ HRESULT CALLBACK OnD3D10CreateDevice(ID3D10Device* pd3dDevice,
   // Get effects variables
   g_pmWorldViewProj =
       g_pEffect10->GetVariableByName("g_mWorldViewProjection")->AsMatrix();
+  g_pmWorldViewProjInv =
+      g_pEffect10->GetVariableByName("g_mViewInv")->AsMatrix();
+  g_pmWorldViewProjLastFrame =
+      g_pEffect10->GetVariableByName("g_mWorldViewProjectionLastFrame")->AsMatrix();
+  
   g_pmWorld = g_pEffect10->GetVariableByName("g_mWorld")->AsMatrix();
   g_pfTime = g_pEffect10->GetVariableByName("g_fTime")->AsScalar();
   g_ptWaves = g_pEffect10->GetVariableByName("g_tWaves")->AsShaderResource();
@@ -771,7 +795,7 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain(ID3D10Device* pd3dDevice,
   // Setup the camera's projection parameters
   float fAspectRatio = pBackBufferSurfaceDesc->Width /
       (FLOAT)pBackBufferSurfaceDesc->Height;
-  g_Camera.SetProjParams(g_fFOV, fAspectRatio, 0.01f, 20.0f);
+  g_Camera.SetProjParams(g_fFOV, fAspectRatio, 0.01f, 200.0f);
 
   g_HUD.SetLocation(pBackBufferSurfaceDesc->Width - 170, 0);
   g_HUD.SetSize(170, 170);
@@ -876,6 +900,16 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain(ID3D10Device* pd3dDevice,
   g_tHDRTarget0 = g_pEffect10->GetVariableByName( "g_tHDRTarget0" )->AsShaderResource();
   g_tHDRTarget0->SetResource(g_pHDRTarget0RV);
 
+  V_RETURN( pd3dDevice->CreateTexture2D( &Desc, NULL, &g_pHDRTarget1 ) );
+  V_RETURN( pd3dDevice->CreateRenderTargetView( g_pHDRTarget1, &DescRT, &g_pHDRTarget1RTV ) );
+  V_RETURN( pd3dDevice->CreateShaderResourceView( g_pHDRTarget1, &DescRV, &g_pHDRTarget1RV ) );
+  g_tHDRTarget1 = g_pEffect10->GetVariableByName( "g_tHDRTarget1" )->AsShaderResource();
+  g_tHDRTarget1->SetResource(g_pHDRTarget1RV);
+
+
+  Desc.Width /= 2;
+  Desc.Height /= 2;
+
   V_RETURN( pd3dDevice->CreateTexture2D( &Desc, NULL, & g_pDOFTex1 ) );
   V_RETURN( pd3dDevice->CreateRenderTargetView(  g_pDOFTex1, &DescRT, & g_pDOFTex1RTV ) );
   V_RETURN( pd3dDevice->CreateShaderResourceView(  g_pDOFTex1, &DescRV, & g_pDOFTex1RV ) );
@@ -893,8 +927,8 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain(ID3D10Device* pd3dDevice,
 
 
   // Create the bright pass texture
-  Desc.Width /= 8;
-  Desc.Height /= 8;
+  Desc.Width /= 4;
+  Desc.Height /= 4;
   Desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
   V_RETURN( pd3dDevice->CreateTexture2D( &Desc, NULL, &g_pHDRBrightPass ) );
 
@@ -979,7 +1013,6 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   D3DXMATRIX mWorld;
   D3DXMATRIX mView;
   D3DXMATRIX mProj;
-  HRESULT hr;
 
   const DXGI_SURFACE_DESC* pBackBufDesc = DXUTGetDXGIBackBufferSurfaceDesc();
     
@@ -988,8 +1021,6 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   pd3dDevice->ClearRenderTargetView(pRTV, ClearColor);
 
   // Clear the depth stencil
- // ID3D10DepthStencilView* pDSV = DXUTGetD3D10DepthStencilView();
- // pd3dDevice->ClearDepthStencilView(pDSV, D3D10_CLEAR_DEPTH, 1.0, 0);
   pd3dDevice->ClearDepthStencilView(g_pDSV, D3D10_CLEAR_DEPTH, 1.0, 0);
 
   // If the settings dialog is being shown, then render it instead of rendering the app's scene
@@ -1006,6 +1037,13 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
 
   // Update the effect's variables
   g_pmWorldViewProj->SetMatrix((float*)&mWorldViewProjection);
+  g_pmWorldViewProjLastFrame->SetMatrix((float*)&mWorldViewProjectionLastFrame);
+  mWorldViewProjectionLastFrame=mWorldViewProjection;
+
+  D3DXMATRIX view_inv;
+  D3DXMatrixInverse(&view_inv, NULL, &mWorldViewProjection);
+  g_pmWorldViewProjInv->SetMatrix((float*)&view_inv);
+
   g_pmWorld->SetMatrix((float*)&mWorld);
   g_pfTime->SetFloat((float)fTime);
 
@@ -1032,38 +1070,72 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   pd3dDevice->ClearRenderTargetView( g_pDOFTex1RTV, ClearColor );
   pd3dDevice->ClearRenderTargetView( g_pDOFTex2RTV, ClearColor );
   pd3dDevice->ClearRenderTargetView( g_pHDRTarget0RTV, ClearColor );
-  
+  pd3dDevice->ClearRenderTargetView( g_pHDRTarget1RTV, ClearColor );
+
   DXUT_BeginPerfEvent(DXUT_PERFEVENTCOLOR, L"Scene");
   g_pScene->Draw(g_pTechnique);
   DXUT_EndPerfEvent();
 
 
+  //Motion Blur
+
+  if (g_bMotionBlurenabled) { 
+    D3D10_TEXTURE2D_DESC descScreen;
+    g_pHDRTarget1->GetDesc( &descScreen );
+   
+    aRTViews[0] =  g_pHDRTarget1RTV;
+    pd3dDevice->OMSetRenderTargets( 1, aRTViews, NULL );
+
+    DrawFullscreenQuad( pd3dDevice, g_pEffect10->GetTechniqueByName("Motion_Blur"), descScreen.Width, descScreen.Height );
+     
+    ID3D10Texture2D* textemp = g_pHDRTarget0;     
+    ID3D10ShaderResourceView* textempRV = g_pHDRTarget0RV;
+    ID3D10RenderTargetView* textempRTV = g_pHDRTarget0RTV;
+    
+    g_pHDRTarget0 = g_pHDRTarget1;     
+    g_pHDRTarget0RV = g_pHDRTarget1RV;
+    g_pHDRTarget0RTV = g_pHDRTarget1RTV;
+
+    g_pHDRTarget1 = textemp;     
+    g_pHDRTarget1RV = textempRV;
+    g_pHDRTarget1RTV = textempRTV;
+
+    g_tHDRTarget1->SetResource(g_pHDRTarget1RV);
+    g_tHDRTarget0->SetResource(g_pHDRTarget0RV);
+
+    pd3dDevice->ClearRenderTargetView( g_pHDRTarget1RTV, ClearColor );
+  }
+
   // DOF 
   // bloomH
- 
+  if (g_bDOFenabled) {
 
-  D3D10_TEXTURE2D_DESC descScreen;
-  g_pDOFTex1->GetDesc( &descScreen );
- 
-  aRTViews[0] =  g_pDOFTex1RTV;
-  pd3dDevice->OMSetRenderTargets( 1, aRTViews, NULL );
+    D3D10_TEXTURE2D_DESC descScreen;
+    g_pDOFTex1->GetDesc( &descScreen );
+   
+    aRTViews[0] =  g_pDOFTex1RTV;
+    pd3dDevice->OMSetRenderTargets( 1, aRTViews, NULL );
 
-  DrawFullscreenQuad( pd3dDevice, g_pEffect10->GetTechniqueByName("DOF_BloomH"), descScreen.Width, descScreen.Height );
- 
-  // bloomV
-  aRTViews[0] =  g_pDOFTex2RTV;
-  pd3dDevice->OMSetRenderTargets( 1, aRTViews, NULL );
+    DrawFullscreenQuad( pd3dDevice, g_pEffect10->GetTechniqueByName("DOF_BloomH"), descScreen.Width, descScreen.Height );
+   
+    // bloomV
+    aRTViews[0] =  g_pDOFTex2RTV;
+    pd3dDevice->OMSetRenderTargets( 1, aRTViews, NULL );
 
-  DrawFullscreenQuad( pd3dDevice, g_pEffect10->GetTechniqueByName("DOF_BloomV"), descScreen.Width, descScreen.Height );
-  
-  // DoF final
-  pd3dDevice->ClearRenderTargetView( g_pDOFTex1RTV, ClearColor );
-  aRTViews[0] =  g_pDOFTex1RTV;
-  pd3dDevice->OMSetRenderTargets( 1, aRTViews, NULL );
+    DrawFullscreenQuad( pd3dDevice, g_pEffect10->GetTechniqueByName("DOF_BloomV"), descScreen.Width, descScreen.Height );
+    
+    // DoF final
 
-  DrawFullscreenQuad( pd3dDevice, g_pEffect10->GetTechniqueByName("DOF_Final"), descScreen.Width, descScreen.Height );
+    g_pHDRTarget1->GetDesc( &descScreen );
+    pd3dDevice->ClearRenderTargetView( g_pDOFTex1RTV, ClearColor );
+    aRTViews[0] =  g_pHDRTarget1RTV;
+    pd3dDevice->OMSetRenderTargets( 1, aRTViews, NULL );
 
-  g_tHDRTarget0->SetResource(g_pDOFTex1RV); 
+    DrawFullscreenQuad( pd3dDevice, g_pEffect10->GetTechniqueByName("DOF_Final"), descScreen.Width, descScreen.Height );
+
+
+    g_tHDRTarget0->SetResource(g_pHDRTarget1RV); 
+  }
 
   if (g_bHDRenabled) { // hdr = on
     ID3D10ShaderResourceView* pTexSrc = NULL;
@@ -1169,6 +1241,11 @@ void CALLBACK OnD3D10ReleasingSwapChain(void* pUserContext) {
   SAFE_RELEASE(g_pHDRTarget0);        
   SAFE_RELEASE(g_pHDRTarget0RV);
   SAFE_RELEASE(g_pHDRTarget0RTV);
+
+  SAFE_RELEASE(g_pHDRTarget1);        
+  SAFE_RELEASE(g_pHDRTarget1RV);
+  SAFE_RELEASE(g_pHDRTarget1RTV);
+
   //SAFE_DELETE(g_tHDRTarget0);
   g_tHDRTarget0 = NULL;
 
@@ -1441,8 +1518,13 @@ void CALLBACK OnGUIEvent(UINT nEvent, int nControlID, CDXUTControl* pControl,
     case IDC_HDR_ENABLED:
       g_bHDRenabled = g_SampleUI.GetCheckBox(IDC_HDR_ENABLED)->GetChecked();
       break;
-    
-
+    case IDC_DOF_ENABLED:
+      g_bDOFenabled = g_SampleUI.GetCheckBox(IDC_DOF_ENABLED)->GetChecked();
+      break;
+    case IDC_MOTIONBLUR_ENABLED:
+      g_bMotionBlurenabled = g_SampleUI.GetCheckBox(IDC_MOTIONBLUR_ENABLED)->GetChecked();
+      break;  
+  
     /**
      * Terrain UI
      */

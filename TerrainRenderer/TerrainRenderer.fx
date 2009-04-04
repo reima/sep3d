@@ -21,6 +21,7 @@ cbuffer cbPerFrame
   float    g_fElapsedTime;            // Elapsed time since last frame
   float4x4 g_mWorld;                  // World matrix for object
   float4x4 g_mWorldViewProjection;    // World * View * Projection matrix
+  float4x4 g_mWorldViewProjectionLastFrame; 
   float4x4 g_mViewInv;
   float3   g_vCamPos;                 // Camera position
   float3   g_vCamRight;
@@ -1063,14 +1064,14 @@ float4 DOF_BloomH_PS( QuadVS_Output Input ) : SV_TARGET
     for( int iSample = 0; iSample < 15; iSample++ )
     {
         vSamplePosition = Input.Tex;
-        vSamplePosition.x += g_avSampleOffsets[iSample];
+        vSamplePosition.x += g_avSampleOffsets[iSample]/2;
         
-        vColor = g_tHDRTarget0.Sample( PointSampler, vSamplePosition);
+        vColor = g_tHDRTarget0.Sample( LinearSampler, vSamplePosition);
         
         vSample += g_avSampleWeights[iSample]*vColor;
     }
     
-    return vSample;
+    return vSample / 1.2f;
 }
 
 float4 DOF_BloomV_PS( QuadVS_Output Input ) : SV_TARGET
@@ -1083,29 +1084,74 @@ float4 DOF_BloomV_PS( QuadVS_Output Input ) : SV_TARGET
     for( int iSample = 0; iSample < 15; iSample++ )
     {
         vSamplePosition = Input.Tex;
-        vSamplePosition.y += g_avSampleOffsets[iSample];
+        vSamplePosition.y += g_avSampleOffsets[iSample]/2;
         
-        vColor = g_tDOFTex1.Sample( PointSampler, vSamplePosition);
+        vColor = g_tDOFTex1.Sample( LinearSampler, vSamplePosition);
         
         vSample += g_avSampleWeights[iSample]*vColor;
     }
     
-    return vSample;
+    return vSample / 1.2f;
 }
 
 float4 DOF_Final_PS( QuadVS_Output Input ) : SV_TARGET
 {
-    float4 ColorOrg  = g_tHDRTarget0.Sample( PointSampler, Input.Tex);
-    float4 ColorBlur = g_tDOFTex2.Sample( PointSampler, Input.Tex);
+    float3 ColorOrg  = g_tHDRTarget0.Sample( PointSampler, Input.Tex).rgb;
+    float3 ColorBlur = g_tDOFTex2.Sample( LinearSampler, Input.Tex).rgb;
+ //    ColorBlur = float3(1,0,0);
+    float Blur = g_tDepth.Load(int3(Input.Pos.xy,0));
+    Blur = saturate(saturate(abs(Blur) - 0.999) / 0.0005);
 
-    float4 Blur = g_tDepth.Load(int3(Input.Tex.x,Input.Tex.y,0));
-  //float a =Blur;
-return Blur;
-//return float4(a,a,a,1);
-   //float Blur = dot( g_tDepth.Sample( PointSampler, Input.Tex), FocalPlane );
+    return float4(lerp( ColorOrg, ColorBlur, Blur ),1.f);
+}
 
-//    return float4(saturate(abs(Blur)),saturate(abs(Blur)),saturate(abs(Blur)),1);
-   // return lerp( ColorOrg, ColorBlur, saturate(abs(a)));
+float4 Motion_Blur_PS( QuadVS_Output Input ) : SV_TARGET
+{
+  
+
+    // Get the depth buffer value at this pixel.  
+    float zOverW = g_tDepth.Load(int3(Input.Pos.xy,0));
+    
+
+    // H is the viewport position at this pixel in the range -1 to 1.  
+    float4 H = float4(Input.Tex.x * 2 - 1, (1 - Input.Tex.y) * 2 - 1, zOverW, 1);  
+
+    // Transform by the view-projection inverse.  
+    float4 D = mul(H, g_mViewInv);  
+
+    // Divide by w to get the world position.  
+    float4 worldPos = D / D.w;  
+
+    // Current viewport position  
+    float4 currentPos = H;  
+
+    // Use the world position, and transform by the previous view-  
+    // projection matrix.  
+    float4 previousPos = mul(worldPos, g_mWorldViewProjectionLastFrame);  
+
+    // Convert to nonhomogeneous points [-1,1] by dividing by w.  
+    previousPos /= previousPos.w;  
+
+    // Use this frame's position and last frame's to compute the pixel  
+    // velocity.  
+    float2 velocity = (currentPos - previousPos)/9.f;  
+
+    // Get the initial color at this pixel.  
+    float4 color = g_tHDRTarget0.Sample( PointSampler, Input.Tex);
+    float2 texCoord = velocity + Input.Tex; 
+
+    int g_numSamples = 3;
+
+    [unroll] for(int i = 1; i < g_numSamples; ++i, texCoord += velocity)  
+    {  
+      // Sample the color buffer along the velocity vector.  
+      float4 currentColor = g_tHDRTarget0.Sample( PointSampler, texCoord); 
+
+      // Add the current color to our color sum.  
+      color += currentColor;  
+    }  
+    // Average all of the samples to get the final blur color.  
+    return color / g_numSamples;  
 }
 
 
@@ -1400,6 +1446,7 @@ technique10 DOF_BloomH
         SetGeometryShader( NULL );
         SetPixelShader( CompileShader( ps_4_0, DOF_BloomH_PS() ) );
         SetDepthStencilState( dssDisableDepthStencil, 0 );
+        SetBlendState( bsAlphaToCov , float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
     }
 }
 
@@ -1421,8 +1468,19 @@ technique10 DOF_Final
         SetVertexShader( CompileShader( vs_4_0, QuadVS() ) );
         SetGeometryShader( NULL );
         SetPixelShader( CompileShader( ps_4_0, DOF_Final_PS() ) );
-        SetBlendState( bsAlphaToCov , float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
+       // SetBlendState( bsAlphaToCov , float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
         //SetDepthStencilState( dssDisableDepthStencil, 0 );
+    }
+}
+
+technique10 Motion_Blur
+{
+    pass p0
+    {
+        SetVertexShader( CompileShader( vs_4_0, QuadVS() ) );
+        SetGeometryShader( NULL );
+        SetPixelShader( CompileShader( ps_4_0, Motion_Blur_PS() ) );
+        SetBlendState( bsAlphaToCov , float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
     }
 }
 
