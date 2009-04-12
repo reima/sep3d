@@ -1076,6 +1076,8 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
   g_pScene->Draw(g_pTechnique);
   DXUT_EndPerfEvent();
 
+  if (g_bPointEmitter) g_pPointEmitter->Draw();
+  if (g_bBoxEmitter) g_pBoxEmitter->Draw();
 
   //Motion Blur
 
@@ -1211,9 +1213,6 @@ void CALLBACK OnD3D10FrameRender(ID3D10Device* pd3dDevice, double fTime,
                         pBackBufDesc->Height);
   }
 
-  if (g_bPointEmitter) g_pPointEmitter->Draw();
-  if (g_bBoxEmitter) g_pBoxEmitter->Draw();
-  
   if (g_bWireframe) pd3dDevice->RSSetState(NULL);
 
   DXUT_BeginPerfEvent(DXUT_PERFEVENTCOLOR, L"HUD / Stats");

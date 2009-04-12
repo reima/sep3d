@@ -2029,17 +2029,10 @@ float4 ParticlePoint_PS( PARTICLE_POINT In ) : SV_Target
 float4 ParticleBillboard_PS( PARTICLE_BILLBOARD In ) : SV_Target
 {
   float4 vColor;
-  switch (In.Type) {
-    case PT_HIGHLIGHT:
-      vColor = g_tVulcanoHighlight.Sample(g_ssLinear, In.TexCoord);
-      break;
-    case PT_FIRE:
-    case PT_SMOKE:
-      vColor = g_tVulcanoFire.Sample(g_ssLinear, In.TexCoord);
-      break;
-    default:
-      vColor = 0;
-      break;
+  if (In.Type == PT_HIGHLIGHT) {
+    vColor = g_tVulcanoHighlight.Sample(g_ssLinear, In.TexCoord);
+  } else {
+    vColor = g_tVulcanoFire.Sample(g_ssLinear, In.TexCoord);
   }
   vColor *= In.Color;
   return vColor;
